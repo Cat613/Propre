@@ -38,6 +38,15 @@ export interface Slide {
     bibleReference?: string // e.g., "Gen 1:1"
 }
 
+// Bible Global Style Interface
+export interface BibleStyle {
+    fontSize: number
+    fontColor: string
+    bgColor: string
+    align: 'left' | 'center' | 'right'
+    verticalAlign: 'top' | 'center' | 'bottom'
+}
+
 // Presentation interface
 export interface Presentation {
     id: string
@@ -67,6 +76,14 @@ export interface MediaItem {
 export interface ActiveBackground {
     type: 'image' | 'video' | 'none'
     url?: string
+}
+
+// Output State Interface (Passed via IPC)
+export interface OutputState {
+    type: 'state-update'
+    slide: Slide | null
+    background: ActiveBackground
+    bibleStyle?: BibleStyle // New field for global bible style
 }
 
 // Stage Display Data

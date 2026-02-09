@@ -1,11 +1,20 @@
 import { create } from 'zustand'
-import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground } from './types'
+import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, BibleStyle } from './types'
 
 // Generate unique ID
 const generateId = () => crypto.randomUUID()
 
 // Initial dummy slides
 const initialSlides: Slide[] = []
+
+// Default Bible Style
+const defaultBibleStyle: BibleStyle = {
+    fontSize: 60,
+    fontColor: '#ffffff',
+    bgColor: '#1e3a8a', // Dark Blue
+    align: 'center',
+    verticalAlign: 'center'
+}
 
 // Store interface
 interface PresentationState {
@@ -21,6 +30,9 @@ interface PresentationState {
     // Media Bin & Layer State
     mediaBin: MediaItem[]
     activeBackground: ActiveBackground
+
+    // Bible State
+    bibleStyle: BibleStyle
 
     // Stage Display State
     isStageEnabled: boolean
@@ -53,6 +65,9 @@ interface PresentationState {
     clearText: () => void
     clearAll: () => void
 
+    // Bible Actions
+    updateBibleStyle: (style: Partial<BibleStyle>) => void
+
     // Stage Actions
     toggleStage: () => Promise<void>
 }
@@ -66,12 +81,13 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     playlist: [],
     mediaBin: [],
     activeBackground: { type: 'none' },
+    bibleStyle: defaultBibleStyle,
     isStageEnabled: false,
 
     // --- Editor Actions ---
 
     setActiveSlide: (id: string | null) => {
-        const { slides, activeBackground } = get()
+        const { slides, activeBackground, bibleStyle } = get()
 
         // ----------- 1. Main Output Logic -----------
         if (id === null) {
@@ -79,12 +95,10 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
             const outputData = {
                 type: 'state-update',
                 slide: null,
-                background: activeBackground // Keep current background
+                background: activeBackground, // Keep current background
+                bibleStyle // Always send latest bible style
             }
             window.ipcRenderer.send('update-output', JSON.stringify(outputData))
-
-            // Update Stage: Current is null, Next is? Let's say null or keep previous next?
-            // Usually cleared means cleared.
             window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
             return
         }
@@ -109,7 +123,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         const outputData = {
             type: 'state-update',
             slide: slide,
-            background: newBackground
+            background: newBackground,
+            bibleStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
 
@@ -307,13 +322,14 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         }
         set({ activeBackground: newBackground })
 
-        const { slides, activeSlideId } = get()
+        const { slides, activeSlideId, bibleStyle } = get()
         const activeSlide = slides.find(s => s.id === activeSlideId)
 
         const outputData = {
             type: 'state-update',
             slide: activeSlide || null,
-            background: newBackground
+            background: newBackground,
+            bibleStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
     },
@@ -322,25 +338,27 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         const newBackground: ActiveBackground = { type: 'none' }
         set({ activeBackground: newBackground })
 
-        const { slides, activeSlideId } = get()
+        const { slides, activeSlideId, bibleStyle } = get()
         const activeSlide = slides.find(s => s.id === activeSlideId)
 
         const outputData = {
             type: 'state-update',
             slide: activeSlide || null,
-            background: newBackground
+            background: newBackground,
+            bibleStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
     },
 
     clearText: () => {
         set({ activeSlideId: null })
-        const { activeBackground } = get()
+        const { activeBackground, bibleStyle } = get()
 
         const outputData = {
             type: 'state-update',
             slide: null,
-            background: activeBackground
+            background: activeBackground,
+            bibleStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
 
@@ -351,13 +369,42 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     clearAll: () => {
         set({ activeSlideId: null, activeBackground: { type: 'none' } })
 
+        const { bibleStyle } = get()
         const outputData = {
             type: 'state-update',
             slide: null,
-            background: { type: 'none' }
+            background: { type: 'none' },
+            bibleStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
         window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
+    },
+
+    // --- Bible Actions ---
+    updateBibleStyle: (style: Partial<BibleStyle>) => {
+        set(state => {
+            const newStyle = { ...state.bibleStyle, ...style }
+
+            // If a slide is active, we MUST re-send the update to output window
+            // so it reflects the style change immediately.
+            const { activeSlideId, slides, activeBackground } = state
+
+            // We can use get() here but we are inside setter callback 
+            // State merge hasn't happened yet? zustand setter merges state.
+            // Let's use get() in next tick or just construct data.
+
+            const activeSlide = slides.find(s => s.id === activeSlideId)
+
+            const outputData = {
+                type: 'state-update',
+                slide: activeSlide || null,
+                background: activeBackground,
+                bibleStyle: newStyle
+            }
+            window.ipcRenderer.send('update-output', JSON.stringify(outputData))
+
+            return { bibleStyle: newStyle }
+        })
     },
 
     toggleStage: async () => {
