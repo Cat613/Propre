@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, BibleStyle } from './types'
+import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, BibleStyle, GlobalSlideStyle } from './types'
 
 // Generate unique ID
 const generateId = () => crypto.randomUUID()
@@ -12,6 +12,15 @@ const defaultBibleStyle: BibleStyle = {
     fontSize: 60,
     fontColor: '#ffffff',
     bgColor: '#1e3a8a', // Dark Blue
+    align: 'center',
+    verticalAlign: 'center'
+}
+
+// Default Global Slide Style
+const defaultGlobalSlideStyle: GlobalSlideStyle = {
+    fontSize: 60,
+    fontColor: '#ffffff',
+    fontFamily: 'sans-serif',
     align: 'center',
     verticalAlign: 'center'
 }
@@ -33,6 +42,9 @@ interface PresentationState {
 
     // Bible State
     bibleStyle: BibleStyle
+
+    // Global Slide State
+    globalSlideStyle: GlobalSlideStyle
 
     // Stage Display State
     isStageEnabled: boolean
@@ -68,6 +80,9 @@ interface PresentationState {
     // Bible Actions
     updateBibleStyle: (style: Partial<BibleStyle>) => void
 
+    // Global Slide Actions
+    updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>) => void
+
     // Stage Actions
     toggleStage: () => Promise<void>
 }
@@ -82,6 +97,7 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     mediaBin: [],
     activeBackground: { type: 'none' },
     bibleStyle: defaultBibleStyle,
+    globalSlideStyle: defaultGlobalSlideStyle,
     isStageEnabled: false,
 
     // --- Editor Actions ---
@@ -96,7 +112,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
                 type: 'state-update',
                 slide: null,
                 background: activeBackground, // Keep current background
-                bibleStyle // Always send latest bible style
+                bibleStyle, // Always send latest bible style
+                globalSlideStyle: get().globalSlideStyle
             }
             window.ipcRenderer.send('update-output', JSON.stringify(outputData))
             window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
@@ -124,7 +141,8 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
             type: 'state-update',
             slide: slide,
             background: newBackground,
-            bibleStyle
+            bibleStyle,
+            globalSlideStyle: get().globalSlideStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
 
@@ -324,14 +342,15 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         }
         set({ activeBackground: newBackground })
 
-        const { slides, activeSlideId, bibleStyle } = get()
+        const { slides, activeSlideId, bibleStyle, globalSlideStyle } = get()
         const activeSlide = slides.find(s => s.id === activeSlideId)
 
         const outputData = {
             type: 'state-update',
             slide: activeSlide || null,
             background: newBackground,
-            bibleStyle
+            bibleStyle,
+            globalSlideStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
     },
@@ -340,27 +359,29 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
         const newBackground: ActiveBackground = { type: 'none' }
         set({ activeBackground: newBackground })
 
-        const { slides, activeSlideId, bibleStyle } = get()
+        const { slides, activeSlideId, bibleStyle, globalSlideStyle } = get()
         const activeSlide = slides.find(s => s.id === activeSlideId)
 
         const outputData = {
             type: 'state-update',
             slide: activeSlide || null,
             background: newBackground,
-            bibleStyle
+            bibleStyle,
+            globalSlideStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
     },
 
     clearText: () => {
         set({ activeSlideId: null })
-        const { activeBackground, bibleStyle } = get()
+        const { activeBackground, bibleStyle, globalSlideStyle } = get()
 
         const outputData = {
             type: 'state-update',
             slide: null,
             background: activeBackground,
-            bibleStyle
+            bibleStyle,
+            globalSlideStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
 
@@ -371,12 +392,13 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
     clearAll: () => {
         set({ activeSlideId: null, activeBackground: { type: 'none' } })
 
-        const { bibleStyle } = get()
+        const { bibleStyle, globalSlideStyle } = get()
         const outputData = {
             type: 'state-update',
             slide: null,
             background: { type: 'none' },
-            bibleStyle
+            bibleStyle,
+            globalSlideStyle
         }
         window.ipcRenderer.send('update-output', JSON.stringify(outputData))
         window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
@@ -401,11 +423,32 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
                 type: 'state-update',
                 slide: activeSlide || null,
                 background: activeBackground,
-                bibleStyle: newStyle
+                bibleStyle: newStyle,
+                globalSlideStyle: get().globalSlideStyle
             }
             window.ipcRenderer.send('update-output', JSON.stringify(outputData))
 
             return { bibleStyle: newStyle }
+        })
+    },
+
+    updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>) => {
+        set(state => {
+            const newStyle = { ...state.globalSlideStyle, ...style }
+
+            const { activeSlideId, slides, activeBackground, bibleStyle } = state
+            const activeSlide = slides.find(s => s.id === activeSlideId)
+
+            const outputData = {
+                type: 'state-update',
+                slide: activeSlide || null,
+                background: activeBackground,
+                bibleStyle,
+                globalSlideStyle: newStyle
+            }
+            window.ipcRenderer.send('update-output', JSON.stringify(outputData))
+
+            return { globalSlideStyle: newStyle }
         })
     },
 

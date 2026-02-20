@@ -7,10 +7,11 @@ interface ScaledSlideProps {
     height?: number
     scale?: number
     overrideStyle?: React.CSSProperties
-    bibleStyleOverride?: BibleStyle // New prop
+    bibleStyleOverride?: BibleStyle
+    globalStyleOverride?: import('../types').GlobalSlideStyle
 }
 
-const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: manualScale, overrideStyle, bibleStyleOverride }) => {
+const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: manualScale, overrideStyle, bibleStyleOverride, globalStyleOverride }) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const textRef = useRef<HTMLDivElement>(null)
     const [scale, setScale] = useState(1)
@@ -51,7 +52,7 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
     useEffect(() => {
         // Reset autoFontSize when content or default styles change
         setAutoFontSize(null)
-    }, [slide.content, bibleStyleOverride, slide.styles?.fontSize])
+    }, [slide.content, bibleStyleOverride, globalStyleOverride, slide.styles?.fontSize])
 
     useEffect(() => {
         if (!textRef.current || !containerRef.current) return
@@ -97,6 +98,14 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
         verticalAlign: 'center'
     } as BibleStyle
 
+    const effectiveGlobalStyle = globalStyleOverride || {
+        fontSize: 60,
+        fontColor: '#ffffff',
+        fontFamily: 'sans-serif',
+        align: 'center',
+        verticalAlign: 'center'
+    } as import('../types').GlobalSlideStyle
+
     // Prepare background style
     const defaultBibleBg = effectiveBibleStyle.bgColor
 
@@ -109,11 +118,11 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
 
     // Prepare Text Styles
     // Use autoFontSize if it has been calculated (due to overflow)
-    const defaultFontSize = isBible ? `${effectiveBibleStyle.fontSize}px` : (slideStyles.fontSize || '4rem')
+    const defaultFontSize = isBible ? `${effectiveBibleStyle.fontSize}px` : (slideStyles.fontSize || `${effectiveGlobalStyle.fontSize}px`)
     const finalFontSize = autoFontSize ? `${autoFontSize}px` : defaultFontSize
 
-    const color = isBible ? effectiveBibleStyle.fontColor : (slideStyles.color || '#ffffff')
-    const textAlign = isBible ? effectiveBibleStyle.align : (slideStyles.textAlign || 'center')
+    const color = isBible ? effectiveBibleStyle.fontColor : (slideStyles.color || effectiveGlobalStyle.fontColor)
+    const textAlign = isBible ? effectiveBibleStyle.align : (slideStyles.textAlign || effectiveGlobalStyle.align)
 
     // Prepare Flex Alignment
     let justifyContent = 'center'
@@ -130,10 +139,18 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
         if (effectiveBibleStyle.verticalAlign === 'center') justifyContent = 'center'
         if (effectiveBibleStyle.verticalAlign === 'bottom') justifyContent = 'flex-end'
     } else {
-        // Default text centering
-        if (slideStyles.textAlign === 'left') justifyContent = 'flex-start' // Actually textAlign handles text, but flex handles container? 
-        // For standard slides, we usually center the block.
-        // Let's keep existing logic for non-bible
+        if (effectiveGlobalStyle.align === 'left') alignItems = 'flex-start'
+        if (effectiveGlobalStyle.align === 'center') alignItems = 'center'
+        if (effectiveGlobalStyle.align === 'right') alignItems = 'flex-end'
+
+        if (effectiveGlobalStyle.verticalAlign === 'top') justifyContent = 'flex-start'
+        if (effectiveGlobalStyle.verticalAlign === 'center') justifyContent = 'center'
+        if (effectiveGlobalStyle.verticalAlign === 'bottom') justifyContent = 'flex-end'
+
+        // Allow slideStyles to override local text align if present
+        if (slideStyles.textAlign === 'left') alignItems = 'flex-start'
+        if (slideStyles.textAlign === 'center') alignItems = 'center'
+        if (slideStyles.textAlign === 'right') alignItems = 'flex-end'
     }
 
     return (
@@ -190,7 +207,7 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                         color: color,
                         fontWeight: slideStyles.fontWeight || (isBible ? 'normal' : 'bold'),
                         textAlign: textAlign,
-                        fontFamily: slideStyles.fontFamily || (isBible ? '"Batang", "Times New Roman", serif' : 'sans-serif'),
+                        fontFamily: slideStyles.fontFamily || (isBible ? '"Batang", "Times New Roman", serif' : effectiveGlobalStyle.fontFamily),
                         whiteSpace: 'pre-wrap',
                         zIndex: 10,
                         width: '98%', // Use full width for text container

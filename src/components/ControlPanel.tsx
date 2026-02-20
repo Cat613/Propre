@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import LeftSidebar from './LeftSidebar'
 import SlideGrid from './SlideGrid'
 import PreviewPanel from './PreviewPanel'
+import GlobalStylePanel from './GlobalStylePanel'
 import ControlToolbar from './ControlToolbar'
 import MediaBin from './MediaBin'
 import { usePresentationStore } from '../store'
@@ -97,6 +98,7 @@ const ControlPanel: React.FC = () => {
             <aside className="w-80 bg-gray-900 border-l border-gray-800 flex-shrink-0 flex flex-col">
                 <div className="flex-1 overflow-y-auto">
                     <PreviewPanel />
+                    <GlobalStylePanel />
                 </div>
                 <ControlToolbar />
             </aside>

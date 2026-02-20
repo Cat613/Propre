@@ -17,6 +17,12 @@ export interface IpcRenderer {
 
     // New
     toggleStage: () => Promise<boolean>
+
+    // Display Management
+    getDisplays: () => Promise<{ id: number, label: string, bounds: { x: number, y: number, width: number, height: number } }[]>
+    getActiveDisplays: () => Promise<{ output: number | null, stage: number | null }>
+    setOutputDisplay: (displayId: number) => Promise<boolean>
+    setStageDisplay: (displayId: number) => Promise<boolean>
 }
 
 declare global {

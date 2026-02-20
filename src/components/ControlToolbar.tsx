@@ -1,6 +1,13 @@
+import { useEffect, useState } from 'react'
 import { usePresentationStore } from '../store'
 import type { Slide } from '../types'
 import AudioPlayer from './AudioPlayer'
+
+interface DisplayInfo {
+    id: number
+    label: string
+    bounds: { x: number, y: number, width: number, height: number }
+}
 
 const ControlToolbar: React.FC = () => {
     const {
@@ -12,6 +19,36 @@ const ControlToolbar: React.FC = () => {
         toggleStage,
         isStageEnabled
     } = usePresentationStore()
+
+    const [displays, setDisplays] = useState<DisplayInfo[]>([])
+    const [outputDisplay, setOutputDisplay] = useState<number | ''>('')
+    const [stageDisplay, setStageDisplay] = useState<number | ''>('')
+
+    useEffect(() => {
+        const fetchDisplays = async () => {
+            if (window.ipcRenderer.getDisplays) {
+                const list = await window.ipcRenderer.getDisplays()
+                setDisplays(list)
+
+                const active = await window.ipcRenderer.getActiveDisplays()
+                if (active.output) setOutputDisplay(active.output)
+                if (active.stage) setStageDisplay(active.stage)
+            }
+        }
+        fetchDisplays()
+    }, [])
+
+    const handleOutputDisplayChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = Number(e.target.value)
+        setOutputDisplay(val)
+        await window.ipcRenderer.setOutputDisplay(val)
+    }
+
+    const handleStageDisplayChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const val = Number(e.target.value)
+        setStageDisplay(val)
+        await window.ipcRenderer.setStageDisplay(val)
+    }
 
     const handleNewSlide = () => {
         const newSlide: Slide = {
@@ -99,8 +136,8 @@ const ControlToolbar: React.FC = () => {
                 <button
                     onClick={handleToggleStage}
                     className={`px-3 py-2 rounded-lg border transition-all flex items-center gap-2 ${isStageEnabled
-                            ? 'bg-green-700 hover:bg-green-600 border-green-500 text-white'
-                            : 'bg-gray-800 hover:bg-gray-700 border-gray-600 text-gray-400'
+                        ? 'bg-green-700 hover:bg-green-600 border-green-500 text-white'
+                        : 'bg-gray-800 hover:bg-gray-700 border-gray-600 text-gray-400'
                         }`}
                     title="스테이지 디스플레이 토글"
                 >
@@ -137,6 +174,38 @@ const ControlToolbar: React.FC = () => {
                     <span>미디어</span>
                 </button>
             </div>
+
+            {/* Middle Row 2: Display Selection */}
+            {displays.length > 0 && (
+                <div className="flex flex-col gap-1 p-2 bg-gray-800 rounded border border-gray-700">
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">Output 모니터:</span>
+                        <select
+                            className="bg-gray-700 text-white rounded px-1 min-w-[100px] py-0.5 outline-none"
+                            value={outputDisplay}
+                            onChange={handleOutputDisplayChange}
+                        >
+                            <option value="">자동 설정</option>
+                            {displays.map(d => (
+                                <option key={d.id} value={d.id}>{d.label} ({d.bounds.width}x{d.bounds.height})</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="flex items-center justify-between text-xs">
+                        <span className="text-gray-400">Stage 모니터:</span>
+                        <select
+                            className="bg-gray-700 text-white rounded px-1 min-w-[100px] py-0.5 outline-none"
+                            value={stageDisplay}
+                            onChange={handleStageDisplayChange}
+                        >
+                            <option value="">자동 설정</option>
+                            {displays.map(d => (
+                                <option key={d.id} value={d.id}>{d.label} ({d.bounds.width}x{d.bounds.height})</option>
+                            ))}
+                        </select>
+                    </div>
+                </div>
+            )}
 
             {/* Bottom Row: Output Control (Clear Buttons) */}
             <div className="grid grid-cols-3 gap-2">

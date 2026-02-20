@@ -47,6 +47,15 @@ export interface BibleStyle {
     verticalAlign: 'top' | 'center' | 'bottom'
 }
 
+// Global Slide Style Interface for regular standard slides
+export interface GlobalSlideStyle {
+    fontSize: number
+    fontColor: string
+    fontFamily: string
+    align: 'left' | 'center' | 'right'
+    verticalAlign: 'top' | 'center' | 'bottom'
+}
+
 // Presentation interface
 export interface Presentation {
     id: string
@@ -84,6 +93,7 @@ export interface OutputState {
     slide: Slide | null
     background: ActiveBackground
     bibleStyle?: BibleStyle // New field for global bible style
+    globalSlideStyle?: GlobalSlideStyle // New field for standard slide global style
 }
 
 // Stage Display Data

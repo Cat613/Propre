@@ -38,18 +38,30 @@ function createMainWindow() {
   }
 }
 
-function createOutputWindow() {
+function getTargetDisplay(storeKey: string) {
   const displays = screen.getAllDisplays()
+  const savedId = store.get(storeKey)
+  if (savedId) {
+    const found = displays.find(d => d.id === savedId)
+    if (found) return found
+  }
   const externalDisplay = displays.find((display) => display.bounds.x !== 0 || display.bounds.y !== 0)
-  const targetDisplay = externalDisplay || screen.getPrimaryDisplay()
+  return externalDisplay || screen.getPrimaryDisplay()
+}
+
+function createOutputWindow() {
+  const targetDisplay = getTargetDisplay('outputDisplayId')
+
+  if (outputWindow && !outputWindow.isDestroyed()) {
+    outputWindow.close()
+  }
 
   outputWindow = new BrowserWindow({
-    x: targetDisplay.bounds.x + 50,
-    y: targetDisplay.bounds.y + 50,
-    width: 800,
-    height: 600,
-    simpleFullscreen: process.platform === 'darwin',
-    fullscreen: process.platform !== 'darwin',
+    x: targetDisplay.bounds.x,
+    y: targetDisplay.bounds.y,
+    width: targetDisplay.bounds.width,
+    height: targetDisplay.bounds.height,
+    fullscreen: true,
     frame: false,
     backgroundColor: '#000000',
     webPreferences: {
@@ -66,12 +78,19 @@ function createOutputWindow() {
 }
 
 function createStageWindow() {
-  // Create Stage Window (initially hidden if preferred, but user said "toggle" so maybe just create on toggle or create hidden)
-  // Let's create hidden for faster toggle
+  const targetDisplay = getTargetDisplay('stageDisplayId')
+  const wasVisible = stageWindow && !stageWindow.isDestroyed() ? stageWindow.isVisible() : false
+
+  if (stageWindow && !stageWindow.isDestroyed()) {
+    stageWindow.close()
+  }
+
   stageWindow = new BrowserWindow({
+    x: targetDisplay.bounds.x + 100,
+    y: targetDisplay.bounds.y + 100,
     width: 800,
     height: 600,
-    show: false, // Initially hidden
+    show: wasVisible, // Keep previous visibility state
     frame: true, // Stage window might need move/resize
     backgroundColor: '#000000',
     webPreferences: {
@@ -137,10 +156,39 @@ app.whenReady().then(() => {
         return false
       } else {
         stageWindow.show()
+        // Ensure it's fullscreen or positioned correctly if needed, but stage is usually just a window
         return true
       }
     }
     return false
+  })
+
+  // IPC: Display Management
+  ipcMain.handle('get-displays', () => {
+    return screen.getAllDisplays().map(d => ({
+      id: d.id,
+      label: d.label || `Display ${d.id}`,
+      bounds: d.bounds
+    }))
+  })
+
+  ipcMain.handle('get-active-displays', () => {
+    return {
+      output: store.get('outputDisplayId'),
+      stage: store.get('stageDisplayId')
+    }
+  })
+
+  ipcMain.handle('set-output-display', (_event, displayId) => {
+    store.set('outputDisplayId', displayId)
+    createOutputWindow()
+    return true
+  })
+
+  ipcMain.handle('set-stage-display', (_event, displayId) => {
+    store.set('stageDisplayId', displayId)
+    createStageWindow()
+    return true
   })
 
   // IPC: File Dialog & Copy Media

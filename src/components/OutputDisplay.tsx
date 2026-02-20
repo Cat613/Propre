@@ -1,11 +1,12 @@
-import { useRef, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import ScaledSlide from './ScaledSlide'
 import { OutputState } from '../types'
 
 const OutputDisplay: React.FC = () => {
     const [currentSlide, setCurrentSlide] = useState<OutputState['slide']>(null)
     const [currentBackground, setCurrentBackground] = useState<OutputState['background']>({ type: 'none' })
-    const [bibleStyle, setBibleStyle] = useState<OutputState['bibleStyle']>() // New state for Bible Style
+    const [bibleStyle, setBibleStyle] = useState<OutputState['bibleStyle']>()
+    const [globalSlideStyle, setGlobalSlideStyle] = useState<OutputState['globalSlideStyle']>()
 
     useEffect(() => {
         // Listen for updates from main process
@@ -25,9 +26,11 @@ const OutputDisplay: React.FC = () => {
                     const state = parsed as OutputState
                     setCurrentSlide(state.slide)
                     setCurrentBackground(state.background || { type: 'none' })
-                    // Set Bible Style if present
                     if (state.bibleStyle) {
                         setBibleStyle(state.bibleStyle)
+                    }
+                    if (state.globalSlideStyle) {
+                        setGlobalSlideStyle(state.globalSlideStyle)
                     }
                 } else {
                     // Fallback for simple string content (if any legacy code remains)
@@ -80,7 +83,8 @@ const OutputDisplay: React.FC = () => {
                     <ScaledSlide
                         slide={currentSlide}
                         overrideStyle={{ backgroundColor: 'transparent', backgroundImage: 'none' }}
-                        bibleStyleOverride={bibleStyle} // Pass the global style
+                        bibleStyleOverride={bibleStyle}
+                        globalStyleOverride={globalSlideStyle}
                     />
                 ) : (
                     // Black screen when no slide

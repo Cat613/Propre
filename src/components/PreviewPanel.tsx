@@ -2,7 +2,7 @@ import { usePresentationStore } from '../store'
 import ScaledSlide from './ScaledSlide'
 
 const PreviewPanel: React.FC = () => {
-    const { activeSlideId, slides, bibleStyle } = usePresentationStore()
+    const { activeSlideId, slides, bibleStyle, globalSlideStyle } = usePresentationStore()
 
     const activeSlide = slides.find((s) => s.id === activeSlideId)
 
@@ -19,7 +19,8 @@ const PreviewPanel: React.FC = () => {
                     {activeSlide ? (
                         <ScaledSlide
                             slide={activeSlide}
-                            bibleStyleOverride={bibleStyle} // Pass the global style
+                            bibleStyleOverride={bibleStyle}
+                            globalStyleOverride={globalSlideStyle}
                         />
                     ) : (
                         <div className="w-full h-full flex items-center justify-center text-gray-600">

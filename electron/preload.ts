@@ -57,8 +57,12 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     getPlaylist: async () => ipcRenderer.invoke('get-playlist'),
     savePlaylist: async (playlist: any[]) => ipcRenderer.invoke('save-playlist', playlist),
 
-    // Stage API
-    invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args), // Genuine invoke access or explicit method
+    // Stage & Display API
+    getDisplays: async () => ipcRenderer.invoke('get-displays'),
+    getActiveDisplays: async () => ipcRenderer.invoke('get-active-displays'),
+    setOutputDisplay: async (displayId: number) => ipcRenderer.invoke('set-output-display', displayId),
+    setStageDisplay: async (displayId: number) => ipcRenderer.invoke('set-stage-display', displayId),
+    invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
     // Explicit is safer usually but user pattern used invoke directly in store.ts: window.ipcRenderer.invoke('toggle-stage')
     // Wait, let's check store.ts usage.
     // store.ts used: result = await window.ipcRenderer.invoke('toggle-stage')
