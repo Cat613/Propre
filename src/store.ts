@@ -296,10 +296,12 @@ export const usePresentationStore = create<PresentationState>((set, get) => ({
             const ext = file.split('.').pop()?.toLowerCase() || ''
             const type = ['mp4', 'mov', 'webm'].includes(ext) ? 'video' : 'image'
             const name = file.split(/[/\\]/).pop() || 'Unknown'
+            // Construct valid file:// URL for the frontend, ensuring proper slashes
+            const fileUrl = `file:///${file.replace(/\\/g, '/')}`
             return {
                 id: generateId(),
                 type,
-                url: `file://${file}`,
+                url: fileUrl,
                 name
             }
         })

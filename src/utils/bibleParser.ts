@@ -76,39 +76,44 @@ const BOOK_MAPPING: Record<string, string> = {
 interface ParsedBibleQuery {
     bookId: string | null
     chapter: number | null
-    verse: number | null
+    verseStart: number | null
+    verseEnd: number | null
     originalQuery: string
 }
 
 export const parseBibleQuery = (query: string): ParsedBibleQuery => {
     const trimmed = query.trim()
 
-    // Regex: [BookName] [Chapter][:Verse]
-    // Supports: 요 3:16, 요3:16, 요한복음 3 16, 창1
+    // Regex: [BookName] [Chapter][:VerseStart][-VerseEnd]
+    // Supports: 요 3:16, 요3:16-18, 요한복음 3 16, 창1
     // Group 1: Book Name (Hangul)
     // Group 2: Chapter (Digits)
-    // Group 3: Verse (Digits, Optional) - preceded by : or space
+    // Group 3: Verse Start (Digits, Optional)
+    // Group 4: Verse End (Digits, Optional)
 
-    const regex = /^([가-힣a-zA-Z0-9]+)\s*([0-9]+)(?:[:\s]([0-9]+))?$/
+    const regex = /^([가-힣a-zA-Z0-9]+)\s*([0-9]+)(?:[:\s]([0-9]+)(?:[-~]([0-9]+))?)?$/
     const match = trimmed.match(regex)
 
     if (!match) {
-        return { bookId: null, chapter: null, verse: null, originalQuery: query }
+        return { bookId: null, chapter: null, verseStart: null, verseEnd: null, originalQuery: query }
     }
 
     const bookRaw = match[1]
     const chapterRaw = match[2]
-    const verseRaw = match[3]
+    const verseStartRaw = match[3]
+    const verseEndRaw = match[4]
 
     // Resolve Book ID
     const bookId = BOOK_MAPPING[bookRaw] || null
     const chapter = parseInt(chapterRaw, 10)
-    const verse = verseRaw ? parseInt(verseRaw, 10) : null
+    const verseStart = verseStartRaw ? parseInt(verseStartRaw, 10) : null
+    const verseEnd = verseEndRaw ? parseInt(verseEndRaw, 10) : verseStart // Default to start if no end
 
     return {
         bookId,
         chapter,
-        verse,
+        verseStart,
+        verseEnd,
         originalQuery: query
     }
 }

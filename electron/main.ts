@@ -143,7 +143,7 @@ app.whenReady().then(() => {
     return false
   })
 
-  // IPC: File Dialog
+  // IPC: File Dialog & Copy Media
   ipcMain.handle('dialog:openFile', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openFile', 'multiSelections'],
@@ -151,7 +151,37 @@ app.whenReady().then(() => {
         { name: 'Media Files', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'mov', 'webm', 'mp3', 'wav'] },
       ],
     })
-    return result.canceled ? [] : result.filePaths
+
+    if (result.canceled || result.filePaths.length === 0) return []
+
+    // Ensure media directory exists in userData
+    const userDataPath = app.getPath('userData')
+    const mediaDir = path.join(userDataPath, 'media')
+    try {
+      await fs.mkdir(mediaDir, { recursive: true })
+    } catch (e) {
+      console.error('Failed to create media directory', e)
+    }
+
+    const copiedPaths: string[] = []
+
+    // Copy selected files to app's media directory
+    for (const filePath of result.filePaths) {
+      try {
+        const fileName = path.basename(filePath)
+        const timestamp = Date.now()
+        // Prevent name collisions by prefixing timestamp
+        const destFileName = `${timestamp}_${fileName}`
+        const destPath = path.join(mediaDir, destFileName)
+
+        await fs.copyFile(filePath, destPath)
+        copiedPaths.push(destPath)
+      } catch (err) {
+        console.error(`Failed to copy file from ${filePath}`, err)
+      }
+    }
+
+    return copiedPaths
   })
 
   // IPC: Save Project (File)

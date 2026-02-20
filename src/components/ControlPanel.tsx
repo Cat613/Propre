@@ -5,17 +5,21 @@ import PreviewPanel from './PreviewPanel'
 import ControlToolbar from './ControlToolbar'
 import MediaBin from './MediaBin'
 import { usePresentationStore } from '../store'
+import { useHotkeys } from '../hooks/useHotkeys'
 
 const ControlPanel: React.FC = () => {
-    const { slides, activeSlideId, setActiveSlide, loadLibrary, clearText, clearAll, clearBackground } = usePresentationStore()
+    const { slides, setActiveSlide, loadLibrary, clearText, clearAll, clearBackground } = usePresentationStore()
     const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+
+    // Use global hotkeys hook
+    useHotkeys()
 
     // Load library on startup
     useEffect(() => {
         loadLibrary()
     }, [loadLibrary])
 
-    // Keyboard navigation
+    // Number keys for quick slide selection (Specific to ControlPanel)
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             // Don't trigger if typing in input/textarea or modal is open
@@ -35,13 +39,11 @@ const ControlPanel: React.FC = () => {
                 if (index < slides.length) {
                     const targetSlide = slides[index]
                     setActiveSlide(targetSlide.id)
-                    // No need to send IPC here if setActiveSlide already handles it properly via store subscription or logic
-                    // But our store logic handles IPC, so we just call setActiveSlide
                 }
                 return
             }
 
-            // ProPresenter Standard Hotkeys
+            // Additional Control Panel specific hotkeys (F1, F2, F4)
             if (e.key === 'F1') {
                 e.preventDefault()
                 clearText()
@@ -49,34 +51,14 @@ const ControlPanel: React.FC = () => {
                 e.preventDefault()
                 clearAll()
             } else if (e.key === 'F4') {
-                // Some versions use F3/F4 differently, mapping F4 to Clear BG per user request
                 e.preventDefault()
                 clearBackground()
-            }
-
-            if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
-                e.preventDefault()
-                const currentIndex = slides.findIndex((s) => s.id === activeSlideId)
-                if (currentIndex < slides.length - 1) {
-                    setActiveSlide(slides[currentIndex + 1].id)
-                } else if (currentIndex === -1 && slides.length > 0) {
-                    setActiveSlide(slides[0].id)
-                }
-            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
-                e.preventDefault()
-                const currentIndex = slides.findIndex((s) => s.id === activeSlideId)
-                if (currentIndex > 0) {
-                    setActiveSlide(slides[currentIndex - 1].id)
-                }
-            } else if (e.key === 'Escape') {
-                // Default to Clear All for ESC
-                clearAll()
             }
         }
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [slides, activeSlideId, setActiveSlide, isEditModalOpen, clearText, clearAll, clearBackground])
+    }, [slides, isEditModalOpen, setActiveSlide, clearText, clearAll, clearBackground])
 
     return (
         <div className="flex h-screen bg-gray-900 text-gray-100">

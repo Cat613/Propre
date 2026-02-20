@@ -12,7 +12,9 @@ interface ScaledSlideProps {
 
 const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: manualScale, overrideStyle, bibleStyleOverride }) => {
     const containerRef = useRef<HTMLDivElement>(null)
+    const textRef = useRef<HTMLDivElement>(null)
     const [scale, setScale] = useState(1)
+    const [autoFontSize, setAutoFontSize] = useState<number | null>(null)
 
     useEffect(() => {
         if (manualScale) {
@@ -45,6 +47,42 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
         return () => window.removeEventListener('resize', updateScale)
     }, [width, height, manualScale])
 
+    // Auto-fit text logic
+    useEffect(() => {
+        // Reset autoFontSize when content or default styles change
+        setAutoFontSize(null)
+    }, [slide.content, bibleStyleOverride, slide.styles?.fontSize])
+
+    useEffect(() => {
+        if (!textRef.current || !containerRef.current) return
+
+        const checkOverflow = () => {
+            const textEl = textRef.current
+            if (!textEl) return
+
+            // Check if text element's scrollHeight exceeds its clientHeight
+            // Since our textEl has no fixed height but its parent (the 1920x1080 slide) does,
+            // we should measure against the available height. 
+            // In our layout, the text container is allowed to grow, so we check if it exceeds 1080 (minus padding).
+            const isBible = slide.type === 'bible'
+            const padding = isBible ? 120 : 0 // 60px padding top and bottom
+            const maxHeight = 1080 - padding
+
+            if (textEl.scrollHeight > maxHeight) {
+                // It overflows, we need to shrink font
+                const currentFontSizeStr = window.getComputedStyle(textEl).fontSize
+                const currentSize = parseFloat(currentFontSizeStr)
+
+                if (currentSize > 10) { // arbitrary minimum size
+                    setAutoFontSize(currentSize * 0.9) // Reduce by 10%
+                }
+            }
+        }
+
+        // Run overflow check
+        checkOverflow()
+    }, [slide.content, scale, autoFontSize, slide.type])
+
     // Default styles from slide
     const slideStyles = slide.styles || {}
     const isBible = slide.type === 'bible'
@@ -70,7 +108,10 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
     }
 
     // Prepare Text Styles
-    const fontSize = isBible ? `${effectiveBibleStyle.fontSize}px` : (slideStyles.fontSize || '4rem')
+    // Use autoFontSize if it has been calculated (due to overflow)
+    const defaultFontSize = isBible ? `${effectiveBibleStyle.fontSize}px` : (slideStyles.fontSize || '4rem')
+    const finalFontSize = autoFontSize ? `${autoFontSize}px` : defaultFontSize
+
     const color = isBible ? effectiveBibleStyle.fontColor : (slideStyles.color || '#ffffff')
     const textAlign = isBible ? effectiveBibleStyle.align : (slideStyles.textAlign || 'center')
 
@@ -143,8 +184,9 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
 
                 {/* Content */}
                 <div
+                    ref={textRef}
                     style={{
-                        fontSize: fontSize,
+                        fontSize: finalFontSize,
                         color: color,
                         fontWeight: slideStyles.fontWeight || (isBible ? 'normal' : 'bold'),
                         textAlign: textAlign,

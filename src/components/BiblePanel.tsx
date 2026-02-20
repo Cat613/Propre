@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BibleService, type BibleBook, type BibleVerse } from '../services/BibleService'
+import { BibleService, type BibleVerse } from '../services/BibleService'
 import { usePresentationStore } from '../store'
 import type { Slide } from '../types'
 import { parseBibleQuery } from '../utils/bibleParser'
@@ -27,26 +27,15 @@ const BiblePanel: React.FC = () => {
         try {
             const data = await BibleService.getVerses(parsed.bookId, parsed.chapter)
 
-            // Filter by verse if specified in query
+            // Filter by verse range if specified in query
             let resultVerses = data
-            if (parsed.verse) {
-                resultVerses = data.filter(v => v.reference.includes(`:${parsed.verse}`) || v.reference.endsWith(` ${parsed.verse}절`)) // Simple check, improvement needed for robust verse check
-                // The mock service returns "창 1:1" format.
-                // If query was "창 1:1", parsed.verse is 1.
-                // We can filter where reference ends with ":1" or ":01" etc.
-                // For now, let's just show the chapter and highlight or scroll to verse (not implemented)
-                // OR filter if specifically asked.
-                // User requirement: "Book -> Chapter -> Verses".
-                // If query is "Joh 3:16", usually one verse?
-                // Let's implement exact match filtering if verse is present.
-
-                if (parsed.verse) {
-                    resultVerses = data.filter(v => {
-                        // Clean reference: "창 1:1" -> split : -> 1
-                        const [_, vNum] = v.reference.split(':')
-                        return parseInt(vNum) === parsed.verse
-                    })
-                }
+            if (parsed.verseStart !== null && parsed.verseEnd !== null) {
+                resultVerses = data.filter(v => {
+                    // Clean reference: "창 1:1" -> split : -> 1
+                    const [_, vNum] = v.reference.split(':')
+                    const verseNum = parseInt(vNum)
+                    return verseNum >= parsed.verseStart! && verseNum <= parsed.verseEnd!
+                })
             }
 
             setVerses(resultVerses)
