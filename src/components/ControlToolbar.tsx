@@ -55,12 +55,7 @@ const ControlToolbar: React.FC = () => {
             id: crypto.randomUUID(),
             content: '텍스트를 입력하세요',
             type: 'text',
-            styles: {
-                fontSize: '4rem',
-                color: '#ffffff',
-                backgroundColor: '#000000',
-                textAlign: 'center',
-            },
+            styles: {},
             label: 'None',
             labelColor: 'transparent',
         }

@@ -22,6 +22,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
     const [backgroundUrl, setBackgroundUrl] = useState<string | undefined>(undefined)
     const [mediaType, setMediaType] = useState<Slide['type']>('text')
     const [label, setLabel] = useState<SlideLabel>('None')
+    const [useCustomStyle, setUseCustomStyle] = useState(false)
 
     useEffect(() => {
         if (slide) {
@@ -33,6 +34,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
             setBackgroundUrl(slide.backgroundUrl)
             setMediaType(slide.type)
             setLabel(slide.label || 'None')
+            setUseCustomStyle(slide.styles?.useCustomStyle || false)
         }
     }, [slide])
 
@@ -50,6 +52,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
                 fontSize: `${fontSize}rem`,
                 color,
                 backgroundColor,
+                useCustomStyle,
             } as SlideStyles,
         }
 
@@ -94,7 +97,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
         backgroundUrl,
         label,
         labelColor: LABEL_COLORS[label],
-        styles: { ...slide.styles, fontSize: `${fontSize}rem`, color, backgroundColor },
+        styles: { ...slide.styles, fontSize: `${fontSize}rem`, color, backgroundColor, useCustomStyle },
     }
 
     const getFileName = (url?: string) => {
@@ -137,8 +140,8 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
                                     key={opt}
                                     onClick={() => setLabel(opt)}
                                     className={`px-3 py-1.5 text-sm rounded-full border-2 font-medium ${label === opt
-                                            ? 'border-white text-white'
-                                            : 'border-gray-600 text-gray-400 hover:border-gray-500'
+                                        ? 'border-white text-white'
+                                        : 'border-gray-600 text-gray-400 hover:border-gray-500'
                                         }`}
                                     style={{
                                         backgroundColor: label === opt ? LABEL_COLORS[opt] : 'transparent',
@@ -183,29 +186,44 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
                     </div>
 
                     {/* Style Options */}
-                    <div className="grid grid-cols-3 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">폰트 크기 (rem)</label>
-                            <input
-                                type="number"
-                                value={fontSize}
-                                onChange={(e) => setFontSize(parseFloat(e.target.value) || 1)}
-                                min={1} max={20} step={0.5}
-                                className="w-full px-4 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white focus:ring-2 focus:ring-blue-500"
-                            />
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <label className="text-sm font-medium text-gray-300">스타일 설정</label>
+                            <label className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={useCustomStyle}
+                                    onChange={e => setUseCustomStyle(e.target.checked)}
+                                    className="w-4 h-4 text-blue-600 bg-gray-800 border-gray-600 rounded focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-400">전역 스타일 무시 (개별 폰트/색상 지정)</span>
+                            </label>
                         </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">글자 색상</label>
-                            <div className="flex items-center gap-2">
-                                <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-12 h-10 rounded border border-gray-600 cursor-pointer" />
-                                <input type="text" value={color} onChange={(e) => setColor(e.target.value)} className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm" />
+                        <div className="grid grid-cols-3 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">폰트 크기 (rem)</label>
+                                <input
+                                    type="number"
+                                    value={fontSize}
+                                    onChange={(e) => setFontSize(parseFloat(e.target.value) || 1)}
+                                    min={1} max={20} step={0.5}
+                                    disabled={!useCustomStyle}
+                                    className={`w-full px-4 py-2 border rounded-lg text-white focus:ring-2 focus:ring-blue-500 ${!useCustomStyle ? 'bg-gray-700 border-gray-600 opacity-50 cursor-not-allowed' : 'bg-gray-800 border-gray-600'}`}
+                                />
                             </div>
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-300 mb-2">배경 색상</label>
-                            <div className="flex items-center gap-2">
-                                <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="w-12 h-10 rounded border border-gray-600 cursor-pointer" />
-                                <input type="text" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm" />
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">글자 색상</label>
+                                <div className="flex items-center gap-2">
+                                    <input type="color" value={color} onChange={(e) => setColor(e.target.value)} disabled={!useCustomStyle} className={`w-12 h-10 rounded border border-gray-600 ${!useCustomStyle ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`} />
+                                    <input type="text" value={color} onChange={(e) => setColor(e.target.value)} disabled={!useCustomStyle} className={`flex-1 px-3 py-2 border rounded text-white text-sm ${!useCustomStyle ? 'bg-gray-700 border-gray-600 opacity-50 cursor-not-allowed' : 'bg-gray-800 border-gray-600'}`} />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-400 mb-2">배경 색상</label>
+                                <div className="flex items-center gap-2">
+                                    <input type="color" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="w-12 h-10 rounded border border-gray-600 cursor-pointer" />
+                                    <input type="text" value={backgroundColor} onChange={(e) => setBackgroundColor(e.target.value)} className="flex-1 px-3 py-2 bg-gray-800 border border-gray-600 rounded text-white text-sm" />
+                                </div>
                             </div>
                         </div>
                     </div>

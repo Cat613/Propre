@@ -6,6 +6,7 @@ export interface SlideStyles {
     fontWeight?: string
     textAlign?: 'left' | 'center' | 'right'
     fontFamily?: string
+    useCustomStyle?: boolean // Explicitly opt-in to local text style overrides
 }
 
 // Slide type union

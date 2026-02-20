@@ -37,9 +37,12 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
   deleteFromLibrary: async (id) => electron.ipcRenderer.invoke("delete-from-library", id),
   getPlaylist: async () => electron.ipcRenderer.invoke("get-playlist"),
   savePlaylist: async (playlist) => electron.ipcRenderer.invoke("save-playlist", playlist),
-  // Stage API
+  // Stage & Display API
+  getDisplays: async () => electron.ipcRenderer.invoke("get-displays"),
+  getActiveDisplays: async () => electron.ipcRenderer.invoke("get-active-displays"),
+  setOutputDisplay: async (displayId) => electron.ipcRenderer.invoke("set-output-display", displayId),
+  setStageDisplay: async (displayId) => electron.ipcRenderer.invoke("set-stage-display", displayId),
   invoke: (channel, ...args) => electron.ipcRenderer.invoke(channel, ...args),
-  // Genuine invoke access or explicit method
   // Explicit is safer usually but user pattern used invoke directly in store.ts: window.ipcRenderer.invoke('toggle-stage')
   // Wait, let's check store.ts usage.
   // store.ts used: result = await window.ipcRenderer.invoke('toggle-stage')

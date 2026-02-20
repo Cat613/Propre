@@ -117,12 +117,22 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
     }
 
     // Prepare Text Styles
-    // Use autoFontSize if it has been calculated (due to overflow)
-    const defaultFontSize = isBible ? `${effectiveBibleStyle.fontSize}px` : (slideStyles.fontSize || `${effectiveGlobalStyle.fontSize}px`)
+    // Check if the slide opts in to custom local styles
+    const useCustomStyle = slideStyles.useCustomStyle === true
+
+    const defaultFontSize = isBible
+        ? `${effectiveBibleStyle.fontSize}px`
+        : (useCustomStyle && slideStyles.fontSize ? slideStyles.fontSize : `${effectiveGlobalStyle.fontSize}px`)
+
     const finalFontSize = autoFontSize ? `${autoFontSize}px` : defaultFontSize
 
-    const color = isBible ? effectiveBibleStyle.fontColor : (slideStyles.color || effectiveGlobalStyle.fontColor)
-    const textAlign = isBible ? effectiveBibleStyle.align : (slideStyles.textAlign || effectiveGlobalStyle.align)
+    const color = isBible
+        ? effectiveBibleStyle.fontColor
+        : (useCustomStyle && slideStyles.color ? slideStyles.color : effectiveGlobalStyle.fontColor)
+
+    const textAlign = isBible
+        ? effectiveBibleStyle.align
+        : (useCustomStyle && slideStyles.textAlign ? slideStyles.textAlign : effectiveGlobalStyle.align)
 
     // Prepare Flex Alignment
     let justifyContent = 'center'
@@ -139,18 +149,16 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
         if (effectiveBibleStyle.verticalAlign === 'center') justifyContent = 'center'
         if (effectiveBibleStyle.verticalAlign === 'bottom') justifyContent = 'flex-end'
     } else {
-        if (effectiveGlobalStyle.align === 'left') alignItems = 'flex-start'
-        if (effectiveGlobalStyle.align === 'center') alignItems = 'center'
-        if (effectiveGlobalStyle.align === 'right') alignItems = 'flex-end'
+        const hAlign = useCustomStyle && slideStyles.textAlign ? slideStyles.textAlign : effectiveGlobalStyle.align
+        const vAlign = effectiveGlobalStyle.verticalAlign
 
-        if (effectiveGlobalStyle.verticalAlign === 'top') justifyContent = 'flex-start'
-        if (effectiveGlobalStyle.verticalAlign === 'center') justifyContent = 'center'
-        if (effectiveGlobalStyle.verticalAlign === 'bottom') justifyContent = 'flex-end'
+        if (hAlign === 'left') alignItems = 'flex-start'
+        if (hAlign === 'center') alignItems = 'center'
+        if (hAlign === 'right') alignItems = 'flex-end'
 
-        // Allow slideStyles to override local text align if present
-        if (slideStyles.textAlign === 'left') alignItems = 'flex-start'
-        if (slideStyles.textAlign === 'center') alignItems = 'center'
-        if (slideStyles.textAlign === 'right') alignItems = 'flex-end'
+        if (vAlign === 'top') justifyContent = 'flex-start'
+        if (vAlign === 'center') justifyContent = 'center'
+        if (vAlign === 'bottom') justifyContent = 'flex-end'
     }
 
     return (
@@ -207,7 +215,7 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                         color: color,
                         fontWeight: slideStyles.fontWeight || (isBible ? 'normal' : 'bold'),
                         textAlign: textAlign,
-                        fontFamily: slideStyles.fontFamily || (isBible ? '"Batang", "Times New Roman", serif' : effectiveGlobalStyle.fontFamily),
+                        fontFamily: useCustomStyle && slideStyles.fontFamily ? slideStyles.fontFamily : (isBible ? '"Batang", "Times New Roman", serif' : effectiveGlobalStyle.fontFamily),
                         whiteSpace: 'pre-wrap',
                         zIndex: 10,
                         width: '98%', // Use full width for text container
