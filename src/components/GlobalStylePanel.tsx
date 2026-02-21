@@ -102,6 +102,23 @@ const GlobalStylePanel: React.FC = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Background Dimming */}
+                <div>
+                    <div className="flex items-center justify-between mb-1 text-xs text-gray-500">
+                        <label>배경 어둡기 (전역)</label>
+                        <span>{Math.round((globalSlideStyle.backgroundDim || 0) * 100)}%</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={globalSlideStyle.backgroundDim || 0}
+                        onChange={(e) => updateGlobalSlideStyle({ backgroundDim: parseFloat(e.target.value) })}
+                        className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                    />
+                </div>
             </div>
         </div>
     )

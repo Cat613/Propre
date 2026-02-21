@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePresentationStore } from '../store'
 import type { Slide } from '../types'
 import EditModal from './EditModal'
@@ -32,7 +32,8 @@ const SortableSlideCard: React.FC<{
     onSlideClick: () => void
     onEditClick: (e: React.MouseEvent) => void
     onDeleteClick: (e: React.MouseEvent) => void
-}> = ({ slide, index, isActive, onSlideClick, onEditClick, onDeleteClick }) => {
+    onSaveEdit: (id: string, updates: Partial<Slide>) => void
+}> = ({ slide, index, isActive, onSlideClick, onEditClick, onDeleteClick, onSaveEdit }) => {
     const {
         attributes,
         listeners,
@@ -49,6 +50,39 @@ const SortableSlideCard: React.FC<{
     }
 
     const labelColor = slide.labelColor || 'transparent'
+
+    const [isEditing, setIsEditing] = useState(false)
+    const [editText, setEditText] = useState(slide.content)
+
+    useEffect(() => {
+        setEditText(slide.content)
+    }, [slide.content])
+
+    const handleDoubleClick = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        setIsEditing(true)
+    }
+
+    const handleSave = () => {
+        setIsEditing(false)
+        if (editText !== slide.content) {
+            onSaveEdit(slide.id, { content: editText }) // Optimistic local UI update
+
+            // Also need to push IPC update if it's the active slide
+            if (isActive) {
+                window.ipcRenderer.send('update-output', JSON.stringify({ ...slide, content: editText }))
+            }
+        }
+    }
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            handleSave()
+        } else if (e.key === 'Escape') {
+            setEditText(slide.content)
+            setIsEditing(false)
+        }
+    }
 
     return (
         <div
@@ -104,12 +138,26 @@ const SortableSlideCard: React.FC<{
                 </button>
 
                 {/* Clickable overlay */}
-                <div onClick={onSlideClick} className="absolute inset-0 z-0" />
+                {!isEditing && <div onClick={onSlideClick} onDoubleClick={handleDoubleClick} className="absolute inset-0 z-0" />}
 
-                {/* Slide Content Preview */}
-                <p className="text-xs text-gray-200 line-clamp-2 whitespace-pre-line mt-5 relative z-0 pointer-events-none">
-                    {slide.content || (slide.backgroundUrl ? '(미디어)' : '(빈 슬라이드)')}
-                </p>
+                {/* Slide Content Preview or Editor */}
+                {isEditing ? (
+                    <textarea
+                        autoFocus
+                        value={editText}
+                        onChange={e => setEditText(e.target.value)}
+                        onBlur={handleSave}
+                        onKeyDown={handleKeyDown}
+                        onClick={e => e.stopPropagation()}
+                        onPointerDown={e => e.stopPropagation()} // Prevent DnD dragging
+                        className="absolute inset-0 z-20 w-full h-full p-2 pt-8 pb-6 text-xs bg-gray-800 text-white resize-none outline-none border-2 border-blue-500 rounded-lg shadow-xl"
+                        placeholder="텍스트 입력 (Cmd+Enter 저장)"
+                    />
+                ) : (
+                    <p className="text-xs text-gray-200 line-clamp-2 whitespace-pre-line mt-5 relative z-0 pointer-events-none">
+                        {slide.content || (slide.backgroundUrl ? '(미디어)' : '(빈 슬라이드)')}
+                    </p>
+                )}
 
                 {/* Label Badge */}
                 {slide.label && slide.label !== 'None' && (
@@ -195,6 +243,7 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
                                     onSlideClick={() => handleSlideClick(slide)}
                                     onEditClick={(e) => handleEditClick(e, slide)}
                                     onDeleteClick={(e) => handleDeleteClick(e, slide.id)}
+                                    onSaveEdit={handleSaveEdit}
                                 />
                             ))}
                         </div>

@@ -20,6 +20,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
     const [color, setColor] = useState('#ffffff')
     const [backgroundColor, setBackgroundColor] = useState('#000000')
     const [backgroundUrl, setBackgroundUrl] = useState<string | undefined>(undefined)
+    const [backgroundDim, setBackgroundDim] = useState(0)
     const [mediaType, setMediaType] = useState<Slide['type']>('text')
     const [label, setLabel] = useState<SlideLabel>('None')
     const [useCustomStyle, setUseCustomStyle] = useState(false)
@@ -32,6 +33,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
             setColor(slide.styles?.color || '#ffffff')
             setBackgroundColor(slide.styles?.backgroundColor || '#000000')
             setBackgroundUrl(slide.backgroundUrl)
+            setBackgroundDim(slide.styles?.backgroundDim || 0)
             setMediaType(slide.type)
             setLabel(slide.label || 'None')
             setUseCustomStyle(slide.styles?.useCustomStyle || false)
@@ -52,6 +54,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
                 fontSize: `${fontSize}rem`,
                 color,
                 backgroundColor,
+                backgroundDim,
                 useCustomStyle,
             } as SlideStyles,
         }
@@ -97,7 +100,7 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
         backgroundUrl,
         label,
         labelColor: LABEL_COLORS[label],
-        styles: { ...slide.styles, fontSize: `${fontSize}rem`, color, backgroundColor, useCustomStyle },
+        styles: { ...slide.styles, fontSize: `${fontSize}rem`, color, backgroundColor, backgroundDim, useCustomStyle },
     }
 
     const getFileName = (url?: string) => {
@@ -170,6 +173,23 @@ const EditModal: React.FC<EditModalProps> = ({ isOpen, onClose, slide, onSave })
                             {backgroundUrl && (
                                 <button onClick={handleRemoveBackground} className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded">제거</button>
                             )}
+                        </div>
+
+                        {/* Background Dim Slider */}
+                        <div className="mt-3">
+                            <div className="flex items-center justify-between mb-1 text-sm text-gray-400">
+                                <span>배경 어둡기</span>
+                                <span>{Math.round(backgroundDim * 100)}%</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value={backgroundDim}
+                                onChange={(e) => setBackgroundDim(parseFloat(e.target.value))}
+                                className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            />
                         </div>
                     </div>
 

@@ -1,8 +1,8 @@
-// Slide styles interface
 export interface SlideStyles {
     fontSize?: string
     color?: string
     backgroundColor?: string
+    backgroundDim?: number // Opacity for black overlay (0 to 1)
     fontWeight?: string
     textAlign?: 'left' | 'center' | 'right'
     fontFamily?: string
@@ -55,6 +55,7 @@ export interface GlobalSlideStyle {
     fontFamily: string
     align: 'left' | 'center' | 'right'
     verticalAlign: 'top' | 'center' | 'bottom'
+    backgroundDim?: number // Global opacity for black overlay (0 to 1)
 }
 
 // Presentation interface

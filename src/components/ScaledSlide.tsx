@@ -193,6 +193,23 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                     />
                 )}
 
+                {/* Background Dimmer Layer */}
+                {(() => {
+                    const dimValue = (useCustomStyle && slideStyles.backgroundDim !== undefined)
+                        ? slideStyles.backgroundDim
+                        : effectiveGlobalStyle.backgroundDim || 0;
+
+                    if (dimValue > 0) {
+                        return (
+                            <div
+                                className="absolute inset-0 w-full h-full z-0 pointer-events-none"
+                                style={{ backgroundColor: `rgba(0, 0, 0, ${dimValue})` }}
+                            />
+                        );
+                    }
+                    return null;
+                })()}
+
                 {/* Bible Reference (Top Left) - Only if not overridden by alignment? 
                     User asked for "Top Left Small Reference". 
                     If we align content to bottom right, reference should stay Top Left? 

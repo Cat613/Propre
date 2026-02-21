@@ -1,12 +1,13 @@
-import type { Slide } from '../types'
+import type { Slide, GlobalSlideStyle } from '../types'
 
 interface SlideRendererProps {
     slide: Slide | null
     className?: string
     scale?: number // Scale factor for preview (e.g., 0.2 for small preview)
+    globalSlideStyle?: GlobalSlideStyle
 }
 
-const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, className = '', scale }) => {
+const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, className = '', scale, globalSlideStyle }) => {
     if (!slide) {
         return (
             <div className={`w-full h-full bg-black ${className}`} />
@@ -58,6 +59,24 @@ const SlideRenderer: React.FC<SlideRendererProps> = ({ slide, className = '', sc
                     style={{ backgroundColor: slide.styles?.backgroundColor || '#000000' }}
                 />
             )}
+
+            {/* Background Dimmer Layer */}
+            {(() => {
+                const useCustomStyle = slide.styles?.useCustomStyle === true;
+                const dimValue = (useCustomStyle && slide.styles?.backgroundDim !== undefined)
+                    ? slide.styles.backgroundDim
+                    : globalSlideStyle?.backgroundDim || 0;
+
+                if (dimValue > 0) {
+                    return (
+                        <div
+                            className="absolute inset-0 z-0 pointer-events-none"
+                            style={{ backgroundColor: `rgba(0, 0, 0, ${dimValue})` }}
+                        />
+                    );
+                }
+                return null;
+            })()}
 
             {/* Text Layer (Layer 2) */}
             {slide.content && (

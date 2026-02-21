@@ -22,7 +22,8 @@ const defaultGlobalSlideStyle: GlobalSlideStyle = {
     fontColor: '#ffffff',
     fontFamily: 'sans-serif',
     align: 'center',
-    verticalAlign: 'center'
+    verticalAlign: 'center',
+    backgroundDim: 0
 }
 
 // Store interface

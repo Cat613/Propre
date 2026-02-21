@@ -2,7 +2,7 @@ import { usePresentationStore } from '../store'
 import ScaledSlide from './ScaledSlide'
 
 const PreviewPanel: React.FC = () => {
-    const { activeSlideId, slides, bibleStyle, globalSlideStyle } = usePresentationStore()
+    const { activeSlideId, slides, bibleStyle, globalSlideStyle, activeBackground } = usePresentationStore()
 
     const activeSlide = slides.find((s) => s.id === activeSlideId)
 
@@ -16,17 +16,31 @@ const PreviewPanel: React.FC = () => {
 
             <div className="flex-1 p-4 flex items-center justify-center bg-gray-900 overflow-hidden">
                 <div className="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-2xl relative border border-gray-800">
-                    {activeSlide ? (
-                        <ScaledSlide
-                            slide={activeSlide}
-                            bibleStyleOverride={bibleStyle}
-                            globalStyleOverride={globalSlideStyle}
-                        />
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center text-gray-600">
-                            <span className="text-sm">송출 대기 중</span>
-                        </div>
-                    )}
+                    {/* Background Layer */}
+                    <div className="absolute inset-0 z-0">
+                        {activeBackground.type === 'image' && activeBackground.url && (
+                            <img src={activeBackground.url} className="w-full h-full object-cover" alt="Background" />
+                        )}
+                        {activeBackground.type === 'video' && activeBackground.url && (
+                            <video src={activeBackground.url} className="w-full h-full object-cover" autoPlay loop muted />
+                        )}
+                    </div>
+
+                    {/* Slide Content Layer */}
+                    <div className="absolute inset-0 z-10">
+                        {activeSlide ? (
+                            <ScaledSlide
+                                slide={activeSlide}
+                                overrideStyle={{ backgroundColor: 'transparent', backgroundImage: 'none' }}
+                                bibleStyleOverride={bibleStyle}
+                                globalStyleOverride={globalSlideStyle}
+                            />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">
+                                <span className={activeBackground.url ? "opacity-0" : ""}>송출 대기 중</span>
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
