@@ -1,5 +1,5 @@
 // Standard Short Korean Names used in the JSON (e.g., 창, 출, 마)
-const BOOK_MAPPING: Record<string, string> = {
+export const BOOK_MAPPING: Record<string, string> = {
     // Old Testament (구약)
     '창': '창', '창세기': '창',
     '출': '출', '출애굽기': '출',
@@ -44,7 +44,7 @@ const BOOK_MAPPING: Record<string, string> = {
     // New Testament (신약)
     '마': '마', '마태복음': '마',
     '막': '막', '마가복음': '막',
-    '누': '누', '누가복음': '누',
+    '누': '눅', '눅': '눅', '누가복음': '눅',
     '요': '요', '요한복음': '요',
     '행': '행', '사도행전': '행',
     '롬': '롬', '로마서': '롬',

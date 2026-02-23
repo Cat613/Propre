@@ -1,16 +1,78 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { BibleService, type BibleVerse } from '../services/BibleService'
 import { usePresentationStore } from '../store'
 import type { Slide } from '../types'
-import { parseBibleQuery } from '../utils/bibleParser'
+import { parseBibleQuery, BOOK_MAPPING } from '../utils/bibleParser'
+
+interface BibleBookOption {
+    fullName: string
+    shortName: string
+    display: string
+}
+
+// Extract a list of standard book names for autocomplete
+const BIBLE_BOOKS: BibleBookOption[] = Object.entries(BOOK_MAPPING)
+    .filter(([key, value]) => key !== value)
+    .map(([fullName, shortName]) => ({
+        fullName,
+        shortName,
+        display: `${fullName}(${shortName})`
+    }))
 
 const BiblePanel: React.FC = () => {
-    const { setActiveSlide, bibleStyle, updateBibleStyle, setSlides } = usePresentationStore()
+    const { setActiveSlide, setSlides } = usePresentationStore()
 
     const [query, setQuery] = useState('')
     const [verses, setVerses] = useState<BibleVerse[]>([])
     const [isLoading, setIsLoading] = useState(false)
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+    // Autocomplete state
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+    const [filteredBooks, setFilteredBooks] = useState<BibleBookOption[]>([])
+    const inputRef = useRef<HTMLInputElement>(null)
+    const dropdownRef = useRef<HTMLUListElement>(null)
+
+    // Handle clicking outside the dropdown to close it
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (
+                dropdownRef.current &&
+                !dropdownRef.current.contains(e.target as Node) &&
+                inputRef.current &&
+                !inputRef.current.contains(e.target as Node)
+            ) {
+                setIsDropdownOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
+
+    const handleQueryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value
+        setQuery(val)
+
+        // Only show autocomplete if no numbers/spaces exist yet (meaning they are typing the book name)
+        if (val && !/[\d\s]/.test(val)) {
+            // Find books that contain the typed characters
+            // Try prefix match first, then includes match
+            const books = BIBLE_BOOKS.filter(b => b.fullName.includes(val) || b.shortName.includes(val))
+            setFilteredBooks(books)
+            setIsDropdownOpen(books.length > 0)
+        } else if (!val) {
+            // If empty, show full list
+            setFilteredBooks(BIBLE_BOOKS)
+            setIsDropdownOpen(true)
+        } else {
+            setIsDropdownOpen(false)
+        }
+    }
+
+    const selectBook = (book: BibleBookOption) => {
+        setQuery(`${book.fullName} `) // Append space automatically
+        setIsDropdownOpen(false)
+        inputRef.current?.focus()
+    }
 
     const handleSearch = async (e?: React.FormEvent) => {
         e?.preventDefault()
@@ -66,93 +128,22 @@ const BiblePanel: React.FC = () => {
 
     return (
         <div className="flex flex-col h-full">
-            {/* Style Settings Toggle */}
-            <div className="bg-gray-900 border-b border-gray-800 px-3 py-1">
-                <button
-                    onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                    className="text-[10px] text-gray-500 hover:text-gray-300 flex items-center gap-1 w-full justify-center"
-                >
-                    {isSettingsOpen ? 'Hide Styles ▲' : 'Show Bible Styles ▼'}
-                </button>
-            </div>
-
-            {/* Style Panel */}
-            {isSettingsOpen && (
-                <div className="p-3 bg-gray-800 border-b border-gray-700 space-y-3">
-                    {/* Font Size */}
-                    <div className="space-y-1">
-                        <label className="text-[10px] text-gray-400">Font Size: {bibleStyle.fontSize}px</label>
-                        <input
-                            type="range" min="30" max="150"
-                            value={bibleStyle.fontSize}
-                            onChange={(e) => updateBibleStyle({ fontSize: parseInt(e.target.value) })}
-                            className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer"
-                        />
-                    </div>
-
-                    {/* Alignment */}
-                    <div className="flex justify-between items-center text-gray-300 text-xs">
-                        <span>H-Align:</span>
-                        <div className="flex bg-gray-700 rounded overflow-hidden">
-                            {(['left', 'center', 'right'] as const).map(align => (
-                                <button
-                                    key={align}
-                                    onClick={() => updateBibleStyle({ align })}
-                                    className={`px-2 py-1 ${bibleStyle.align === align ? 'bg-blue-600 text-white' : 'hover:bg-gray-600'}`}
-                                >
-                                    {align[0].toUpperCase()}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    <div className="flex justify-between items-center text-gray-300 text-xs">
-                        <span>V-Align:</span>
-                        <div className="flex bg-gray-700 rounded overflow-hidden">
-                            {(['top', 'center', 'bottom'] as const).map(align => (
-                                <button
-                                    key={align}
-                                    onClick={() => updateBibleStyle({ verticalAlign: align })}
-                                    className={`px-2 py-1 ${bibleStyle.verticalAlign === align ? 'bg-blue-600 text-white' : 'hover:bg-gray-600'}`}
-                                >
-                                    {align[0].toUpperCase()}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Colors */}
-                    <div className="flex gap-2">
-                        <div className="flex-1 space-y-1">
-                            <label className="text-[10px] text-gray-400 block">Text</label>
-                            <input
-                                type="color"
-                                value={bibleStyle.fontColor}
-                                onChange={(e) => updateBibleStyle({ fontColor: e.target.value })}
-                                className="w-full h-6 rounded cursor-pointer"
-                            />
-                        </div>
-                        <div className="flex-1 space-y-1">
-                            <label className="text-[10px] text-gray-400 block">Bg</label>
-                            <input
-                                type="color"
-                                value={bibleStyle.bgColor}
-                                onChange={(e) => updateBibleStyle({ bgColor: e.target.value })}
-                                className="w-full h-6 rounded cursor-pointer"
-                            />
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Search Input */}
-            <div className="p-3 bg-gray-900 border-b border-gray-800">
-                <form onSubmit={handleSearch} className="flex gap-2">
+            {/* Search Input Area */}
+            <div className="p-3 bg-gray-900 border-b border-gray-800 relative">
+                <form onSubmit={handleSearch} className="flex gap-2 relative">
                     <input
+                        ref={inputRef}
                         type="text"
                         className="flex-1 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:border-blue-500 outline-none text-sm placeholder-gray-500"
                         placeholder="예: 요 3:16, 창 1"
                         value={query}
-                        onChange={(e) => setQuery(e.target.value)}
+                        onChange={handleQueryChange}
+                        onFocus={() => {
+                            if (!query || !/[\d\s]/.test(query)) {
+                                setFilteredBooks(query ? BIBLE_BOOKS.filter(b => b.fullName.includes(query) || b.shortName.includes(query)) : BIBLE_BOOKS)
+                                setIsDropdownOpen(true)
+                            }
+                        }}
                     />
                     <button
                         type="submit"
@@ -161,6 +152,24 @@ const BiblePanel: React.FC = () => {
                     >
                         Go
                     </button>
+
+                    {/* Autocomplete Dropdown */}
+                    {isDropdownOpen && filteredBooks.length > 0 && (
+                        <ul
+                            ref={dropdownRef}
+                            className="absolute top-full left-0 right-14 mt-1 bg-gray-800 border border-gray-700 rounded shadow-2xl z-50 max-h-48 overflow-y-auto"
+                        >
+                            {filteredBooks.map((book) => (
+                                <li
+                                    key={book.fullName}
+                                    onClick={() => selectBook(book)}
+                                    className="px-3 py-2 text-sm text-gray-200 hover:bg-blue-600 hover:text-white cursor-pointer transition-colors"
+                                >
+                                    {book.display}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
                 </form>
             </div>
 

@@ -2,7 +2,7 @@ import { usePresentationStore } from '../store'
 import ScaledSlide from './ScaledSlide'
 
 const PreviewPanel: React.FC = () => {
-    const { activeSlideId, slides, bibleStyle, globalSlideStyle, activeBackground } = usePresentationStore()
+    const { activeSlideId, slides, globalSlideStyle, activeBackground } = usePresentationStore()
 
     const activeSlide = slides.find((s) => s.id === activeSlideId)
 
@@ -24,6 +24,25 @@ const PreviewPanel: React.FC = () => {
                         {activeBackground.type === 'video' && activeBackground.url && (
                             <video src={activeBackground.url} className="w-full h-full object-cover" autoPlay loop muted />
                         )}
+
+                        {/* Full-screen Background Dimmer Layer for Preview */}
+                        {(() => {
+                            if (!activeSlide) return null;
+                            const useCustomStyle = activeSlide.styles?.useCustomStyle === true;
+                            const dimValue = (useCustomStyle && activeSlide.styles?.backgroundDim !== undefined)
+                                ? activeSlide.styles.backgroundDim
+                                : globalSlideStyle?.backgroundDim || 0;
+
+                            if (dimValue > 0) {
+                                return (
+                                    <div
+                                        className="absolute inset-0 w-full h-full pointer-events-none"
+                                        style={{ backgroundColor: `rgba(0, 0, 0, ${dimValue})`, zIndex: 1 }}
+                                    />
+                                );
+                            }
+                            return null;
+                        })()}
                     </div>
 
                     {/* Slide Content Layer */}
@@ -32,8 +51,8 @@ const PreviewPanel: React.FC = () => {
                             <ScaledSlide
                                 slide={activeSlide}
                                 overrideStyle={{ backgroundColor: 'transparent', backgroundImage: 'none' }}
-                                bibleStyleOverride={bibleStyle}
                                 globalStyleOverride={globalSlideStyle}
+                                disableDimOverlay={true}
                             />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">

@@ -1,10 +1,9 @@
-import { useState, useRef } from 'react'
+
 import { usePresentationStore } from '../store'
 import type { MediaItem } from '../types'
 
 const MediaBin: React.FC = () => {
     const { mediaBin, addMediaToBin, removeMediaFromBin, triggerBackground } = usePresentationStore()
-    const fileInputRef = useRef<HTMLInputElement>(null)
 
     const handleImport = async () => {
         try {

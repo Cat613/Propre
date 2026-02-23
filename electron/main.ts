@@ -163,6 +163,20 @@ app.whenReady().then(() => {
     return false
   })
 
+  // IPC: Toggle Output
+  ipcMain.handle('toggle-output', () => {
+    if (outputWindow && !outputWindow.isDestroyed()) {
+      // If it exists, we turn it off completely so the screen returns to normal desktop
+      outputWindow.close()
+      outputWindow = null
+      return false
+    } else {
+      // If it doesn't exist, we turn it on
+      createOutputWindow()
+      return true
+    }
+  })
+
   // IPC: Display Management
   ipcMain.handle('get-displays', () => {
     return screen.getAllDisplays().map(d => ({

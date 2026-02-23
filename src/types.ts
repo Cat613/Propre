@@ -39,15 +39,6 @@ export interface Slide {
     bibleReference?: string // e.g., "Gen 1:1"
 }
 
-// Bible Global Style Interface
-export interface BibleStyle {
-    fontSize: number
-    fontColor: string
-    bgColor: string
-    align: 'left' | 'center' | 'right'
-    verticalAlign: 'top' | 'center' | 'bottom'
-}
-
 // Global Slide Style Interface for regular standard slides
 export interface GlobalSlideStyle {
     fontSize: number
@@ -94,7 +85,6 @@ export interface OutputState {
     type: 'state-update'
     slide: Slide | null
     background: ActiveBackground
-    bibleStyle?: BibleStyle // New field for global bible style
     globalSlideStyle?: GlobalSlideStyle // New field for standard slide global style
 }
 

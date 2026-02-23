@@ -5,7 +5,6 @@ import { OutputState } from '../types'
 const OutputDisplay: React.FC = () => {
     const [currentSlide, setCurrentSlide] = useState<OutputState['slide']>(null)
     const [currentBackground, setCurrentBackground] = useState<OutputState['background']>({ type: 'none' })
-    const [bibleStyle, setBibleStyle] = useState<OutputState['bibleStyle']>()
     const [globalSlideStyle, setGlobalSlideStyle] = useState<OutputState['globalSlideStyle']>()
 
     useEffect(() => {
@@ -26,9 +25,6 @@ const OutputDisplay: React.FC = () => {
                     const state = parsed as OutputState
                     setCurrentSlide(state.slide)
                     setCurrentBackground(state.background || { type: 'none' })
-                    if (state.bibleStyle) {
-                        setBibleStyle(state.bibleStyle)
-                    }
                     if (state.globalSlideStyle) {
                         setGlobalSlideStyle(state.globalSlideStyle)
                     }
@@ -53,9 +49,7 @@ const OutputDisplay: React.FC = () => {
             <div
                 className="absolute inset-0 z-0"
                 style={{
-                    backgroundColor: (currentSlide?.type === 'bible' && bibleStyle)
-                        ? bibleStyle.bgColor
-                        : '#000000'
+                    backgroundColor: '#000000'
                 }}
             >
                 {currentBackground.type === 'image' && currentBackground.url && (
@@ -75,6 +69,25 @@ const OutputDisplay: React.FC = () => {
                         muted
                     />
                 )}
+
+                {/* Full-screen Background Dimmer Layer */}
+                {(() => {
+                    if (!currentSlide) return null;
+                    const useCustomStyle = currentSlide.styles?.useCustomStyle === true;
+                    const dimValue = (useCustomStyle && currentSlide.styles?.backgroundDim !== undefined)
+                        ? currentSlide.styles.backgroundDim
+                        : globalSlideStyle?.backgroundDim || 0;
+
+                    if (dimValue > 0) {
+                        return (
+                            <div
+                                className="absolute inset-0 w-full h-full pointer-events-none"
+                                style={{ backgroundColor: `rgba(0, 0, 0, ${dimValue})`, zIndex: 1 }}
+                            />
+                        );
+                    }
+                    return null;
+                })()}
             </div>
 
             {/* Layer 2: Slide Content */}
@@ -83,8 +96,8 @@ const OutputDisplay: React.FC = () => {
                     <ScaledSlide
                         slide={currentSlide}
                         overrideStyle={{ backgroundColor: 'transparent', backgroundImage: 'none' }}
-                        bibleStyleOverride={bibleStyle}
                         globalStyleOverride={globalSlideStyle}
+                        disableDimOverlay={true}
                     />
                 ) : (
                     // Black screen when no slide

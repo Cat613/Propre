@@ -154,7 +154,7 @@ const SortableSlideCard: React.FC<{
                         placeholder="텍스트 입력 (Cmd+Enter 저장)"
                     />
                 ) : (
-                    <p className="text-xs text-gray-200 line-clamp-2 whitespace-pre-line mt-5 relative z-0 pointer-events-none">
+                    <p className="text-xs text-gray-200 line-clamp-4 whitespace-pre-line mt-5 relative z-0 pointer-events-none">
                         {slide.content || (slide.backgroundUrl ? '(미디어)' : '(빈 슬라이드)')}
                     </p>
                 )}

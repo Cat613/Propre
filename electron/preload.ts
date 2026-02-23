@@ -72,4 +72,5 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     // Let's add specific method or expose invoke generically (less safe).
     // Given the previous pattern, let's add specific method AND update type definition if needed.
     toggleStage: async () => ipcRenderer.invoke('toggle-stage'),
+    toggleOutput: async () => ipcRenderer.invoke('toggle-output'),
 })
