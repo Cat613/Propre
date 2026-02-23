@@ -9,9 +9,10 @@ interface ScaledSlideProps {
     overrideStyle?: React.CSSProperties
     globalStyleOverride?: import('../types').GlobalSlideStyle
     disableDimOverlay?: boolean
+    isGreenScreen?: boolean
 }
 
-const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: manualScale, overrideStyle, globalStyleOverride, disableDimOverlay }) => {
+const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: manualScale, overrideStyle, globalStyleOverride, disableDimOverlay, isGreenScreen }) => {
     const containerRef = useRef<HTMLDivElement>(null)
     const textRef = useRef<HTMLDivElement>(null)
     const [scale, setScale] = useState(1)
@@ -186,7 +187,10 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                 {isBible && slide.bibleReference && (
                     <div
                         className="absolute top-16 left-20 text-yellow-500 font-serif font-bold text-5xl z-20"
-                        style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.5)' }}
+                        style={{
+                            textShadow: isGreenScreen ? '0px 4px 10px rgba(0,0,0,0.8)' : '2px 2px 4px rgba(0,0,0,0.5)',
+                            WebkitTextStroke: isGreenScreen ? '2px black' : undefined
+                        }}
                     >
                         {slide.bibleReference}
                     </div>
@@ -205,7 +209,8 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                         zIndex: 10,
                         width: '98%', // Use full width for text container
                         maxWidth: '98%',
-                        textShadow: '2px 2px 4px rgba(0,0,0,0.7)',
+                        textShadow: isGreenScreen ? '0px 4px 10px rgba(0,0,0,0.8)' : '2px 2px 4px rgba(0,0,0,0.7)',
+                        WebkitTextStroke: isGreenScreen ? '3px black' : undefined,
                         lineHeight: isBible ? 1.6 : 1.2,
                     }}
                 >

@@ -13,7 +13,7 @@ interface DisplayInfo {
 }
 
 const ControlToolbar: React.FC = () => {
-    const { toggleStage, isStageEnabled, toggleOutput, isOutputEnabled } = usePresentationStore()
+    const { toggleStage, isStageEnabled, toggleOutput, isOutputEnabled, isGreenScreen, toggleGreenScreen } = usePresentationStore()
 
     const [displays, setDisplays] = useState<DisplayInfo[]>([])
     const [outputDisplay, setOutputDisplay] = useState<number | ''>('')
@@ -95,6 +95,20 @@ const ControlToolbar: React.FC = () => {
                 >
                     <div className={`w-2 h-2 rounded-full ${isStageEnabled ? 'bg-purple-400 animate-pulse shadow-[0_0_8px_rgba(168,85,247,0.6)]' : 'bg-gray-600'}`} />
                     무대 화면 송출
+                </button>
+
+                <button
+                    onClick={toggleGreenScreen}
+                    className={`px-3 py-1.5 text-xs font-semibold border rounded-lg transition-colors flex items-center gap-1.5 shadow-sm
+                        ${isGreenScreen
+                            ? 'bg-green-600/20 text-green-400 border-green-500/50 hover:bg-green-600/30'
+                            : 'bg-gray-900/40 text-gray-400 border-gray-700/50 hover:text-gray-200 hover:bg-gray-800'
+                        }
+                    `}
+                    title="크로마키 모드 활성화"
+                >
+                    <div className={`w-2 h-2 rounded-full ${isGreenScreen ? 'bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.6)]' : 'bg-gray-600'}`} />
+                    크로마키 모드
                 </button>
 
                 <div className="w-px h-6 bg-gray-700 mx-1" />

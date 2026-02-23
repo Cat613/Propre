@@ -46,7 +46,9 @@ export interface MediaSlice {
 
 export interface SettingsSlice {
     geminiApiKey: string | null
+    isGreenScreen: boolean
     setGeminiKey: (key: string | null) => void
+    toggleGreenScreen: () => void
 }
 
 export interface StageSlice {

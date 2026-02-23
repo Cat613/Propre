@@ -6,6 +6,7 @@ const OutputDisplay: React.FC = () => {
     const [currentSlide, setCurrentSlide] = useState<OutputState['slide']>(null)
     const [currentBackground, setCurrentBackground] = useState<OutputState['background']>({ type: 'none' })
     const [globalSlideStyle, setGlobalSlideStyle] = useState<OutputState['globalSlideStyle']>()
+    const [isGreenScreen, setIsGreenScreen] = useState(false)
 
     useEffect(() => {
         // Listen for updates from main process
@@ -28,6 +29,9 @@ const OutputDisplay: React.FC = () => {
                     if (state.globalSlideStyle) {
                         setGlobalSlideStyle(state.globalSlideStyle)
                     }
+                    if (state.isGreenScreen !== undefined) {
+                        setIsGreenScreen(state.isGreenScreen)
+                    }
                 } else {
                     // Fallback for simple string content (if any legacy code remains)
                     // Assuming it's just slide content
@@ -49,17 +53,17 @@ const OutputDisplay: React.FC = () => {
             <div
                 className="absolute inset-0 z-0"
                 style={{
-                    backgroundColor: '#000000'
+                    backgroundColor: isGreenScreen ? '#00B140' : '#000000'
                 }}
             >
-                {currentBackground.type === 'image' && currentBackground.url && (
+                {!isGreenScreen && currentBackground.type === 'image' && currentBackground.url && (
                     <img
                         src={currentBackground.url}
                         className="w-full h-full object-cover"
                         alt="Background"
                     />
                 )}
-                {currentBackground.type === 'video' && currentBackground.url && (
+                {!isGreenScreen && currentBackground.type === 'video' && currentBackground.url && (
                     <video
                         key={currentBackground.url} // Re-mount if URL changes to ensure autoplay
                         src={currentBackground.url}
@@ -71,7 +75,7 @@ const OutputDisplay: React.FC = () => {
                 )}
 
                 {/* Full-screen Background Dimmer Layer */}
-                {(() => {
+                {!isGreenScreen && (() => {
                     if (!currentSlide) return null;
                     const useCustomStyle = currentSlide.styles?.useCustomStyle === true;
                     const dimValue = (useCustomStyle && currentSlide.styles?.backgroundDim !== undefined)
@@ -91,13 +95,16 @@ const OutputDisplay: React.FC = () => {
             </div>
 
             {/* Layer 2: Slide Content */}
-            <div className="absolute inset-0 z-10">
+            <div
+                className="absolute inset-0 z-10"
+            >
                 {currentSlide ? (
                     <ScaledSlide
                         slide={currentSlide}
                         overrideStyle={{ backgroundColor: 'transparent', backgroundImage: 'none' }}
                         globalStyleOverride={globalSlideStyle}
                         disableDimOverlay={true}
+                        isGreenScreen={isGreenScreen}
                     />
                 ) : (
                     // Black screen when no slide

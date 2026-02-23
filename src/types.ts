@@ -86,6 +86,7 @@ export interface OutputState {
     slide: Slide | null
     background: ActiveBackground
     globalSlideStyle?: GlobalSlideStyle // New field for standard slide global style
+    isGreenScreen?: boolean
 }
 
 // Stage Display Data

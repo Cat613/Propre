@@ -51,5 +51,6 @@ electron.contextBridge.exposeInMainWorld("ipcRenderer", {
   // We should fix typescript definition likely too.
   // Let's add specific method or expose invoke generically (less safe).
   // Given the previous pattern, let's add specific method AND update type definition if needed.
-  toggleStage: async () => electron.ipcRenderer.invoke("toggle-stage")
+  toggleStage: async () => electron.ipcRenderer.invoke("toggle-stage"),
+  toggleOutput: async () => electron.ipcRenderer.invoke("toggle-output")
 });

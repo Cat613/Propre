@@ -1,6 +1,7 @@
 import { StoreSlice, MediaSlice } from '../types'
 import type { MediaItem, ActiveBackground } from '../../types'
 import { generateId } from '../../utils/generateId'
+import { syncOutputState } from '../helpers'
 
 export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     mediaBin: [],
@@ -37,61 +38,25 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
             url: media.url
         }
         set({ activeBackground: newBackground })
-
-        const { slides, activeSlideId, globalSlideStyle } = get()
-        const activeSlide = slides.find(s => s.id === activeSlideId)
-
-        const outputData = {
-            type: 'state-update',
-            slide: activeSlide || null,
-            background: newBackground,
-            globalSlideStyle
-        }
-        window.ipcRenderer.send('update-output', JSON.stringify(outputData))
+        syncOutputState(get)
     },
 
     clearBackground: () => {
         const newBackground: ActiveBackground = { type: 'none' }
         set({ activeBackground: newBackground })
-
-        const { slides, activeSlideId, globalSlideStyle } = get()
-        const activeSlide = slides.find(s => s.id === activeSlideId)
-
-        const outputData = {
-            type: 'state-update',
-            slide: activeSlide || null,
-            background: newBackground,
-            globalSlideStyle
-        }
-        window.ipcRenderer.send('update-output', JSON.stringify(outputData))
+        syncOutputState(get)
     },
 
     clearText: () => {
         set({ activeSlideId: null })
-        const { activeBackground, globalSlideStyle } = get()
-
-        const outputData = {
-            type: 'state-update',
-            slide: null,
-            background: activeBackground,
-            globalSlideStyle
-        }
-        window.ipcRenderer.send('update-output', JSON.stringify(outputData))
+        syncOutputState(get)
 
         window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
     },
 
     clearAll: () => {
         set({ activeSlideId: null, activeBackground: { type: 'none' } })
-
-        const { globalSlideStyle } = get()
-        const outputData = {
-            type: 'state-update',
-            slide: null,
-            background: { type: 'none' },
-            globalSlideStyle
-        }
-        window.ipcRenderer.send('update-output', JSON.stringify(outputData))
+        syncOutputState(get)
         window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
     },
 })

@@ -1,7 +1,9 @@
 import { StoreSlice, SettingsSlice } from '../types'
+import { syncOutputState } from '../helpers'
 
-export const createSettingsSlice: StoreSlice<SettingsSlice> = (set) => ({
+export const createSettingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
     geminiApiKey: localStorage.getItem('propre_gemini_key'),
+    isGreenScreen: false,
 
     setGeminiKey: (key: string | null) => {
         if (key) {
@@ -11,4 +13,10 @@ export const createSettingsSlice: StoreSlice<SettingsSlice> = (set) => ({
         }
         set({ geminiApiKey: key })
     },
+
+    toggleGreenScreen: () => {
+        const newState = !get().isGreenScreen
+        set({ isGreenScreen: newState })
+        syncOutputState(get)
+    }
 })
