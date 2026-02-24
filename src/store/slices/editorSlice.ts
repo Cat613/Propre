@@ -1,6 +1,6 @@
 import { StoreSlice } from '../types'
 import type { EditorSlice } from '../types'
-import type { Slide, GlobalSlideStyle } from '../../types'
+import type { Slide, GlobalSlideStyle, CanvasElement } from '../../types'
 import { syncOutputState } from '../helpers'
 
 export const defaultGlobalSlideStyle: GlobalSlideStyle = {
@@ -78,12 +78,25 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
             slides: [...state.slides, slide],
         })),
 
-    updateSlide: (id: string, updates: Partial<Slide>) =>
+    updateSlide: (id: string, updates: Partial<Slide>) => {
         set((state) => ({
             slides: state.slides.map((slide) =>
                 slide.id === id ? { ...slide, ...updates } : slide
             ),
-        })),
+        }))
+        if (get().activeSlideId === id) {
+            const updatedSlide = get().slides.find(s => s.id === id)
+            if (updatedSlide && updatedSlide.backgroundUrl) {
+                set({
+                    activeBackground: {
+                        type: updatedSlide.type === 'video' ? 'video' : 'image',
+                        url: updatedSlide.backgroundUrl
+                    }
+                })
+            }
+            syncOutputState(get)
+        }
+    },
 
     deleteSlide: (id: string) =>
         set((state) => ({
@@ -104,4 +117,44 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
         set({ globalSlideStyle: newStyle })
         syncOutputState(get)
     },
+
+    // --- Phase 3: Canvas Element Management ---
+    addSlideElement: (slideId: string, element: CanvasElement) => {
+        set((state) => ({
+            slides: state.slides.map(slide =>
+                slide.id === slideId
+                    ? { ...slide, elements: [...(slide.elements || []), element] }
+                    : slide
+            )
+        }))
+        if (get().activeSlideId === slideId) syncOutputState(get)
+    },
+
+    updateSlideElement: (slideId: string, elementId: string, updates: Partial<CanvasElement>) => {
+        set((state) => ({
+            slides: state.slides.map(slide => {
+                if (slide.id !== slideId || !slide.elements) return slide
+                return {
+                    ...slide,
+                    elements: slide.elements.map(el =>
+                        el.id === elementId ? { ...el, ...updates } as CanvasElement : el
+                    )
+                }
+            })
+        }))
+        if (get().activeSlideId === slideId) syncOutputState(get)
+    },
+
+    removeSlideElement: (slideId: string, elementId: string) => {
+        set((state) => ({
+            slides: state.slides.map(slide => {
+                if (slide.id !== slideId || !slide.elements) return slide
+                return {
+                    ...slide,
+                    elements: slide.elements.filter(el => el.id !== elementId)
+                }
+            })
+        }))
+        if (get().activeSlideId === slideId) syncOutputState(get)
+    }
 })

@@ -67,11 +67,6 @@ const SortableSlideCard: React.FC<{
         setIsEditing(false)
         if (editText !== slide.content) {
             onSaveEdit(slide.id, { content: editText }) // Optimistic local UI update
-
-            // Also need to push IPC update if it's the active slide
-            if (isActive) {
-                window.ipcRenderer.send('update-output', JSON.stringify({ ...slide, content: editText }))
-            }
         }
     }
 
@@ -192,7 +187,6 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
 
     const handleSlideClick = (slide: Slide) => {
         setActiveSlide(slide.id)
-        window.ipcRenderer.send('update-output', JSON.stringify(slide))
         onSlideClick?.(slide)
     }
 

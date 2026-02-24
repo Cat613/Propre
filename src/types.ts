@@ -6,6 +6,8 @@ export interface SlideStyles {
     fontWeight?: string
     textAlign?: 'left' | 'center' | 'right'
     fontFamily?: string
+    textShadow?: boolean // Add drop shadow
+    textOutline?: boolean // Add stroke outline
     useCustomStyle?: boolean // Explicitly opt-in to local text style overrides
 }
 
@@ -27,16 +29,64 @@ export const LABEL_COLORS: Record<SlideLabel, string> = {
     'Ending': '#F59E0B',   // Amber
 }
 
-// Main Slide interface
+// --- Phase 3: Element-Based Slide Canvas ---
+
+export type SlideElementType = 'text' | 'image' | 'video' | 'shape'
+
+export interface SlideElement {
+    id: string
+    type: SlideElementType
+    x: number      // Percentage (0-100) or pixels, relative to canvas width
+    y: number      // Percentage (0-100) or pixels, relative to canvas height
+    width: number  // Percentage or pixels
+    height: number // Percentage or pixels
+    zIndex: number
+    opacity?: number
+    rotation?: number // Degrees
+}
+
+export interface TextElement extends SlideElement {
+    type: 'text'
+    text: string
+    styles: SlideStyles
+}
+
+export interface MediaElement extends SlideElement {
+    type: 'image' | 'video'
+    url: string
+    objectFit?: 'contain' | 'cover' | 'fill'
+}
+
+export interface ShapeElement extends SlideElement {
+    type: 'shape'
+    shapeType: 'rectangle' | 'ellipse' | 'line'
+    backgroundColor?: string
+    borderColor?: string
+    borderWidth?: number
+}
+
+// Ensure type safety when accessing specific element properties
+export type CanvasElement = TextElement | MediaElement | ShapeElement
+
+// Main Slide interface (Updated for Phase 3)
 export interface Slide {
     id: string
-    content: string
     type: SlideType
-    styles?: SlideStyles
-    backgroundUrl?: string
     label?: SlideLabel
     labelColor?: string
     bibleReference?: string // e.g., "Gen 1:1"
+
+    // --- Legacy / Backward Compatibility ---
+    // These properties might be present in older .ppros files
+    content?: string
+    styles?: SlideStyles
+    backgroundUrl?: string
+
+    // --- Phase 3 Architecture ---
+    // The new source of truth for slide content
+    elements?: CanvasElement[]
+    canvasWidth?: number  // Virtual canvas width (e.g., 1920)
+    canvasHeight?: number // Virtual canvas height (e.g., 1080)
 }
 
 // Global Slide Style Interface for regular standard slides

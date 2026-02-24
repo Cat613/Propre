@@ -1,5 +1,5 @@
 // src/store/types.ts
-import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, GlobalSlideStyle, LayerType, AudioItem, PropItem, MessageItem, LooksState, ScreenLook } from '../types'
+import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, GlobalSlideStyle, LayerType, AudioItem, PropItem, MessageItem, LooksState, ScreenLook, CanvasElement } from '../types'
 import { StateCreator } from 'zustand'
 
 export interface EditorSlice {
@@ -16,6 +16,11 @@ export interface EditorSlice {
     reorderSlides: (oldIndex: number, newIndex: number) => void
     clearActiveSlide: () => void
     updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>) => void
+
+    // Phase 3 Canvas Element methods
+    addSlideElement: (slideId: string, element: CanvasElement) => void
+    updateSlideElement: (slideId: string, elementId: string, updates: Partial<CanvasElement>) => void
+    removeSlideElement: (slideId: string, elementId: string) => void
 }
 
 export interface LibrarySlice {
