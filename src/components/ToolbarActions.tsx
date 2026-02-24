@@ -11,8 +11,7 @@ interface ToolbarActionsProps {
 const ToolbarActions: React.FC<ToolbarActionsProps> = ({ onOpenSettings, onOpenBulkEdit }) => {
     const {
         addSlide,
-        clearBackground,
-        clearText,
+        clearLayer,
         clearAll,
         geminiApiKey
     } = usePresentationStore()
@@ -72,7 +71,7 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({ onOpenSettings, onOpenB
             {/* Group 1: Clear Actions */}
             <div className="flex items-center bg-gray-900/40 rounded-lg p-1 border border-gray-700/50 shadow-inner">
                 <button
-                    onClick={clearBackground}
+                    onClick={() => clearLayer('background')}
                     className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:bg-gray-700 hover:text-white rounded transition-colors flex items-center gap-1.5"
                     title="배경 그림/영상을 지웁니다"
                 >
@@ -83,7 +82,7 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({ onOpenSettings, onOpenB
                 </button>
                 <div className="w-px h-4 bg-gray-700 mx-1" />
                 <button
-                    onClick={clearText}
+                    onClick={() => clearLayer('slide')}
                     className="px-3 py-1.5 text-xs font-semibold text-gray-400 hover:bg-gray-700 hover:text-white rounded transition-colors flex items-center gap-1.5"
                     title="슬라이드 송출을 멈추고 텍스트를 지웁니다"
                 >

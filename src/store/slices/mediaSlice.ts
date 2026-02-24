@@ -6,6 +6,9 @@ import { syncOutputState } from '../helpers'
 export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     mediaBin: [],
     activeBackground: { type: 'none' },
+    activeAudio: null,
+    activeProp: null,
+    activeMessage: null,
 
     addMediaToBin: (files: string[]) => {
         const newItems: MediaItem[] = files.map(file => {
@@ -42,8 +45,32 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     },
 
     clearBackground: () => {
-        const newBackground: ActiveBackground = { type: 'none' }
-        set({ activeBackground: newBackground })
+        set({ activeBackground: { type: 'none' } })
+        syncOutputState(get)
+    },
+
+    clearLayer: (layer) => {
+        switch (layer) {
+            case 'audio':
+                set({ activeAudio: null })
+                break
+            case 'background':
+                set({ activeBackground: { type: 'none' } })
+                break
+            case 'slide':
+                set({ activeSlideId: null })
+                window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
+                break
+            case 'announcement':
+                // To be implemented
+                break
+            case 'prop':
+                set({ activeProp: null })
+                break
+            case 'message':
+                set({ activeMessage: null })
+                break
+        }
         syncOutputState(get)
     },
 
@@ -55,7 +82,13 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     },
 
     clearAll: () => {
-        set({ activeSlideId: null, activeBackground: { type: 'none' } })
+        set({
+            activeSlideId: null,
+            activeBackground: { type: 'none' },
+            activeAudio: null,
+            activeProp: null,
+            activeMessage: null,
+        })
         syncOutputState(get)
         window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
     },

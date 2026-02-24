@@ -74,17 +74,82 @@ export interface MediaItem {
     name: string
 }
 
-// Active Background interface for Layer 1
 export interface ActiveBackground {
     type: 'image' | 'video' | 'none'
     url?: string
 }
 
+// Layer System Types
+export type LayerType = 'audio' | 'background' | 'slide' | 'announcement' | 'prop' | 'message'
+
+export interface AudioItem {
+    id: string
+    url: string
+    name: string
+    volume?: number
+    loop?: boolean
+}
+
+export interface PropItem {
+    id: string
+    type: 'logo' | 'clock' | 'timer' | 'text'
+    content?: string // For text/timer
+    url?: string     // For logo
+    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
+}
+
+export interface MessageItem {
+    id: string
+    content: string
+    isScrolling: boolean
+    speed?: number
+}
+
+// The comprehensive state of all independent layers
+export interface LayerState {
+    audio: AudioItem | null
+    background: ActiveBackground // Maintains 'none' type instead of null for backward compatibility
+    slide: Slide | null
+    announcement: Slide | null
+    prop: PropItem | null
+    message: MessageItem | null
+}
+
+// ------ Phase 2: Multi-Screen Routing & Looks ------
+
+export interface LookLayerOverride {
+    isVisible: boolean
+    // Future expansion: style overrides etc.
+}
+
+// A specific configuration for a single output screen
+export interface ScreenLook {
+    audio: LookLayerOverride
+    background: LookLayerOverride
+    slide: LookLayerOverride
+    announcement: LookLayerOverride
+    prop: LookLayerOverride
+    message: LookLayerOverride
+}
+
+// Dictionary mapping screen IDs (e.g., 'main', 'chroma') to their configured looks
+export type LooksState = Record<string, ScreenLook>
+
+export const DEFAULT_SCREEN_LOOK: ScreenLook = {
+    audio: { isVisible: true },
+    background: { isVisible: true },
+    slide: { isVisible: true },
+    announcement: { isVisible: true },
+    prop: { isVisible: true },
+    message: { isVisible: true },
+}
+
+// ---------------------------------------------------
+
 // Output State Interface (Passed via IPC)
 export interface OutputState {
     type: 'state-update'
-    slide: Slide | null
-    background: ActiveBackground
+    layers: LayerState
     globalSlideStyle?: GlobalSlideStyle // New field for standard slide global style
     isGreenScreen?: boolean
 }

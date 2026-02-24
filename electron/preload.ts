@@ -17,13 +17,13 @@ interface LoadResult {
 
 contextBridge.exposeInMainWorld('ipcRenderer', {
     send: (channel: string, data: any) => {
-        const validChannels = ['update-output', 'update-stage']
+        const validChannels = ['update-output', 'update-stage', 'route-screen-update', 'update-screen']
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data)
         }
     },
     on: (channel: string, func: (...args: any[]) => void) => {
-        const validChannels = ['update-output', 'update-stage']
+        const validChannels = ['update-output', 'update-stage', 'route-screen-update', 'update-screen']
         if (validChannels.includes(channel)) {
             // Remove _event arg as requested previously to fix undefined data issue
             const subscription = (_event: any, ...args: any[]) => func(...args)

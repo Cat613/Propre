@@ -1,5 +1,5 @@
 // src/store/types.ts
-import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, GlobalSlideStyle } from '../types'
+import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, GlobalSlideStyle, LayerType, AudioItem, PropItem, MessageItem, LooksState, ScreenLook } from '../types'
 import { StateCreator } from 'zustand'
 
 export interface EditorSlice {
@@ -35,20 +35,31 @@ export interface LibrarySlice {
 export interface MediaSlice {
     mediaBin: MediaItem[]
     activeBackground: ActiveBackground
+    activeAudio: AudioItem | null
+    activeProp: PropItem | null
+    activeMessage: MessageItem | null
 
     addMediaToBin: (files: string[]) => void
     removeMediaFromBin: (id: string) => void
+
+    // Legacy generic methods (to be refactored or kept for backward compatibility)
     triggerBackground: (media: MediaItem) => void
     clearBackground: () => void
     clearText: () => void
     clearAll: () => void
+
+    // New Layer-specific methods
+    clearLayer: (layer: LayerType) => void
 }
 
 export interface SettingsSlice {
     geminiApiKey: string | null
-    isGreenScreen: boolean
+    isGreenScreen: boolean // Legacy flag, will be phased out by Looks
+    screenLooks: LooksState
+
     setGeminiKey: (key: string | null) => void
     toggleGreenScreen: () => void
+    updateScreenLook: (screenId: string, layer: LayerType, override: Partial<ScreenLook[LayerType]>) => void
 }
 
 export interface StageSlice {

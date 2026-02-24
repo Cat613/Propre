@@ -2,13 +2,13 @@
 const electron = require("electron");
 electron.contextBridge.exposeInMainWorld("ipcRenderer", {
   send: (channel, data) => {
-    const validChannels = ["update-output", "update-stage"];
+    const validChannels = ["update-output", "update-stage", "route-screen-update", "update-screen"];
     if (validChannels.includes(channel)) {
       electron.ipcRenderer.send(channel, data);
     }
   },
   on: (channel, func) => {
-    const validChannels = ["update-output", "update-stage"];
+    const validChannels = ["update-output", "update-stage", "route-screen-update", "update-screen"];
     if (validChannels.includes(channel)) {
       const subscription = (_event, ...args) => func(...args);
       electron.ipcRenderer.on(channel, subscription);

@@ -19,11 +19,11 @@ function App() {
     }, [])
 
     // Routing
-    if (currentHash === '#output-display') {
+    if (currentHash.startsWith('#output-display')) {
         return <OutputDisplay />
     }
 
-    if (currentHash === '#stage-display') {
+    if (currentHash.startsWith('#stage-display')) {
         return <StageDisplay />
     }
 

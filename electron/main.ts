@@ -16,7 +16,7 @@ process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
 
 let mainWindow: BrowserWindow | null
-let outputWindow: BrowserWindow | null
+const outputWindows: Map<string, BrowserWindow> = new Map() // ID -> Window
 let stageWindow: BrowserWindow | null
 
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
@@ -49,14 +49,19 @@ function getTargetDisplay(storeKey: string) {
   return externalDisplay || screen.getPrimaryDisplay()
 }
 
-function createOutputWindow() {
-  const targetDisplay = getTargetDisplay('outputDisplayId')
+// Create a specific output window (e.g. 'main', 'chroma')
+function createOutputWindow(id: string = 'main') {
+  // We use different settings keys for different screens
+  const storeKey = id === 'main' ? 'outputDisplayId' : `outputDisplayId_${id}`
+  const targetDisplay = getTargetDisplay(storeKey)
 
-  if (outputWindow && !outputWindow.isDestroyed()) {
-    outputWindow.close()
+  let win = outputWindows.get(id)
+
+  if (win && !win.isDestroyed()) {
+    win.close()
   }
 
-  outputWindow = new BrowserWindow({
+  win = new BrowserWindow({
     x: targetDisplay.bounds.x,
     y: targetDisplay.bounds.y,
     width: targetDisplay.bounds.width,
@@ -67,14 +72,23 @@ function createOutputWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       webSecurity: false,
+      additionalArguments: [`--screen-id=${id}`] // Pass ID to renderer
     },
   })
 
+  // Append screenId to URL hash
   if (VITE_DEV_SERVER_URL) {
-    outputWindow.loadURL(`${VITE_DEV_SERVER_URL}#output-display`)
+    win.loadURL(`${VITE_DEV_SERVER_URL}#output-display?screenId=${id}`)
   } else {
-    outputWindow.loadFile(path.join(process.env.DIST!, 'index.html'), { hash: 'output-display' })
+    // Note: loadFile with query params in hash requires simple encoding
+    win.loadFile(path.join(process.env.DIST!, 'index.html'), { hash: `output-display?screenId=${id}` })
   }
+
+  win.on('closed', () => {
+    outputWindows.delete(id)
+  })
+
+  outputWindows.set(id, win)
 }
 
 function createStageWindow() {
@@ -120,20 +134,38 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createMainWindow()
-    createOutputWindow()
+    // Restore previously active screens later
+    createOutputWindow('main')
     createStageWindow()
   }
 })
 
 app.whenReady().then(() => {
   createMainWindow()
-  createOutputWindow()
+  createOutputWindow('main')
   createStageWindow()
 
-  // IPC: Update Output
+  // IPC: Update Specific Screen (Phase 2 Routing)
+  // Listen for dynamically created channels (e.g. update-screen-main, update-screen-chroma)
   ipcMain.on('update-output', (_event, text: string) => {
-    if (outputWindow && !outputWindow.isDestroyed()) {
-      outputWindow.webContents.send('update-output', text)
+    // Legacy fallback: broadcast to all output windows
+    outputWindows.forEach(win => {
+      if (!win.isDestroyed()) win.webContents.send('update-output', text)
+    })
+  })
+
+  // Since we construct channel dynamically in frontend: `window.ipcRenderer.send('update-screen-main', ...)`
+  // We need to listen dynamically, or intercept. A better approach is an explicit routing event:
+  ipcMain.on('route-screen-update', (_event, payloadStr: string) => {
+    try {
+      const payload = JSON.parse(payloadStr)
+      const screenId = payload.screenId
+      const win = outputWindows.get(screenId)
+      if (win && !win.isDestroyed()) {
+        win.webContents.send('update-screen', payload.data)
+      }
+    } catch (e) {
+      console.error("Routing error:", e)
     }
   })
 
@@ -163,16 +195,16 @@ app.whenReady().then(() => {
     return false
   })
 
-  // IPC: Toggle Output
+  // IPC: Toggle Output (Toggles the physical 'main' output window)
   ipcMain.handle('toggle-output', () => {
-    if (outputWindow && !outputWindow.isDestroyed()) {
-      // If it exists, we turn it off completely so the screen returns to normal desktop
-      outputWindow.close()
-      outputWindow = null
+    const mainWin = outputWindows.get('main')
+    if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.close()
+      outputWindows.delete('main')
+
       return false
     } else {
-      // If it doesn't exist, we turn it on
-      createOutputWindow()
+      createOutputWindow('main')
       return true
     }
   })
@@ -195,7 +227,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('set-output-display', (_event, displayId) => {
     store.set('outputDisplayId', displayId)
-    createOutputWindow()
+    createOutputWindow('main') // Reboot main on same ID
     return true
   })
 
