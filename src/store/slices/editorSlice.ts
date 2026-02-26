@@ -17,6 +17,7 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
     activeSlideId: null,
     currentPresentationId: null,
     globalSlideStyle: defaultGlobalSlideStyle,
+    isModalOpen: false,
 
     setActiveSlide: (id: string | null) => {
         const { slides, activeBackground } = get()
@@ -156,5 +157,7 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
             })
         }))
         if (get().activeSlideId === slideId) syncOutputState(get)
-    }
+    },
+
+    setModalOpen: (isOpen: boolean) => set({ isModalOpen: isOpen })
 })

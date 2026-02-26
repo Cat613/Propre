@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import ControlPanel from './components/ControlPanel'
 import OutputDisplay from './components/OutputDisplay'
 import StageDisplay from './components/StageDisplay'
+import ToastContainer from './components/ToastContainer'
 
 function App() {
     const [currentHash, setCurrentHash] = useState(window.location.hash)
@@ -28,7 +29,12 @@ function App() {
     }
 
     // Default to Control Panel
-    return <ControlPanel />
+    return (
+        <>
+            <ControlPanel />
+            <ToastContainer />
+        </>
+    )
 }
 
 export default App

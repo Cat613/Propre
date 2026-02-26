@@ -2,16 +2,35 @@ import { useEffect } from 'react'
 import { usePresentationStore } from '../store'
 
 export const useHotkeys = () => {
-    const { slides, activeSlideId, setActiveSlide, clearAll } = usePresentationStore()
+    const { slides, activeSlideId, setActiveSlide, clearAll, isModalOpen } = usePresentationStore()
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Ignore if focus is in an input or textarea
+            // Ignore if focus is in an input or textarea, or if a modal is open
             if (
+                isModalOpen ||
                 e.target instanceof HTMLInputElement ||
                 e.target instanceof HTMLTextAreaElement ||
                 (e.target as HTMLElement).isContentEditable
             ) {
+                return
+            }
+
+            // Undo (Ctrl/Cmd + Z)
+            if (e.key.toLowerCase() === 'z' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                if (e.shiftKey) {
+                    usePresentationStore.temporal.getState().redo()
+                } else {
+                    usePresentationStore.temporal.getState().undo()
+                }
+                return
+            }
+
+            // Redo (Ctrl/Cmd + Y)
+            if (e.key.toLowerCase() === 'y' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                usePresentationStore.temporal.getState().redo()
                 return
             }
 
@@ -45,5 +64,5 @@ export const useHotkeys = () => {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [slides, activeSlideId, setActiveSlide, clearAll])
+    }, [slides, activeSlideId, setActiveSlide, clearAll, isModalOpen])
 }

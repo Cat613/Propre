@@ -10,7 +10,7 @@ export const syncOutputState = (get: () => StoreState) => {
         audio: state.activeAudio,
         background: state.activeBackground,
         slide: activeSlide || null,
-        announcement: null, // To be implemented
+        announcement: state.activeAnnouncement || null,
         prop: state.activeProp,
         message: state.activeMessage
     }
@@ -46,13 +46,4 @@ export const syncOutputState = (get: () => StoreState) => {
             data: screenData
         }))
     })
-
-    // 2. Fallback legacy broadcast (for simple transitions before full migration)
-    const legacyData = {
-        type: 'state-update',
-        layers: baseLayers,
-        globalSlideStyle: state.globalSlideStyle,
-        isGreenScreen: state.isGreenScreen
-    }
-    window.ipcRenderer.send('update-output', JSON.stringify(legacyData))
 }

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, screen, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, screen, dialog, safeStorage } from 'electron'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -8,10 +8,19 @@ import Store from 'electron-store'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Initialize Electron Store
-const store = new Store()
-
-// The built directory structure
+// Initialize Electron Store with Schema Validation
+const store = new Store({
+  schema: {
+    library: { type: 'array', default: [] },
+    playlist: { type: 'array', default: [] },
+    outputDisplayId: { type: ['number', 'null'], default: null },
+    stageDisplayId: { type: ['number', 'null'], default: null },
+    wasOutputActive: { type: 'boolean', default: false },
+    wasStageActive: { type: 'boolean', default: false },
+    geminiKeyEncrypted: { type: ['string', 'null'] },
+    geminiKeyFallback: { type: ['string', 'null'] }
+  }
+})
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged ? process.env.DIST : path.join(__dirname, '../public')
 
@@ -142,8 +151,14 @@ app.on('activate', () => {
 
 app.whenReady().then(() => {
   createMainWindow()
-  createOutputWindow('main')
-  createStageWindow()
+
+  // Restore previous window states instead of always opening them
+  if (store.get('wasOutputActive', false)) {
+    createOutputWindow('main')
+  }
+  if (store.get('wasStageActive', false)) {
+    createStageWindow()
+  }
 
   // IPC: Update Specific Screen (Phase 2 Routing)
   // Listen for dynamically created channels (e.g. update-screen-main, update-screen-chroma)
@@ -185,13 +200,16 @@ app.whenReady().then(() => {
     if (stageWindow) { // Check again after potential creation
       if (stageWindow.isVisible()) {
         stageWindow.hide()
+        store.set('wasStageActive', false)
         return false
       } else {
         stageWindow.show()
+        store.set('wasStageActive', true)
         // Ensure it's fullscreen or positioned correctly if needed, but stage is usually just a window
         return true
       }
     }
+    store.set('wasStageActive', false)
     return false
   })
 
@@ -201,10 +219,11 @@ app.whenReady().then(() => {
     if (mainWin && !mainWin.isDestroyed()) {
       mainWin.close()
       outputWindows.delete('main')
-
+      store.set('wasOutputActive', false)
       return false
     } else {
       createOutputWindow('main')
+      store.set('wasOutputActive', true)
       return true
     }
   })
@@ -330,5 +349,35 @@ app.whenReady().then(() => {
   ipcMain.handle('save-playlist', (_event, playlist) => {
     store.set('playlist', playlist)
     return true
+  })
+
+  // IPC: Gemini API Key (safeStorage)
+  ipcMain.handle('set-api-key', (_event, key: string | null) => {
+    if (!key) {
+      store.delete('geminiKeyEncrypted')
+      store.delete('geminiKeyFallback')
+      return
+    }
+    if (safeStorage.isEncryptionAvailable()) {
+      const encrypted = safeStorage.encryptString(key)
+      store.set('geminiKeyEncrypted', encrypted.toString('base64'))
+    } else {
+      console.warn('[safeStorage] Encryption not available, storing key as plain text.')
+      store.set('geminiKeyFallback', key)
+    }
+  })
+
+  ipcMain.handle('get-api-key', (): string | null => {
+    if (safeStorage.isEncryptionAvailable()) {
+      const b64 = store.get('geminiKeyEncrypted') as string | undefined
+      if (!b64) return null
+      try {
+        return safeStorage.decryptString(Buffer.from(b64, 'base64'))
+      } catch {
+        return null
+      }
+    } else {
+      return (store.get('geminiKeyFallback') as string | undefined) ?? null
+    }
   })
 })

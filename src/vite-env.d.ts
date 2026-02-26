@@ -1,3 +1,5 @@
+import type { Presentation, PlaylistItem } from './types'
+
 export interface IpcRenderer {
     send: (channel: string, data: any) => void
     on: (channel: string, func: (...args: any[]) => void) => () => void
@@ -9,11 +11,11 @@ export interface IpcRenderer {
     saveProject: (data: string) => Promise<{ success: boolean; filePath?: string; error?: string; canceled?: boolean }>
     loadProject: () => Promise<{ success: boolean; data?: string; filePath?: string; error?: string; canceled?: boolean }>
 
-    getLibrary: () => Promise<any[]>
-    saveToLibrary: (presentation: any) => Promise<boolean>
-    deleteFromLibrary: (id: string) => Promise<any[]>
-    getPlaylist: () => Promise<any[]>
-    savePlaylist: (playlist: any[]) => Promise<boolean>
+    getLibrary: () => Promise<Presentation[]>
+    saveToLibrary: (presentation: Presentation) => Promise<boolean>
+    deleteFromLibrary: (id: string) => Promise<Presentation[]>
+    getPlaylist: () => Promise<PlaylistItem[]>
+    savePlaylist: (playlist: PlaylistItem[]) => Promise<boolean>
 
     // New
     toggleStage: () => Promise<boolean>
@@ -24,6 +26,9 @@ export interface IpcRenderer {
     getActiveDisplays: () => Promise<{ output: number | null, stage: number | null }>
     setOutputDisplay: (displayId: number) => Promise<boolean>
     setStageDisplay: (displayId: number) => Promise<boolean>
+    // Security API
+    getApiKey: () => Promise<string | null>
+    setApiKey: (key: string | null) => Promise<void>
 }
 
 declare global {

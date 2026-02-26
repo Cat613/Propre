@@ -7,6 +7,7 @@ export interface EditorSlice {
     activeSlideId: string | null
     currentPresentationId: string | null
     globalSlideStyle: GlobalSlideStyle
+    isModalOpen: boolean
 
     setActiveSlide: (id: string | null) => void
     setSlides: (slides: Slide[]) => void
@@ -16,6 +17,7 @@ export interface EditorSlice {
     reorderSlides: (oldIndex: number, newIndex: number) => void
     clearActiveSlide: () => void
     updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>) => void
+    setModalOpen: (isOpen: boolean) => void
 
     // Phase 3 Canvas Element methods
     addSlideElement: (slideId: string, element: CanvasElement) => void
@@ -43,6 +45,7 @@ export interface MediaSlice {
     activeAudio: AudioItem | null
     activeProp: PropItem | null
     activeMessage: MessageItem | null
+    activeAnnouncement: Slide | null
 
     addMediaToBin: (files: string[]) => void
     removeMediaFromBin: (id: string) => void
@@ -56,6 +59,7 @@ export interface MediaSlice {
     // New Layer-specific methods
     setProp: (prop: PropItem | null) => void
     setMessage: (message: MessageItem | null) => void
+    setAnnouncement: (announcement: Slide | null) => void
     clearLayer: (layer: LayerType) => void
 }
 
@@ -76,5 +80,11 @@ export interface StageSlice {
     toggleOutput: () => Promise<void>
 }
 
-export type StoreState = EditorSlice & LibrarySlice & MediaSlice & SettingsSlice & StageSlice
+export interface ToastSlice {
+    toasts: { id: string, message: string, type: 'success' | 'error' | 'info' }[]
+    addToast: (message: string, type?: 'success' | 'error' | 'info') => void
+    removeToast: (id: string) => void
+}
+
+export type StoreState = EditorSlice & LibrarySlice & MediaSlice & SettingsSlice & StageSlice & ToastSlice
 export type StoreSlice<T> = StateCreator<StoreState, [], [], T>

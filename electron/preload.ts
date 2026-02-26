@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { Presentation, PlaylistItem } from '../src/types'
 
 interface SaveResult {
     success: boolean
@@ -51,11 +52,11 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     },
 
     // Library & Playlist API
-    getLibrary: async () => ipcRenderer.invoke('get-library'),
-    saveToLibrary: async (presentation: any) => ipcRenderer.invoke('save-to-library', presentation),
-    deleteFromLibrary: async (id: string) => ipcRenderer.invoke('delete-from-library', id),
-    getPlaylist: async () => ipcRenderer.invoke('get-playlist'),
-    savePlaylist: async (playlist: any[]) => ipcRenderer.invoke('save-playlist', playlist),
+    getLibrary: async (): Promise<Presentation[]> => ipcRenderer.invoke('get-library'),
+    saveToLibrary: async (presentation: Presentation): Promise<boolean> => ipcRenderer.invoke('save-to-library', presentation),
+    deleteFromLibrary: async (id: string): Promise<Presentation[]> => ipcRenderer.invoke('delete-from-library', id),
+    getPlaylist: async (): Promise<PlaylistItem[]> => ipcRenderer.invoke('get-playlist'),
+    savePlaylist: async (playlist: PlaylistItem[]): Promise<boolean> => ipcRenderer.invoke('save-playlist', playlist),
 
     // Stage & Display API
     getDisplays: async () => ipcRenderer.invoke('get-displays'),
@@ -73,4 +74,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     // Given the previous pattern, let's add specific method AND update type definition if needed.
     toggleStage: async () => ipcRenderer.invoke('toggle-stage'),
     toggleOutput: async () => ipcRenderer.invoke('toggle-output'),
+    // Security API
+    getApiKey: async (): Promise<string | null> => ipcRenderer.invoke('get-api-key'),
+    setApiKey: async (key: string | null): Promise<void> => ipcRenderer.invoke('set-api-key', key)
 })

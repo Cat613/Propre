@@ -9,6 +9,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     activeAudio: null,
     activeProp: null,
     activeMessage: null,
+    activeAnnouncement: null,
 
     addMediaToBin: (files: string[]) => {
         const newItems: MediaItem[] = files.map(file => {
@@ -59,6 +60,11 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
         syncOutputState(get)
     },
 
+    setAnnouncement: (announcement) => {
+        set({ activeAnnouncement: announcement })
+        syncOutputState(get)
+    },
+
     clearLayer: (layer) => {
         switch (layer) {
             case 'audio':
@@ -72,7 +78,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
                 window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
                 break
             case 'announcement':
-                // To be implemented
+                set({ activeAnnouncement: null })
                 break
             case 'prop':
                 set({ activeProp: null })
@@ -98,6 +104,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
             activeAudio: null,
             activeProp: null,
             activeMessage: null,
+            activeAnnouncement: null,
         })
         syncOutputState(get)
         window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))

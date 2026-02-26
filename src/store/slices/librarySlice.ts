@@ -13,13 +13,27 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
             set({ library, playlist })
         } catch (error) {
             console.error('Failed to load library:', error)
+            get().addToast('라이브러리를 불러오는데 실패했습니다.', 'error')
         }
     },
 
     saveCurrentPresentation: async () => {
         const { slides, currentPresentationId } = get()
         let presentation: Presentation
-        const title = slides.find(s => s.content)?.content.split('\n')[0].substring(0, 20) || 'Untitled Presentation'
+
+        // Find best title from content or elements
+        let title = 'Untitled Presentation'
+        const candidateSlide = slides.find(s => s.content || (s.elements && s.elements.length > 0))
+        if (candidateSlide) {
+            if (candidateSlide.content) {
+                title = candidateSlide.content.split('\n')[0].substring(0, 20)
+            } else if (candidateSlide.elements) {
+                const textElement = candidateSlide.elements.find((el): el is import('../../types').TextElement => el.type === 'text')
+                if (textElement && textElement.text) {
+                    title = textElement.text.split('\n')[0].substring(0, 20)
+                }
+            }
+        }
 
         if (currentPresentationId) {
             const existing = get().library.find(p => p.id === currentPresentationId)
@@ -48,6 +62,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
             set({ library })
         } catch (error) {
             console.error('Failed to save presentation:', error)
+            get().addToast('저장에 실패했습니다.', 'error')
         }
     },
 
@@ -69,6 +84,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
             }
         } catch (error) {
             console.error('Failed to delete presentation:', error)
+            get().addToast('삭제에 실패했습니다.', 'error')
         }
     },
 

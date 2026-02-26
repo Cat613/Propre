@@ -49,40 +49,54 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
         return () => window.removeEventListener('resize', updateScale)
     }, [width, height, manualScale])
 
-    // Auto-fit text logic
+    // Auto-fit text logic (Optimized using Binary Search)
     useEffect(() => {
         // Reset autoFontSize when content or default styles change
         setAutoFontSize(null)
     }, [slide.content, globalStyleOverride, slide.styles?.fontSize])
 
     useEffect(() => {
-        if (!textRef.current || !containerRef.current) return
+        if (!textRef.current || !containerRef.current || slide.type !== 'bible') return
 
-        const checkOverflow = () => {
-            const textEl = textRef.current
-            if (!textEl) return
+        const el = textRef.current
+        const isBible = slide.type === 'bible'
+        const padding = isBible ? 120 : 0
+        const maxHeight = 1080 - padding
 
-            // Check if text element's scrollHeight exceeds its clientHeight
-            // Since our textEl has no fixed height but its parent (the 1920x1080 slide) does,
-            // we should measure against the available height. 
-            // In our layout, the text container is allowed to grow, so we check if it exceeds 1080 (minus padding).
-            const isBible = slide.type === 'bible'
-            const padding = isBible ? 120 : 0 // 60px padding top and bottom
-            const maxHeight = 1080 - padding
+        const checkAndFit = () => {
+            // Only run if we overflow
+            if (el.scrollHeight <= maxHeight) return
 
-            if (textEl.scrollHeight > maxHeight) {
-                // It overflows, we need to shrink font
-                const currentFontSizeStr = window.getComputedStyle(textEl).fontSize
-                const currentSize = parseFloat(currentFontSizeStr)
+            // Binary search for optimal font size
+            let min = 10
+            let max = parseFloat(window.getComputedStyle(el).fontSize) || 100
+            let best = min
 
-                if (currentSize > 10) { // arbitrary minimum size
-                    setAutoFontSize(currentSize * 0.9) // Reduce by 10%
+            while (min <= max) {
+                const mid = Math.floor((min + max) / 2)
+                el.style.fontSize = `${mid}px`
+
+                if (el.scrollHeight <= maxHeight) {
+                    best = mid
+                    min = mid + 1 // try a larger size
+                } else {
+                    max = mid - 1 // try a smaller size
                 }
             }
+
+            // Clean up inline style and let React state take over
+            el.style.fontSize = ''
+            setAutoFontSize(best)
         }
 
-        // Run overflow check
-        checkOverflow()
+        // Run immediately
+        checkAndFit()
+
+        // And listen for dynamic resizes (e.g if text wraps differently based on flex containers)
+        const observer = new ResizeObserver(() => checkAndFit())
+        observer.observe(el)
+
+        return () => observer.disconnect()
     }, [slide.content, scale, autoFontSize, slide.type])
 
     // Default styles from slide

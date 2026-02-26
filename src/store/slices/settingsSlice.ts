@@ -10,44 +10,47 @@ const initialScreenLooks = {
     }
 }
 
-export const createSettingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
-    geminiApiKey: localStorage.getItem('propre_gemini_key'),
-    isGreenScreen: false,
-    screenLooks: initialScreenLooks,
+export const createSettingsSlice: StoreSlice<SettingsSlice> = (set, get) => {
+    // Asynchronously load the API key from secure OS storage
+    window.ipcRenderer.getApiKey().then(key => {
+        if (key) set({ geminiApiKey: key })
+    }).catch(console.error)
 
-    setGeminiKey: (key: string | null) => {
-        if (key) {
-            localStorage.setItem('propre_gemini_key', key)
-        } else {
-            localStorage.removeItem('propre_gemini_key')
-        }
-        set({ geminiApiKey: key })
-    },
+    return {
+        geminiApiKey: null,
+        isGreenScreen: false,
+        screenLooks: initialScreenLooks,
 
-    toggleGreenScreen: () => {
-        const newState = !get().isGreenScreen
-        set({ isGreenScreen: newState })
-        syncOutputState(get)
-    },
+        setGeminiKey: (key: string | null) => {
+            window.ipcRenderer.setApiKey(key).catch(console.error)
+            set({ geminiApiKey: key })
+        },
 
-    updateScreenLook: (screenId: string, layer: LayerType, override: Partial<ScreenLook[LayerType]>) => {
-        set((state) => {
-            const currentLook = state.screenLooks[screenId] || { ...DEFAULT_SCREEN_LOOK }
-            const currentLayerLook = currentLook[layer]
+        toggleGreenScreen: () => {
+            const newState = !get().isGreenScreen
+            set({ isGreenScreen: newState })
+            syncOutputState(get)
+        },
 
-            return {
-                screenLooks: {
-                    ...state.screenLooks,
-                    [screenId]: {
-                        ...currentLook,
-                        [layer]: {
-                            ...currentLayerLook,
-                            ...override
+        updateScreenLook: (screenId: string, layer: LayerType, override: Partial<ScreenLook[LayerType]>) => {
+            set((state) => {
+                const currentLook = state.screenLooks[screenId] || { ...DEFAULT_SCREEN_LOOK }
+                const currentLayerLook = currentLook[layer]
+
+                return {
+                    screenLooks: {
+                        ...state.screenLooks,
+                        [screenId]: {
+                            ...currentLook,
+                            [layer]: {
+                                ...currentLayerLook,
+                                ...override
+                            }
                         }
                     }
                 }
-            }
-        })
-        syncOutputState(get)
+            })
+            syncOutputState(get)
+        }
     }
-})
+}
