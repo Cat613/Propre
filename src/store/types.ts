@@ -54,6 +54,8 @@ export interface MediaSlice {
     clearAll: () => void
 
     // New Layer-specific methods
+    setProp: (prop: PropItem | null) => void
+    setMessage: (message: MessageItem | null) => void
     clearLayer: (layer: LayerType) => void
 }
 

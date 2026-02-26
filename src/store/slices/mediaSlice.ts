@@ -49,6 +49,16 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
         syncOutputState(get)
     },
 
+    setProp: (prop) => {
+        set({ activeProp: prop })
+        syncOutputState(get)
+    },
+
+    setMessage: (message) => {
+        set({ activeMessage: message })
+        syncOutputState(get)
+    },
+
     clearLayer: (layer) => {
         switch (layer) {
             case 'audio':

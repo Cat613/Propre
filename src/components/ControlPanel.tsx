@@ -3,6 +3,7 @@ import LeftSidebar from './LeftSidebar'
 import SlideGrid from './SlideGrid'
 import PreviewPanel from './PreviewPanel'
 import GlobalStylePanel from './GlobalStylePanel'
+import AdvancedLayersPanel from './AdvancedLayersPanel'
 import ControlToolbar from './ControlToolbar'
 import MediaBin from './MediaBin'
 import { usePresentationStore } from '../store'
@@ -115,6 +116,7 @@ const ControlPanel: React.FC = () => {
                     <div className="flex-1 overflow-y-auto flex flex-col">
                         <PreviewPanel />
                         <GlobalStylePanel />
+                        <AdvancedLayersPanel />
                     </div>
                     <ControlToolbar />
                 </Panel>

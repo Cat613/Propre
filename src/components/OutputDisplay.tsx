@@ -182,7 +182,11 @@ const OutputDisplay: React.FC = () => {
                 {layers.prop && layers.prop.type === 'logo' && layers.prop.url && (
                     <div
                         className="absolute w-48 h-auto"
-                        style={{
+                        style={layers.prop.position === 'center' ? {
+                            top: '50%',
+                            left: '50%',
+                            transform: 'translate(-50%, -50%)'
+                        } : {
                             top: layers.prop.position.includes('top') ? '2rem' : 'auto',
                             bottom: layers.prop.position.includes('bottom') ? '2rem' : 'auto',
                             left: layers.prop.position.includes('left') ? '2rem' : 'auto',
