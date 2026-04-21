@@ -11,21 +11,23 @@ import { useHotkeys } from '../hooks/useHotkeys'
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 
 const ControlPanel: React.FC = () => {
-    const { slides, setActiveSlide, clearText, clearBackground, clearAll, isModalOpen } = usePresentationStore()
+    const {
+        slides,
+        setActiveSlide,
+        clearText,
+        clearBackground,
+        clearAll,
+        isModalOpen,
+        loadLibrary
+    } = usePresentationStore()
 
     // Use global hotkeys hook
     useHotkeys()
 
     // Load library on startup
     useEffect(() => {
-        // Assuming loadLibrary is still needed, but removed from destructuring in the diff.
-        // If loadLibrary is no longer needed or moved, this useEffect might need adjustment.
-        // For now, keeping it as it was not explicitly removed from the file.
-        // If loadLibrary is truly removed from the store, this line will cause an error.
-        // For the purpose of this edit, I'll assume it's still available or will be handled.
-        // If the intention was to remove it, the user should provide that instruction.
-        // loadLibrary() // Commenting out as loadLibrary was removed from destructuring in the diff.
-    }, []) // Removed loadLibrary from dependency array as it's no longer destructured.
+        loadLibrary()
+    }, [loadLibrary])
 
     // Number keys for quick slide selection (Specific to ControlPanel)
     useEffect(() => {

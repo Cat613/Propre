@@ -319,6 +319,9 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                             textShadow: isGreenScreen ? '0px 4px 10px rgba(0,0,0,0.8)' : '2px 2px 4px rgba(0,0,0,0.7)',
                             WebkitTextStroke: isGreenScreen ? '3px black' : undefined,
                             lineHeight: isBible ? 1.6 : 1.2,
+                            transform: (effectiveGlobalStyle.offsetX || effectiveGlobalStyle.offsetY)
+                                ? `translate(${effectiveGlobalStyle.offsetX || 0}px, ${effectiveGlobalStyle.offsetY || 0}px)`
+                                : 'none',
                         }}
                     >
                         {slide.content}

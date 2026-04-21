@@ -119,6 +119,49 @@ const GlobalStylePanel: React.FC = () => {
                         className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                     />
                 </div>
+                {/* Fine Tuning Offsets */}
+                <div className="flex gap-4">
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1 text-xs text-gray-500">
+                            <label>가로 미세조정 (X)</label>
+                            <input
+                                type="number"
+                                value={globalSlideStyle.offsetX || 0}
+                                onChange={(e) => updateGlobalSlideStyle({ offsetX: Number(e.target.value) })}
+                                className="w-14 bg-gray-800 text-white rounded px-1 text-xs border border-gray-700 text-right"
+                            />
+                        </div>
+                        <input
+                            type="range"
+                            min="-500"
+                            max="500"
+                            step="1"
+                            value={globalSlideStyle.offsetX || 0}
+                            onChange={(e) => updateGlobalSlideStyle({ offsetX: parseInt(e.target.value) })}
+                            className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1 text-xs text-gray-500">
+                            <label>세로 미세조정 (Y)</label>
+                            <input
+                                type="number"
+                                value={globalSlideStyle.offsetY || 0}
+                                onChange={(e) => updateGlobalSlideStyle({ offsetY: Number(e.target.value) })}
+                                className="w-14 bg-gray-800 text-white rounded px-1 text-xs border border-gray-700 text-right"
+                            />
+                        </div>
+                        <input
+                            type="range"
+                            min="-500"
+                            max="500"
+                            step="1"
+                            value={globalSlideStyle.offsetY || 0}
+                            onChange={(e) => updateGlobalSlideStyle({ offsetY: parseInt(e.target.value) })}
+                            className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        />
+                    </div>
+                </div>
             </div>
         </div>
     )

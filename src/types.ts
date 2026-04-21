@@ -97,6 +97,8 @@ export interface GlobalSlideStyle {
     align: 'left' | 'center' | 'right'
     verticalAlign: 'top' | 'center' | 'bottom'
     backgroundDim?: number // Global opacity for black overlay (0 to 1)
+    offsetX?: number // Global fine-tuning X offset in px
+    offsetY?: number // Global fine-tuning Y offset in px
 }
 
 // Presentation interface
