@@ -6,7 +6,8 @@ const PlaylistPanel: React.FC = () => {
         playlist,
         addToPlaylist,
         removeFromPlaylist,
-        selectPresentation
+        selectPresentation,
+        currentPresentationId
     } = usePresentationStore()
 
     const handleDrop = (e: React.DragEvent) => {
@@ -42,9 +43,15 @@ const PlaylistPanel: React.FC = () => {
                         <div
                             key={item.id}
                             onClick={() => selectPresentation(item.presentationId)}
-                            className="group flex items-center gap-3 p-2 rounded-lg hover:bg-gray-800 cursor-pointer transition-colors"
+                            className={`group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${currentPresentationId === item.presentationId
+                                ? 'bg-blue-600/20 shadow-[inset_2px_0_0_0_rgb(59,130,246)]'
+                                : 'hover:bg-gray-800'
+                                }`}
                         >
-                            <div className="w-6 h-6 flex items-center justify-center rounded bg-gray-800 text-gray-500 text-xs font-bold group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                            <div className={`w-6 h-6 flex items-center justify-center rounded text-xs font-bold transition-colors ${currentPresentationId === item.presentationId
+                                ? 'bg-blue-500 text-white'
+                                : 'bg-gray-800 text-gray-500 group-hover:bg-blue-600 group-hover:text-white'
+                                }`}>
                                 {index + 1}
                             </div>
                             <div className="flex-1 min-w-0">

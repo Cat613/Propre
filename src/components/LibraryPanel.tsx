@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { usePresentationStore } from '../store'
 
 const LibraryPanel: React.FC = () => {
@@ -8,10 +8,26 @@ const LibraryPanel: React.FC = () => {
         selectPresentation,
         createNewPresentation,
         saveCurrentPresentation,
-        deletePresentation
+        deletePresentation,
+        slides,
+        setSlides,
+        addToast,
+        currentPresentationId
     } = usePresentationStore()
 
     const [searchTerm, setSearchTerm] = useState('')
+    const [fileMenuOpen, setFileMenuOpen] = useState(false)
+    const fileMenuRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (fileMenuRef.current && !fileMenuRef.current.contains(event.target as Node)) {
+                setFileMenuOpen(false)
+            }
+        }
+        document.addEventListener('mousedown', handleClickOutside)
+        return () => document.removeEventListener('mousedown', handleClickOutside)
+    }, [])
 
     const filteredLibrary = library.filter(p =>
         p.title.toLowerCase().includes(searchTerm.toLowerCase())
@@ -21,30 +37,117 @@ const LibraryPanel: React.FC = () => {
         e.dataTransfer.setData('presentationId', id)
     }
 
+    const handleExport = async () => {
+        let title = 'Untitled Presentation'
+        const currentPresentation = library.find(p => p.id === currentPresentationId)
+        if (currentPresentation) {
+            title = currentPresentation.title
+        } else {
+            const candidateSlide = slides.find(s => s.content || (s.elements && s.elements.length > 0))
+            if (candidateSlide) {
+                if (candidateSlide.content) {
+                    title = candidateSlide.content.split('\n')[0].substring(0, 20)
+                } else if (candidateSlide.elements) {
+                    const textElement = candidateSlide.elements.find(el => el.type === 'text') as any
+                    if (textElement && textElement.text) {
+                        title = textElement.text.split('\n')[0].substring(0, 20)
+                    }
+                }
+            }
+        }
+
+        try {
+            const data = JSON.stringify({ title, slides }, null, 2)
+            const result = await window.ipcRenderer.saveProject(data)
+            if (result.success) {
+                addToast('내보내기가 완료되었습니다.', 'success')
+            } else if (!result.canceled) {
+                addToast('내보내기에 실패했습니다.', 'error')
+            }
+        } catch (e) {
+            addToast('내보내기에 실패했습니다.', 'error')
+        }
+    }
+
+    const handleImport = async () => {
+        try {
+            const result = await window.ipcRenderer.loadProject()
+            if (result.success && result.data) {
+                const parsed = JSON.parse(result.data)
+                if (parsed.slides && Array.isArray(parsed.slides)) {
+                    setSlides(parsed.slides)
+                    addToast('성공적으로 불러왔습니다. 저장 버튼을 눌러 라이브러리에 추가해주세요.', 'success')
+                } else {
+                    addToast('지원하지 않는 파일 형식입니다.', 'error')
+                }
+            } else if (!result.canceled && result.error) {
+                addToast('불러오기에 실패했습니다.', 'error')
+            }
+        } catch (e) {
+            addToast('파일 파싱에 실패했습니다.', 'error')
+        }
+    }
+
     return (
         <>
             <div className="p-3 bg-gray-900 border-b border-gray-800">
                 <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2 ml-auto">
-                        <button
-                            onClick={saveCurrentPresentation}
-                            className="px-2 py-1 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white rounded transition-colors flex items-center gap-1 shadow-sm"
-                            title="현재 슬라이드를 라이브러리에 저장합니다"
-                        >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                            </svg>
-                            저장
-                        </button>
+                        <div className="relative" ref={fileMenuRef}>
+                            <button
+                                onClick={() => setFileMenuOpen(!fileMenuOpen)}
+                                className="px-2 py-1 text-[11px] bg-gray-700 hover:bg-gray-600 text-white rounded transition-colors flex items-center gap-1 shadow-sm border border-gray-600"
+                            >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
+                                파일
+                            </button>
+
+                            {fileMenuOpen && (
+                                <div className="absolute right-0 mt-1 w-40 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-50 py-1">
+                                    <button
+                                        onClick={() => { setFileMenuOpen(false); saveCurrentPresentation(); }}
+                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                                    >
+                                        <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        </svg>
+                                        라이브러리에 저장
+                                        <span className="ml-auto text-[10px] text-gray-500">Ctrl+S</span>
+                                    </button>
+                                    <div className="border-t border-gray-700 my-1"></div>
+                                    <button
+                                        onClick={() => { setFileMenuOpen(false); handleExport(); }}
+                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                                    >
+                                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                        파일로 내보내기
+                                    </button>
+                                    <button
+                                        onClick={() => { setFileMenuOpen(false); handleImport(); }}
+                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                                    >
+                                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                        </svg>
+                                        프로젝트 불러오기
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
                         <button
                             onClick={createNewPresentation}
-                            className="px-2 py-1 text-[10px] bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors flex items-center gap-1 shadow-sm"
-                            title="새로운 프레젠테이션(노래)을 만듭니다"
+                            className="px-2 py-1 text-[11px] font-medium bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors flex items-center gap-1 shadow-sm"
+                            title="새로운 찬양(프레젠테이션)을 만듭니다"
                         >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                             </svg>
-                            새 프레젠테이션
+                            새 찬양
                         </button>
                     </div>
                 </div>
@@ -70,13 +173,18 @@ const LibraryPanel: React.FC = () => {
                         draggable
                         onDragStart={(e) => handleDragStart(e, presentation.id)}
                         onClick={() => selectPresentation(presentation.id)}
-                        className="group flex items-center justify-between p-2 rounded hover:bg-gray-700/50 cursor-pointer transition-colors"
+                        className={`group flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${currentPresentationId === presentation.id
+                            ? 'bg-blue-600/20 shadow-[inset_2px_0_0_0_rgb(59,130,246)]'
+                            : 'hover:bg-gray-700/50'
+                            }`}
                     >
                         <div className="flex items-center gap-2 min-w-0">
-                            <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className={`w-4 h-4 ${currentPresentationId === presentation.id ? 'text-blue-400' : 'text-gray-500'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
                             </svg>
-                            <span className="text-sm text-gray-300 truncate">{presentation.title}</span>
+                            <span className={`text-sm truncate ${currentPresentationId === presentation.id ? 'text-blue-300 font-medium' : 'text-gray-300'}`}>
+                                {presentation.title}
+                            </span>
                         </div>
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

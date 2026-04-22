@@ -16,8 +16,11 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
     slides: [],
     activeSlideId: null,
     currentPresentationId: null,
+    currentPresentationTitle: null,
     globalSlideStyle: defaultGlobalSlideStyle,
     isModalOpen: false,
+
+    setCurrentPresentationTitle: (title: string | null) => set({ currentPresentationTitle: title }),
 
     setActiveSlide: (id: string | null) => {
         const { slides, activeBackground } = get()

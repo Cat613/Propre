@@ -6,6 +6,7 @@ export interface EditorSlice {
     slides: Slide[]
     activeSlideId: string | null
     currentPresentationId: string | null
+    currentPresentationTitle: string | null
     globalSlideStyle: GlobalSlideStyle
     isModalOpen: boolean
 
@@ -18,6 +19,7 @@ export interface EditorSlice {
     clearActiveSlide: () => void
     updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>) => void
     setModalOpen: (isOpen: boolean) => void
+    setCurrentPresentationTitle: (title: string | null) => void
 
     // Phase 3 Canvas Element methods
     addSlideElement: (slideId: string, element: CanvasElement) => void

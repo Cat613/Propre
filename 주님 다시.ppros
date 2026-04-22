@@ -1,0 +1,38 @@
+{
+  "title": "주님 다시 오실 때까지",
+  "slides": [
+    {
+      "id": "ff5b4263-b420-471d-83aa-752279bd3a1e",
+      "content": "수정 주님 다시 오실 때까지\n우리 함께 예배하리라",
+      "type": "text",
+      "styles": {
+        "fontSize": "4rem",
+        "color": "#ffffff",
+        "backgroundColor": "#000000",
+        "textAlign": "center"
+      }
+    },
+    {
+      "id": "8f383925-52ca-49ee-afb5-a2d449425c2d",
+      "content": "나는 이 길을 가리라\n주님과 함께 가리라",
+      "type": "image",
+      "backgroundUrl": "https://images.unsplash.com/photo-1507692049790-de58290a4334?w=1920",
+      "styles": {
+        "fontSize": "4rem",
+        "color": "#ffffff",
+        "textAlign": "center"
+      }
+    },
+    {
+      "id": "33f9e860-21d8-48eb-813c-db1cbd7d40d5",
+      "content": "할렐루야 주님께 영광\n아멘 아멘 아멘",
+      "type": "image",
+      "backgroundUrl": "https://images.unsplash.com/photo-1438232992991-995b7058bbb3?w=1920",
+      "styles": {
+        "fontSize": "4rem",
+        "color": "#ffffff",
+        "textAlign": "center"
+      }
+    }
+  ]
+}

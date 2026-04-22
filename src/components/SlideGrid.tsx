@@ -5,7 +5,6 @@ import EditModal from './EditModal'
 import {
     DndContext,
     closestCenter,
-    KeyboardSensor,
     PointerSensor,
     useSensor,
     useSensors,
@@ -13,7 +12,6 @@ import {
 } from '@dnd-kit/core'
 import {
     SortableContext,
-    sortableKeyboardCoordinates,
     useSortable,
     rectSortingStrategy,
 } from '@dnd-kit/sortable'
@@ -71,11 +69,19 @@ const SortableSlideCard: React.FC<{
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            handleSave()
-        } else if (e.key === 'Escape') {
+        e.stopPropagation()
+        if (e.key === 'Escape') {
             setEditText(slide.content)
             setIsEditing(false)
+        } else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            handleSave()
+        }
+    }
+
+    const handleCardKeyDown = (e: React.KeyboardEvent) => {
+        if (!isEditing && e.key === 'Enter') {
+            e.preventDefault()
+            setIsEditing(true)
         }
     }
 
@@ -84,7 +90,7 @@ const SortableSlideCard: React.FC<{
             ref={setNodeRef}
             style={style}
             className={`
-        relative h-28 rounded-lg text-left cursor-grab active:cursor-grabbing overflow-hidden
+        relative h-28 rounded-lg text-left cursor-grab active:cursor-grabbing overflow-hidden focus:outline-none
         bg-gray-700/50 hover:bg-gray-700
         border-2 group
         ${isActive
@@ -94,6 +100,10 @@ const SortableSlideCard: React.FC<{
       `}
             {...attributes}
             {...listeners}
+            onKeyDown={(e) => {
+                listeners?.onKeyDown?.(e as any)
+                handleCardKeyDown(e)
+            }}
         >
             {/* Label Color Bar (Top) */}
             {labelColor !== 'transparent' && (
@@ -181,8 +191,7 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
     const [editingSlide, setEditingSlide] = useState<Slide | null>(null)
 
     const sensors = useSensors(
-        useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-        useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+        useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
     )
 
     const handleSlideClick = (slide: Slide) => {

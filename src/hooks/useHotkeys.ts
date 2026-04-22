@@ -2,10 +2,17 @@ import { useEffect } from 'react'
 import { usePresentationStore } from '../store'
 
 export const useHotkeys = () => {
-    const { slides, activeSlideId, setActiveSlide, clearAll, isModalOpen } = usePresentationStore()
+    const { slides, activeSlideId, setActiveSlide, clearAll, isModalOpen, saveCurrentPresentation } = usePresentationStore()
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
+            // Save (Ctrl/Cmd + S)
+            if (e.key.toLowerCase() === 's' && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault()
+                saveCurrentPresentation()
+                return
+            }
+
             // Ignore if focus is in an input or textarea, or if a modal is open
             if (
                 isModalOpen ||
@@ -39,7 +46,6 @@ export const useHotkeys = () => {
             switch (e.key) {
                 case 'ArrowRight':
                 case 'ArrowDown':
-                case ' ': // Spacebar
                     e.preventDefault()
                     if (currentIndex < slides.length - 1) {
                         setActiveSlide(slides[currentIndex + 1].id)

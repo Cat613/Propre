@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import LeftSidebar from './LeftSidebar'
 import SlideGrid from './SlideGrid'
 import PreviewPanel from './PreviewPanel'
@@ -18,8 +18,26 @@ const ControlPanel: React.FC = () => {
         clearBackground,
         clearAll,
         isModalOpen,
-        loadLibrary
+        loadLibrary,
+        currentPresentationTitle,
+        setCurrentPresentationTitle,
+        saveCurrentPresentation
     } = usePresentationStore()
+
+    const [isEditingTitle, setIsEditingTitle] = useState(false)
+    const [editingTitleText, setEditingTitleText] = useState('')
+
+    useEffect(() => {
+        if (isEditingTitle) {
+            setEditingTitleText(currentPresentationTitle || '새 프레젠테이션')
+        }
+    }, [isEditingTitle, currentPresentationTitle])
+
+    const handleTitleSave = () => {
+        setIsEditingTitle(false)
+        setCurrentPresentationTitle(editingTitleText)
+        saveCurrentPresentation() // Autosave to library
+    }
 
     // Use global hotkeys hook
     useHotkeys()
@@ -85,7 +103,30 @@ const ControlPanel: React.FC = () => {
                     {/* Header */}
                     <header className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
                         <div className="flex items-center gap-3">
-                            <h1 className="text-lg font-bold text-blue-400">프레젠테이션</h1>
+                            {isEditingTitle ? (
+                                <input
+                                    autoFocus
+                                    className="text-lg font-bold text-blue-400 bg-gray-900 border border-blue-500 rounded px-2 py-0.5 outline-none w-64"
+                                    value={editingTitleText}
+                                    onChange={(e) => setEditingTitleText(e.target.value)}
+                                    onBlur={handleTitleSave}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') handleTitleSave()
+                                        if (e.key === 'Escape') {
+                                            setEditingTitleText(currentPresentationTitle || '새 프레젠테이션')
+                                            setIsEditingTitle(false)
+                                        }
+                                    }}
+                                />
+                            ) : (
+                                <h1
+                                    className="text-lg font-bold text-blue-400 cursor-text hover:bg-gray-700/50 px-2 py-0.5 rounded -ml-2 transition-colors"
+                                    onDoubleClick={() => setIsEditingTitle(true)}
+                                    title="더블클릭하여 제목 수정"
+                                >
+                                    {currentPresentationTitle || '새 프레젠테이션'}
+                                </h1>
+                            )}
                             <span className="px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded">
                                 {slides.length} 슬라이드
                             </span>

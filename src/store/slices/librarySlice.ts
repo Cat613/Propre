@@ -18,19 +18,22 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
     },
 
     saveCurrentPresentation: async () => {
-        const { slides, currentPresentationId } = get()
+        const { slides, currentPresentationId, currentPresentationTitle } = get()
         let presentation: Presentation
 
-        // Find best title from content or elements
-        let title = 'Untitled Presentation'
-        const candidateSlide = slides.find(s => s.content || (s.elements && s.elements.length > 0))
-        if (candidateSlide) {
-            if (candidateSlide.content) {
-                title = candidateSlide.content.split('\n')[0].substring(0, 20)
-            } else if (candidateSlide.elements) {
-                const textElement = candidateSlide.elements.find((el): el is import('../../types').TextElement => el.type === 'text')
-                if (textElement && textElement.text) {
-                    title = textElement.text.split('\n')[0].substring(0, 20)
+        // Use explicitly set title, or find best title from content or elements
+        let title = currentPresentationTitle
+        if (!title || title.trim() === '') {
+            title = 'Untitled Presentation'
+            const candidateSlide = slides.find(s => s.content || (s.elements && s.elements.length > 0))
+            if (candidateSlide) {
+                if (candidateSlide.content) {
+                    title = candidateSlide.content.split('\n')[0].substring(0, 20)
+                } else if (candidateSlide.elements) {
+                    const textElement = candidateSlide.elements.find((el): el is import('../../types').TextElement => el.type === 'text')
+                    if (textElement && textElement.text) {
+                        title = textElement.text.split('\n')[0].substring(0, 20)
+                    }
                 }
             }
         }
@@ -40,7 +43,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
             presentation = {
                 ...(existing || { createdAt: new Date().toISOString() }),
                 id: currentPresentationId,
-                title: existing?.title || title,
+                title: title,
                 slides,
                 updatedAt: new Date().toISOString(),
             }
@@ -69,6 +72,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
     createNewPresentation: () => {
         set({
             currentPresentationId: null,
+            currentPresentationTitle: null,
             slides: [],
             activeSlideId: null,
         })
@@ -117,6 +121,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
         if (presentation) {
             set({
                 currentPresentationId: presentation.id,
+                currentPresentationTitle: presentation.title,
                 slides: presentation.slides || [],
                 activeSlideId: null,
             })

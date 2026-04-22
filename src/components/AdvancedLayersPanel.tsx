@@ -95,7 +95,6 @@ const AdvancedLayersPanel: React.FC = () => {
                         type="text"
                         value={messageText}
                         onChange={(e) => setMessageText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') handleSendTicker() }}
                         placeholder="자막 내용을 입력하세요"
                         className="flex-1 bg-gray-800 text-white text-sm px-3 py-1.5 rounded border border-gray-700 focus:border-blue-500 focus:outline-none"
                     />
