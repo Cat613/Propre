@@ -70,6 +70,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
     },
 
     createNewPresentation: () => {
+        const { globalStylePresets, defaultSongPresetId, updateGlobalSlideStyle } = get()
         set({
             currentPresentationId: null,
             currentPresentationTitle: null,
@@ -77,6 +78,14 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
             activeSlideId: null,
         })
         get().clearText()
+
+        // Apply default song preset for new presentations
+        if (defaultSongPresetId) {
+            const preset = globalStylePresets.find(p => p.id === defaultSongPresetId)
+            if (preset) {
+                updateGlobalSlideStyle(preset.style, preset.id)
+            }
+        }
     },
 
     deletePresentation: async (id: string) => {
@@ -116,7 +125,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
     },
 
     selectPresentation: (presentationId: string) => {
-        const { library } = get()
+        const { library, globalStylePresets, defaultBiblePresetId, defaultSongPresetId, updateGlobalSlideStyle } = get()
         const presentation = library.find(p => p.id === presentationId)
         if (presentation) {
             set({
@@ -126,6 +135,16 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
                 activeSlideId: null,
             })
             get().clearText()
+
+            // Check if it's a Bible or Song presentation to load default preset
+            const isBible = presentation.slides?.some(s => s.type === 'bible')
+            const presetIdToLoad = isBible ? defaultBiblePresetId : defaultSongPresetId
+            if (presetIdToLoad) {
+                const preset = globalStylePresets.find(p => p.id === presetIdToLoad)
+                if (preset) {
+                    updateGlobalSlideStyle(preset.style, preset.id)
+                }
+            }
         }
     },
 })

@@ -3,13 +3,16 @@ import ControlPanel from './components/ControlPanel'
 import OutputDisplay from './components/OutputDisplay'
 import StageDisplay from './components/StageDisplay'
 import ToastContainer from './components/ToastContainer'
+import { usePresentationStore } from './store'
 
 function App() {
     const [currentHash, setCurrentHash] = useState(window.location.hash)
+    const { loadPresetsFromStorage } = usePresentationStore()
 
     useEffect(() => {
-        // Initial check
+        // Initial check and load presets
         setCurrentHash(window.location.hash)
+        loadPresetsFromStorage()
 
         const handleHashChange = () => {
             setCurrentHash(window.location.hash)

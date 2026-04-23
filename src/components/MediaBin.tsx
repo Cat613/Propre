@@ -1,6 +1,7 @@
 
 import { usePresentationStore } from '../store'
 import type { MediaItem } from '../types'
+import AudioPlayer from './AudioPlayer'
 
 const MediaBin: React.FC = () => {
     const { mediaBin, addMediaToBin, removeMediaFromBin, triggerBackground } = usePresentationStore()
@@ -23,21 +24,26 @@ const MediaBin: React.FC = () => {
     }
 
     return (
-        <div className="flex flex-col h-48 bg-gray-900 border-t border-gray-800">
+        <div className="flex-1 min-h-0 flex flex-col bg-gray-900 border-t border-gray-800">
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-                <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+            <div className="flex-none flex items-center justify-between px-3 py-2 border-b border-gray-800">
+                <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
                     미디어 빈 (Media Bin)
                 </h2>
                 <button
                     onClick={handleImport}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+                    className="flex items-center gap-1 px-1.5 py-1 text-[10px] bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
                 >
                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                     Import
                 </button>
+            </div>
+
+            {/* Audio Controls */}
+            <div className="flex-none p-3 border-b border-gray-800 bg-gray-800/20">
+                <AudioPlayer />
             </div>
 
             {/* Media Grid */}
@@ -50,7 +56,7 @@ const MediaBin: React.FC = () => {
                         <span className="text-xs">미디어를 가져오세요</span>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+                    <div className="grid grid-cols-2 2xl:grid-cols-3 gap-2">
                         {mediaBin.map((media) => (
                             <div
                                 key={media.id}

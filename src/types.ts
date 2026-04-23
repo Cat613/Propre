@@ -101,6 +101,12 @@ export interface GlobalSlideStyle {
     offsetY?: number // Global fine-tuning Y offset in px
 }
 
+export interface GlobalStylePreset {
+    id: string
+    name: string
+    style: GlobalSlideStyle
+}
+
 // Presentation interface
 export interface Presentation {
     id: string

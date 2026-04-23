@@ -20,7 +20,7 @@ const BIBLE_BOOKS: BibleBookOption[] = Object.entries(BOOK_MAPPING)
     }))
 
 const BiblePanel: React.FC = () => {
-    const { setActiveSlide, setSlides } = usePresentationStore()
+    const { setActiveSlide, setSlides, updateGlobalSlideStyle } = usePresentationStore()
 
     const [query, setQuery] = useState('')
     const [verses, setVerses] = useState<BibleVerse[]>([])
@@ -110,6 +110,15 @@ const BiblePanel: React.FC = () => {
             }))
 
             setSlides(newSlides)
+
+            // Make sure default Bible style preset is automatically loaded for a new Bible session
+            const { defaultBiblePresetId, globalStylePresets } = usePresentationStore.getState()
+            if (defaultBiblePresetId) {
+                const preset = globalStylePresets.find(p => p.id === defaultBiblePresetId)
+                if (preset) {
+                    updateGlobalSlideStyle(preset.style, preset.id)
+                }
+            }
 
         } catch (e) {
             console.error(e)

@@ -18,9 +18,11 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
     currentPresentationId: null,
     currentPresentationTitle: null,
     globalSlideStyle: defaultGlobalSlideStyle,
+    activePresetId: null,
     isModalOpen: false,
 
     setCurrentPresentationTitle: (title: string | null) => set({ currentPresentationTitle: title }),
+    setActivePresetId: (id: string | null) => set({ activePresetId: id }),
 
     setActiveSlide: (id: string | null) => {
         const { slides, activeBackground } = get()
@@ -116,9 +118,14 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
             return { slides: newSlides }
         }),
 
-    updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>) => {
-        const newStyle = { ...get().globalSlideStyle, ...style }
-        set({ globalSlideStyle: newStyle })
+    updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>, presetId?: string | null) => {
+        const updates: Partial<EditorSlice> = {
+            globalSlideStyle: { ...get().globalSlideStyle, ...style }
+        }
+        if (presetId !== undefined) {
+            updates.activePresetId = presetId
+        }
+        set(updates)
         syncOutputState(get)
     },
 

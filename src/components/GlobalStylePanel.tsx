@@ -1,8 +1,10 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { usePresentationStore } from '../store'
 
 const GlobalStylePanel: React.FC = () => {
-    const { globalSlideStyle, updateGlobalSlideStyle } = usePresentationStore()
+    const { globalSlideStyle, updateGlobalSlideStyle, globalStylePresets, addGlobalStylePreset, deleteGlobalStylePreset, addToast, activePresetId, setActivePresetId } = usePresentationStore()
+    const [isSaving, setIsSaving] = useState(false)
+    const [newPresetName, setNewPresetName] = useState('')
 
     const handleAlignChange = (align: 'left' | 'center' | 'right') => {
         updateGlobalSlideStyle({ align })
@@ -18,16 +20,146 @@ const GlobalStylePanel: React.FC = () => {
                 일반 텍스트 전역 스타일
             </h3>
 
+            <div className="mb-4 bg-gray-800 p-2 rounded-lg border border-gray-700">
+                {isSaving ? (
+                    <div className="flex items-center gap-2">
+                        <input
+                            type="text"
+                            value={newPresetName}
+                            onChange={(e) => setNewPresetName(e.target.value)}
+                            placeholder="프리셋 이름"
+                            className="flex-1 bg-gray-900 text-xs border border-gray-700 rounded px-2 py-1.5 focus:border-blue-500 text-gray-300 min-w-0"
+                            autoFocus
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && newPresetName.trim()) {
+                                    const newId = 'preset-' + Date.now()
+                                    addGlobalStylePreset({
+                                        id: newId,
+                                        name: newPresetName.trim(),
+                                        style: globalSlideStyle
+                                    })
+                                    setActivePresetId(newId)
+                                    setIsSaving(false)
+                                    setNewPresetName('')
+                                } else if (e.key === 'Escape') {
+                                    setIsSaving(false)
+                                    setNewPresetName('')
+                                }
+                            }}
+                        />
+                        <button
+                            onClick={() => {
+                                if (newPresetName.trim()) {
+                                    const newId = 'preset-' + Date.now()
+                                    addGlobalStylePreset({
+                                        id: newId,
+                                        name: newPresetName.trim(),
+                                        style: globalSlideStyle
+                                    })
+                                    setActivePresetId(newId)
+                                    setIsSaving(false)
+                                    setNewPresetName('')
+                                }
+                            }}
+                            className="px-2 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-[10px] transition-colors flex-none"
+                        >
+                            저장
+                        </button>
+                        <button
+                            onClick={() => { setIsSaving(false); setNewPresetName(''); }}
+                            className="px-2 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded text-[10px] transition-colors flex-none"
+                        >
+                            취소
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between gap-2">
+                        <select
+                            value={activePresetId || ''}
+                            className="flex-1 bg-gray-900 text-xs border border-gray-700 rounded px-2 py-1.5 focus:border-blue-500 text-gray-300 min-w-0"
+                            onChange={(e) => {
+                                const val = e.target.value
+                                if (val) {
+                                    const preset = globalStylePresets.find(p => p.id === val)
+                                    if (preset) updateGlobalSlideStyle(preset.style, preset.id)
+                                } else {
+                                    setActivePresetId(null)
+                                }
+                            }}
+                        >
+                            <option value="">-- 프리셋 선택 --</option>
+                            {globalStylePresets.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+
+                        {activePresetId && (
+                            <div className="flex items-center gap-1">
+                                <button
+                                    onClick={() => {
+                                        const preset = globalStylePresets.find(p => p.id === activePresetId)
+                                        if (preset) {
+                                            addGlobalStylePreset({
+                                                id: preset.id,
+                                                name: preset.name,
+                                                style: globalSlideStyle
+                                            })
+                                            addToast(`${preset.name} 프리셋이 덮어쓰기 되었습니다.`, 'info')
+                                        }
+                                    }}
+                                    className="px-2 py-1.5 bg-green-600/20 text-green-400 hover:bg-green-600/40 rounded text-[10px] border border-green-500/30 transition-colors whitespace-nowrap flex-none"
+                                    title="선택한 프리셋으로 현재 설정 덮어쓰기"
+                                >
+                                    업데이트
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        deleteGlobalStylePreset(activePresetId)
+                                        setActivePresetId(null)
+                                        addToast('프리셋이 삭제되었습니다.', 'info')
+                                    }}
+                                    className="px-2 py-1.5 bg-red-600/20 text-red-400 hover:bg-red-600/40 rounded text-[10px] border border-red-500/30 transition-colors whitespace-nowrap flex-none"
+                                    title="선택한 프리셋 삭제"
+                                >
+                                    삭제
+                                </button>
+                            </div>
+                        )}
+
+                        <button
+                            onClick={() => {
+                                setNewPresetName('')
+                                setIsSaving(true)
+                            }}
+                            className="px-2 py-1.5 bg-blue-600/20 text-blue-400 hover:bg-blue-600/40 rounded text-[10px] border border-blue-500/30 transition-colors whitespace-nowrap flex-none"
+                        >
+                            + 현재 저장
+                        </button>
+                    </div>
+                )}
+            </div>
+
             <div className="space-y-3">
                 {/* Font Size & Color */}
                 <div className="flex gap-2">
                     <div className="flex-1">
-                        <label className="block text-xs text-gray-500 mb-1">크기</label>
+                        <div className="flex items-center justify-between mb-1 text-xs text-gray-500">
+                            <label>크기</label>
+                            <input
+                                type="number"
+                                value={globalSlideStyle.fontSize}
+                                onChange={(e) => updateGlobalSlideStyle({ fontSize: Number(e.target.value) })}
+                                className="w-14 bg-gray-800 text-white rounded px-1 text-xs border border-gray-700 text-right"
+                            />
+                        </div>
                         <input
-                            type="number"
+                            type="range"
+                            min="10"
+                            max="200"
+                            step="1"
                             value={globalSlideStyle.fontSize}
-                            onChange={(e) => updateGlobalSlideStyle({ fontSize: Number(e.target.value) })}
-                            className="w-full bg-gray-800 text-white rounded px-2 py-1 text-sm border border-gray-700 focus:border-blue-500"
+                            onChange={(e) => updateGlobalSlideStyle({ fontSize: parseInt(e.target.value) })}
+                            className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                         />
                     </div>
                     <div className="flex-1">

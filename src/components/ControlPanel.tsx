@@ -4,6 +4,7 @@ import SlideGrid from './SlideGrid'
 import PreviewPanel from './PreviewPanel'
 import GlobalStylePanel from './GlobalStylePanel'
 import AdvancedLayersPanel from './AdvancedLayersPanel'
+import SettingsTabPanel from './SettingsTabPanel'
 import ControlToolbar from './ControlToolbar'
 import MediaBin from './MediaBin'
 import { usePresentationStore } from '../store'
@@ -26,6 +27,7 @@ const ControlPanel: React.FC = () => {
 
     const [isEditingTitle, setIsEditingTitle] = useState(false)
     const [editingTitleText, setEditingTitleText] = useState('')
+    const [activeRightTab, setActiveRightTab] = useState<'media' | 'styles' | 'layers' | 'settings'>('media')
 
     useEffect(() => {
         if (isEditingTitle) {
@@ -136,36 +138,54 @@ const ControlPanel: React.FC = () => {
                         </div>
                     </header>
 
-                    <PanelGroup direction="vertical">
-                        {/* Slide Grid Area */}
-                        <Panel defaultSize={70} minSize={30} className="flex flex-col bg-gray-800">
-                            <div className="flex-1 overflow-y-auto min-h-0">
-                                <SlideGrid />
-                            </div>
-                        </Panel>
-
-                        <PanelResizeHandle className="h-1 bg-gray-700 hover:bg-blue-600 transition-colors cursor-row-resize flex items-center justify-center">
-                            <div className="w-8 h-0.5 bg-gray-500 rounded-full my-0.5" />
-                        </PanelResizeHandle>
-
-                        {/* Media Bin */}
-                        <Panel defaultSize={30} minSize={15} className="flex flex-col bg-gray-900">
-                            <div className="flex-1 overflow-hidden">
-                                <MediaBin />
-                            </div>
-                        </Panel>
-                    </PanelGroup>
+                    {/* Slide Grid Area - FULL MIDDLE */}
+                    <div className="flex-1 overflow-y-auto min-h-0 bg-gray-800">
+                        <SlideGrid />
+                    </div>
                 </Panel>
 
                 <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-blue-600 transition-colors cursor-col-resize" />
 
                 {/* Right Sidebar */}
-                <Panel defaultSize={25} minSize={20} maxSize={50} className="bg-gray-900 flex flex-col">
-                    <div className="flex-1 overflow-y-auto flex flex-col">
-                        <PreviewPanel />
-                        <GlobalStylePanel />
-                        <AdvancedLayersPanel />
+                <Panel defaultSize={22} minSize={20} maxSize={50} className="bg-gray-900 flex flex-col">
+                    <PreviewPanel />
+
+                    {/* Tab Navigation */}
+                    <div className="flex-none flex bg-gray-800 border-b border-gray-700 text-[10px] font-medium uppercase tracking-wider">
+                        <button
+                            onClick={() => setActiveRightTab('media')}
+                            className={`flex-1 py-3 text-center transition-colors border-b-2 ${activeRightTab === 'media' ? 'border-blue-500 text-blue-400 bg-gray-900' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'}`}
+                        >
+                            미디어
+                        </button>
+                        <button
+                            onClick={() => setActiveRightTab('styles')}
+                            className={`flex-1 py-3 text-center transition-colors border-b-2 ${activeRightTab === 'styles' ? 'border-blue-500 text-blue-400 bg-gray-900' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'}`}
+                        >
+                            스타일
+                        </button>
+                        <button
+                            onClick={() => setActiveRightTab('layers')}
+                            className={`flex-1 py-3 text-center transition-colors border-b-2 ${activeRightTab === 'layers' ? 'border-blue-500 text-blue-400 bg-gray-900' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'}`}
+                        >
+                            레이어
+                        </button>
+                        <button
+                            onClick={() => setActiveRightTab('settings')}
+                            className={`flex-1 py-3 text-center transition-colors border-b-2 ${activeRightTab === 'settings' ? 'border-blue-500 text-blue-400 bg-gray-900' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'}`}
+                        >
+                            설정
+                        </button>
                     </div>
+
+                    {/* Tab Content */}
+                    <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
+                        {activeRightTab === 'media' && <MediaBin />}
+                        {activeRightTab === 'styles' && <GlobalStylePanel />}
+                        {activeRightTab === 'layers' && <AdvancedLayersPanel />}
+                        {activeRightTab === 'settings' && <SettingsTabPanel />}
+                    </div>
+
                     <ControlToolbar />
                 </Panel>
             </PanelGroup>

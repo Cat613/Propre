@@ -1,5 +1,5 @@
 // src/store/types.ts
-import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, GlobalSlideStyle, LayerType, AudioItem, PropItem, MessageItem, LooksState, ScreenLook, CanvasElement } from '../types'
+import type { Slide, Presentation, PlaylistItem, MediaItem, ActiveBackground, GlobalSlideStyle, GlobalStylePreset, LayerType, AudioItem, PropItem, MessageItem, LooksState, ScreenLook, CanvasElement } from '../types'
 import { StateCreator } from 'zustand'
 
 export interface EditorSlice {
@@ -8,6 +8,7 @@ export interface EditorSlice {
     currentPresentationId: string | null
     currentPresentationTitle: string | null
     globalSlideStyle: GlobalSlideStyle
+    activePresetId: string | null
     isModalOpen: boolean
 
     setActiveSlide: (id: string | null) => void
@@ -17,7 +18,8 @@ export interface EditorSlice {
     deleteSlide: (id: string) => void
     reorderSlides: (oldIndex: number, newIndex: number) => void
     clearActiveSlide: () => void
-    updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>) => void
+    updateGlobalSlideStyle: (style: Partial<GlobalSlideStyle>, presetId?: string | null) => void
+    setActivePresetId: (id: string | null) => void
     setModalOpen: (isOpen: boolean) => void
     setCurrentPresentationTitle: (title: string | null) => void
 
@@ -70,9 +72,20 @@ export interface SettingsSlice {
     isGreenScreen: boolean // Legacy flag, will be phased out by Looks
     screenLooks: LooksState
 
+    // Global Style Presets
+    globalStylePresets: GlobalStylePreset[]
+    defaultSongPresetId: string | null
+    defaultBiblePresetId: string | null
+
     setGeminiKey: (key: string | null) => void
     toggleGreenScreen: () => void
     updateScreenLook: (screenId: string, layer: LayerType, override: Partial<ScreenLook[LayerType]>) => void
+
+    // Preset methods
+    addGlobalStylePreset: (preset: GlobalStylePreset) => void
+    deleteGlobalStylePreset: (id: string) => void
+    setDefaultPreset: (type: 'song' | 'bible', presetId: string | null) => void
+    loadPresetsFromStorage: () => void
 }
 
 export interface StageSlice {
