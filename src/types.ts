@@ -150,10 +150,13 @@ export interface AudioItem {
 
 export interface PropItem {
     id: string
-    type: 'logo' | 'clock' | 'timer' | 'text'
+    type: 'image' | 'text' | 'logo' | 'clock' | 'timer'
     content?: string // For text/timer
-    url?: string     // For logo
-    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center'
+    url?: string     // For image/logo
+    position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' | 'center' | 'custom'
+    customX?: number // percentage 0-100
+    customY?: number // percentage 0-100
+    scale?: number   // default 1.0
 }
 
 export interface MessageItem {
@@ -169,7 +172,7 @@ export interface LayerState {
     background: ActiveBackground // Maintains 'none' type instead of null for backward compatibility
     slide: Slide | null
     announcement: Slide | null
-    prop: PropItem | null
+    props: PropItem[]
     message: MessageItem | null
 }
 

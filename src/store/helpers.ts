@@ -11,7 +11,7 @@ export const syncOutputState = (get: () => StoreState) => {
         background: state.activeBackground,
         slide: activeSlide || null,
         announcement: state.activeAnnouncement || null,
-        prop: state.activeProp,
+        props: state.activeProps,
         message: state.activeMessage
     }
 
@@ -29,7 +29,7 @@ export const syncOutputState = (get: () => StoreState) => {
             background: look.background.isVisible ? baseLayers.background : { type: 'none' },
             slide: look.slide.isVisible ? baseLayers.slide : null,
             announcement: look.announcement.isVisible ? baseLayers.announcement : null,
-            prop: look.prop.isVisible ? baseLayers.prop : null,
+            props: look.prop.isVisible ? baseLayers.props : [],
             message: look.message.isVisible ? baseLayers.message : null
         }
 

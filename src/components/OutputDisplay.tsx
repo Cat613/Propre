@@ -9,7 +9,7 @@ const OutputDisplay: React.FC = () => {
         background: { type: 'none' },
         slide: null,
         announcement: null,
-        prop: null,
+        props: [],
         message: null
     })
     const [globalSlideStyle, setGlobalSlideStyle] = useState<OutputState['globalSlideStyle']>()
@@ -36,7 +36,7 @@ const OutputDisplay: React.FC = () => {
                         background: { type: 'none' },
                         slide: null,
                         announcement: null,
-                        prop: null,
+                        props: [],
                         message: null
                     })
                     return
@@ -178,24 +178,53 @@ const OutputDisplay: React.FC = () => {
             </div>
 
             {/* Layer 4: Props/Logos (Z-index 30) */}
-            <div className="absolute inset-0 z-30 pointer-events-none">
-                {layers.prop && layers.prop.type === 'logo' && layers.prop.url && (
-                    <div
-                        className="absolute w-48 h-auto"
-                        style={layers.prop.position === 'center' ? {
-                            top: '50%',
+            <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden" style={{ containerType: 'inline-size' }}>
+                {layers.props && layers.props.map(prop => {
+                    const scale = prop.scale ?? 1.0;
+                    let style: React.CSSProperties = {};
+                    
+                    if (prop.position === 'custom') {
+                        style = {
+                            left: `${prop.customX ?? 50}%`,
+                            top: `${prop.customY ?? 50}%`,
+                            transform: `translate(-50%, -50%) scale(${scale})`
+                        };
+                    } else if (prop.position === 'center') {
+                        style = {
                             left: '50%',
-                            transform: 'translate(-50%, -50%)'
-                        } : {
-                            top: layers.prop.position.includes('top') ? '2rem' : 'auto',
-                            bottom: layers.prop.position.includes('bottom') ? '2rem' : 'auto',
-                            left: layers.prop.position.includes('left') ? '2rem' : 'auto',
-                            right: layers.prop.position.includes('right') ? '2rem' : 'auto',
-                        }}
-                    >
-                        <img src={layers.prop.url} alt="Prop" className="w-full h-auto drop-shadow-lg" />
-                    </div>
-                )}
+                            top: '50%',
+                            transform: `translate(-50%, -50%) scale(${scale})`
+                        };
+                    } else {
+                        style = { transform: `scale(${scale})` };
+                        if (prop.position.includes('top')) style.top = '2rem';
+                        if (prop.position.includes('bottom')) style.bottom = '2rem';
+                        if (prop.position.includes('left')) style.left = '2rem';
+                        if (prop.position.includes('right')) style.right = '2rem';
+                        
+                        if (prop.position === 'top-left') style.transformOrigin = 'top left';
+                        if (prop.position === 'top-right') style.transformOrigin = 'top right';
+                        if (prop.position === 'bottom-left') style.transformOrigin = 'bottom left';
+                        if (prop.position === 'bottom-right') style.transformOrigin = 'bottom right';
+                    }
+
+                    return (
+                        <div
+                            key={prop.id}
+                            className="absolute flex items-center justify-center drop-shadow-lg"
+                            style={style}
+                        >
+                            {(prop.type === 'logo' || prop.type === 'image') && prop.url && (
+                                <img src={prop.url} alt="Prop" className="max-w-none" style={{ width: '15cqw' }} />
+                            )}
+                            {prop.type === 'text' && prop.content && (
+                                <div className="text-white font-bold whitespace-pre text-center leading-tight" style={{ fontSize: '4cqw', WebkitTextStroke: isGreenScreen ? '2px black' : 'none', textShadow: isGreenScreen ? 'none' : '2px 2px 4px rgba(0,0,0,0.8)' }}>
+                                    {prop.content}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
             {/* Layer 5: Message Ticker (Z-index 40) */}

@@ -7,7 +7,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     mediaBin: [],
     activeBackground: { type: 'none' },
     activeAudio: null,
-    activeProp: null,
+    activeProps: [],
     activeMessage: null,
     activeAnnouncement: null,
 
@@ -50,8 +50,27 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
         syncOutputState(get)
     },
 
-    setProp: (prop) => {
-        set({ activeProp: prop })
+    setProps: (props) => {
+        set({ activeProps: props })
+        syncOutputState(get)
+    },
+
+    addProp: (prop) => {
+        set(state => ({ activeProps: [...state.activeProps, prop] }))
+        syncOutputState(get)
+    },
+
+    updateProp: (id, updates) => {
+        set(state => ({
+            activeProps: state.activeProps.map(p => p.id === id ? { ...p, ...updates } : p)
+        }))
+        syncOutputState(get)
+    },
+
+    removeProp: (id) => {
+        set(state => ({
+            activeProps: state.activeProps.filter(p => p.id !== id)
+        }))
         syncOutputState(get)
     },
 
@@ -81,7 +100,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
                 set({ activeAnnouncement: null })
                 break
             case 'prop':
-                set({ activeProp: null })
+                set({ activeProps: [] })
                 break
             case 'message':
                 set({ activeMessage: null })
@@ -102,7 +121,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
             activeSlideId: null,
             activeBackground: { type: 'none' },
             activeAudio: null,
-            activeProp: null,
+            activeProps: [],
             activeMessage: null,
             activeAnnouncement: null,
         })

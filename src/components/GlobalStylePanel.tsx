@@ -160,6 +160,8 @@ const GlobalStylePanel: React.FC = () => {
                             value={globalSlideStyle.fontSize}
                             onChange={(e) => updateGlobalSlideStyle({ fontSize: parseInt(e.target.value) })}
                             className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
                         />
                     </div>
                     <div className="flex-1">
@@ -249,6 +251,8 @@ const GlobalStylePanel: React.FC = () => {
                         value={globalSlideStyle.backgroundDim || 0}
                         onChange={(e) => updateGlobalSlideStyle({ backgroundDim: parseFloat(e.target.value) })}
                         className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        draggable={false}
+                        onDragStart={(e) => e.preventDefault()}
                     />
                 </div>
                 {/* Fine Tuning Offsets */}
@@ -271,6 +275,8 @@ const GlobalStylePanel: React.FC = () => {
                             value={globalSlideStyle.offsetX || 0}
                             onChange={(e) => updateGlobalSlideStyle({ offsetX: parseInt(e.target.value) })}
                             className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
                         />
                     </div>
                     <div className="flex-1">
@@ -291,6 +297,8 @@ const GlobalStylePanel: React.FC = () => {
                             value={globalSlideStyle.offsetY || 0}
                             onChange={(e) => updateGlobalSlideStyle({ offsetY: parseInt(e.target.value) })}
                             className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
                         />
                     </div>
                 </div>

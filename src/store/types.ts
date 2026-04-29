@@ -47,7 +47,7 @@ export interface MediaSlice {
     mediaBin: MediaItem[]
     activeBackground: ActiveBackground
     activeAudio: AudioItem | null
-    activeProp: PropItem | null
+    activeProps: PropItem[]
     activeMessage: MessageItem | null
     activeAnnouncement: Slide | null
 
@@ -61,7 +61,10 @@ export interface MediaSlice {
     clearAll: () => void
 
     // New Layer-specific methods
-    setProp: (prop: PropItem | null) => void
+    setProps: (props: PropItem[]) => void
+    addProp: (prop: PropItem) => void
+    updateProp: (id: string, updates: Partial<PropItem>) => void
+    removeProp: (id: string) => void
     setMessage: (message: MessageItem | null) => void
     setAnnouncement: (announcement: Slide | null) => void
     clearLayer: (layer: LayerType) => void
