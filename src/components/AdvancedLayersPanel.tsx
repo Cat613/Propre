@@ -3,6 +3,35 @@ import { usePresentationStore } from '../store'
 import { generateId } from '../utils/generateId'
 
 import PositionPickerModal from './PositionPickerModal'
+import { useRef, useEffect } from 'react'
+
+const AutoResizeTextarea: React.FC<{
+    value: string;
+    onChange: (val: string) => void;
+    className?: string;
+    placeholder?: string;
+}> = ({ value, onChange, className, placeholder }) => {
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+        }
+    }, [value]);
+
+    return (
+        <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            className={className}
+            placeholder={placeholder}
+            rows={1}
+            style={{ overflow: 'hidden' }}
+        />
+    );
+};
 
 const AdvancedLayersPanel: React.FC = () => {
     const { activeProps, activeMessage, addProp, updateProp, removeProp, setProps, setMessage, clearLayer } = usePresentationStore()
@@ -94,14 +123,13 @@ const AdvancedLayersPanel: React.FC = () => {
                 </div>
 
                 {/* Active Props List */}
-                <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {activeProps.map(prop => (
                         <div key={prop.id} className="bg-gray-800 rounded p-2 border border-gray-700 flex items-center gap-2">
                             {prop.type === 'text' ? (
-                                <textarea 
-                                    rows={2}
+                                <AutoResizeTextarea 
                                     value={prop.content || ''} 
-                                    onChange={(e) => updateProp(prop.id, { content: e.target.value })}
+                                    onChange={(val) => updateProp(prop.id, { content: val })}
                                     className="flex-1 bg-gray-900 text-xs text-white px-2 py-1 rounded border border-gray-600 focus:border-blue-500 focus:outline-none min-w-0 resize-none"
                                     placeholder="안내 텍스트"
                                 />

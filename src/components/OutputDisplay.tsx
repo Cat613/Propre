@@ -15,6 +15,8 @@ const OutputDisplay: React.FC = () => {
     const [globalSlideStyle, setGlobalSlideStyle] = useState<OutputState['globalSlideStyle']>()
     const [isGreenScreen, setIsGreenScreen] = useState(false)
     const [screenId, setScreenId] = useState<string>('main')
+    const [canvasScale, setCanvasScale] = useState(1)
+    const containerRef = useRef<HTMLDivElement>(null)
 
     // Audio ref for controlling playback
     const audioRef = useRef<HTMLAudioElement>(null)
@@ -80,6 +82,17 @@ const OutputDisplay: React.FC = () => {
         }
     }, [])
 
+    useEffect(() => {
+        const updateScale = () => {
+            if (containerRef.current) {
+                setCanvasScale(containerRef.current.clientWidth / 1920)
+            }
+        }
+        updateScale()
+        window.addEventListener('resize', updateScale)
+        return () => window.removeEventListener('resize', updateScale)
+    }, [])
+
     // Control audio playback via ref
     useEffect(() => {
         if (audioRef.current) {
@@ -100,7 +113,7 @@ const OutputDisplay: React.FC = () => {
     }, [layers.audio])
 
     return (
-        <div className="w-screen h-screen bg-black overflow-hidden relative" data-screen-id={screenId}>
+        <div ref={containerRef} className="w-screen h-screen bg-black overflow-hidden relative" data-screen-id={screenId}>
 
             {/* Layer 0: Audio (Hidden) */}
             <audio ref={audioRef} className="hidden" />
@@ -178,53 +191,55 @@ const OutputDisplay: React.FC = () => {
             </div>
 
             {/* Layer 4: Props/Logos (Z-index 30) */}
-            <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden" style={{ containerType: 'inline-size' }}>
-                {layers.props && layers.props.map(prop => {
-                    const scale = prop.scale ?? 1.0;
-                    let style: React.CSSProperties = {};
-                    
-                    if (prop.position === 'custom') {
-                        style = {
-                            left: `${prop.customX ?? 50}%`,
-                            top: `${prop.customY ?? 50}%`,
-                            transform: `translate(-50%, -50%) scale(${scale})`
-                        };
-                    } else if (prop.position === 'center') {
-                        style = {
-                            left: '50%',
-                            top: '50%',
-                            transform: `translate(-50%, -50%) scale(${scale})`
-                        };
-                    } else {
-                        style = { transform: `scale(${scale})` };
-                        if (prop.position.includes('top')) style.top = '2rem';
-                        if (prop.position.includes('bottom')) style.bottom = '2rem';
-                        if (prop.position.includes('left')) style.left = '2rem';
-                        if (prop.position.includes('right')) style.right = '2rem';
+            <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden flex items-center justify-center">
+                <div style={{ width: 1920, height: 1080, transform: `scale(${canvasScale})`, position: 'relative', flexShrink: 0 }}>
+                    {layers.props && layers.props.map(prop => {
+                        const scale = prop.scale ?? 1.0;
+                        let style: React.CSSProperties = {};
                         
-                        if (prop.position === 'top-left') style.transformOrigin = 'top left';
-                        if (prop.position === 'top-right') style.transformOrigin = 'top right';
-                        if (prop.position === 'bottom-left') style.transformOrigin = 'bottom left';
-                        if (prop.position === 'bottom-right') style.transformOrigin = 'bottom right';
-                    }
+                        if (prop.position === 'custom') {
+                            style = {
+                                left: `${prop.customX ?? 50}%`,
+                                top: `${prop.customY ?? 50}%`,
+                                transform: `translate(-50%, -50%) scale(${scale})`
+                            };
+                        } else if (prop.position === 'center') {
+                            style = {
+                                left: '50%',
+                                top: '50%',
+                                transform: `translate(-50%, -50%) scale(${scale})`
+                            };
+                        } else {
+                            style = { transform: `scale(${scale})` };
+                            if (prop.position.includes('top')) style.top = '2rem';
+                            if (prop.position.includes('bottom')) style.bottom = '2rem';
+                            if (prop.position.includes('left')) style.left = '2rem';
+                            if (prop.position.includes('right')) style.right = '2rem';
+                            
+                            if (prop.position === 'top-left') style.transformOrigin = 'top left';
+                            if (prop.position === 'top-right') style.transformOrigin = 'top right';
+                            if (prop.position === 'bottom-left') style.transformOrigin = 'bottom left';
+                            if (prop.position === 'bottom-right') style.transformOrigin = 'bottom right';
+                        }
 
-                    return (
-                        <div
-                            key={prop.id}
-                            className="absolute flex items-center justify-center drop-shadow-lg"
-                            style={style}
-                        >
-                            {(prop.type === 'logo' || prop.type === 'image') && prop.url && (
-                                <img src={prop.url} alt="Prop" className="max-w-none" style={{ width: '15cqw' }} />
-                            )}
-                            {prop.type === 'text' && prop.content && (
-                                <div className="text-white font-bold whitespace-pre text-center leading-tight" style={{ fontSize: '4cqw', WebkitTextStroke: isGreenScreen ? '2px black' : 'none', textShadow: isGreenScreen ? 'none' : '2px 2px 4px rgba(0,0,0,0.8)' }}>
-                                    {prop.content}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
+                        return (
+                            <div
+                                key={prop.id}
+                                className="absolute flex items-center justify-center drop-shadow-lg"
+                                style={style}
+                            >
+                                {(prop.type === 'logo' || prop.type === 'image') && prop.url && (
+                                    <img src={prop.url} alt="Prop" className="max-w-none" />
+                                )}
+                                {prop.type === 'text' && prop.content && (
+                                    <div className="text-white font-bold whitespace-pre text-center leading-tight" style={{ fontSize: '76px', WebkitTextStroke: isGreenScreen ? '2px black' : 'none', textShadow: isGreenScreen ? 'none' : '4px 4px 8px rgba(0,0,0,0.8)' }}>
+                                        {prop.content}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
             </div>
 
             {/* Layer 5: Message Ticker (Z-index 40) */}

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { PropItem } from '../types'
 
 interface PositionPickerModalProps {
@@ -10,8 +10,20 @@ interface PositionPickerModalProps {
 const PositionPickerModal: React.FC<PositionPickerModalProps> = ({ initialProps, onSave, onClose }) => {
     const [localProps, setLocalProps] = useState<PropItem[]>(initialProps)
     const [selectedId, setSelectedId] = useState<string | null>(null)
+    const [canvasScale, setCanvasScale] = useState(1)
     const canvasRef = useRef<HTMLDivElement>(null)
     const draggingRef = useRef<{ id: string, startX: number, startY: number, initialCustomX: number, initialCustomY: number } | null>(null)
+
+    useEffect(() => {
+        const updateScale = () => {
+            if (canvasRef.current) {
+                setCanvasScale(canvasRef.current.clientWidth / 1920)
+            }
+        }
+        updateScale()
+        window.addEventListener('resize', updateScale)
+        return () => window.removeEventListener('resize', updateScale)
+    }, [])
 
     const handlePointerDown = (e: React.PointerEvent, id: string) => {
         setSelectedId(id)
@@ -75,52 +87,53 @@ const PositionPickerModal: React.FC<PositionPickerModalProps> = ({ initialProps,
                     {/* 16:9 Canvas */}
                     <div 
                         ref={canvasRef}
-                        className="relative bg-black w-full aspect-video border-2 border-gray-800 shadow-inner overflow-hidden select-none"
-                        style={{ containerType: 'inline-size' }}
+                        className="relative bg-black w-full aspect-video border-2 border-gray-800 shadow-inner overflow-hidden select-none flex items-center justify-center"
                     >
-                        {/* Grid lines for reference */}
-                        <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-20">
-                            <div className="border-r border-b border-gray-500"></div>
-                            <div className="border-r border-b border-gray-500"></div>
-                            <div className="border-b border-gray-500"></div>
-                            <div className="border-r border-b border-gray-500"></div>
-                            <div className="border-r border-b border-gray-500"></div>
-                            <div className="border-b border-gray-500"></div>
-                            <div className="border-r border-gray-500"></div>
-                            <div className="border-r border-gray-500"></div>
-                            <div></div>
+                        <div style={{ width: 1920, height: 1080, transform: `scale(${canvasScale})`, position: 'relative', flexShrink: 0 }}>
+                            {/* Grid lines for reference */}
+                            <div className="absolute inset-0 grid grid-cols-3 grid-rows-3 pointer-events-none opacity-20">
+                                <div className="border-r border-b border-gray-500"></div>
+                                <div className="border-r border-b border-gray-500"></div>
+                                <div className="border-b border-gray-500"></div>
+                                <div className="border-r border-b border-gray-500"></div>
+                                <div className="border-r border-b border-gray-500"></div>
+                                <div className="border-b border-gray-500"></div>
+                                <div className="border-r border-gray-500"></div>
+                                <div className="border-r border-gray-500"></div>
+                                <div></div>
+                            </div>
+
+                            {localProps.map(prop => {
+                                const x = prop.customX ?? 50
+                                const y = prop.customY ?? 50
+                                const scale = prop.scale ?? 1.0
+                                const isSelected = selectedId === prop.id
+
+                                return (
+                                    <div
+                                        key={prop.id}
+                                        onPointerDown={(e) => handlePointerDown(e, prop.id)}
+                                        onPointerMove={handlePointerMove}
+                                        onPointerUp={handlePointerUp}
+                                        className={`absolute cursor-move touch-none flex items-center justify-center origin-center ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-black z-20' : 'z-10 hover:ring-1 hover:ring-gray-400'}`}
+                                        style={{
+                                            left: `${x}%`,
+                                            top: `${y}%`,
+                                            transform: `translate(-50%, -50%) scale(${scale})`,
+                                        }}
+                                    >
+                                        {(prop.type === 'image' || prop.type === 'logo') && prop.url && (
+                                            <img src={prop.url} alt="Prop" className="max-w-none pointer-events-none" draggable={false} />
+                                        )}
+                                        {prop.type === 'text' && (
+                                            <div className="text-white font-bold whitespace-pre text-center pointer-events-none leading-tight" style={{ fontSize: '76px', textShadow: '4px 4px 8px rgba(0,0,0,0.8)' }}>
+                                                {prop.content || '텍스트 입력'}
+                                            </div>
+                                        )}
+                                    </div>
+                                )
+                            })}
                         </div>
-
-                        {localProps.map(prop => {
-                            const x = prop.customX ?? 50
-                            const y = prop.customY ?? 50
-                            const scale = prop.scale ?? 1.0
-                            const isSelected = selectedId === prop.id
-
-                            return (
-                                <div
-                                    key={prop.id}
-                                    onPointerDown={(e) => handlePointerDown(e, prop.id)}
-                                    onPointerMove={handlePointerMove}
-                                    onPointerUp={handlePointerUp}
-                                    className={`absolute cursor-move touch-none flex items-center justify-center origin-center ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2 ring-offset-black z-20' : 'z-10 hover:ring-1 hover:ring-gray-400'}`}
-                                    style={{
-                                        left: `${x}%`,
-                                        top: `${y}%`,
-                                        transform: `translate(-50%, -50%) scale(${scale})`,
-                                    }}
-                                >
-                                    {(prop.type === 'image' || prop.type === 'logo') && prop.url && (
-                                        <img src={prop.url} alt="Prop" className="max-w-none pointer-events-none" style={{ width: '15cqw' }} draggable={false} />
-                                    )}
-                                    {prop.type === 'text' && (
-                                        <div className="text-white font-bold whitespace-pre text-center pointer-events-none leading-tight" style={{ fontSize: '4cqw', textShadow: '2px 2px 4px rgba(0,0,0,0.8)' }}>
-                                            {prop.content || '텍스트 입력'}
-                                        </div>
-                                    )}
-                                </div>
-                            )
-                        })}
                     </div>
                 </div>
 
@@ -134,7 +147,7 @@ const PositionPickerModal: React.FC<PositionPickerModalProps> = ({ initialProps,
                                     type="range" 
                                     min="0.1" 
                                     max="5.0" 
-                                    step="0.05" 
+                                    step="0.01" 
                                     value={localProps.find(p => p.id === selectedId)?.scale ?? 1.0}
                                     onChange={handleScaleChange}
                                     className="w-48 h-1.5 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
