@@ -12,7 +12,8 @@ const LibraryPanel: React.FC = () => {
         slides,
         setSlides,
         addToast,
-        currentPresentationId
+        currentPresentationId,
+        importPresentations
     } = usePresentationStore()
 
     const [searchTerm, setSearchTerm] = useState('')
@@ -69,12 +70,29 @@ const LibraryPanel: React.FC = () => {
         }
     }
 
+    const handleExportAll = async () => {
+        try {
+            const data = JSON.stringify({ type: 'library', data: library }, null, 2)
+            const result = await window.ipcRenderer.saveProject(data)
+            if (result.success) {
+                addToast('전체 라이브러리 내보내기가 완료되었습니다.', 'success')
+            } else if (!result.canceled) {
+                addToast('전체 라이브러리 내보내기에 실패했습니다.', 'error')
+            }
+        } catch (e) {
+            addToast('전체 라이브러리 내보내기에 실패했습니다.', 'error')
+        }
+    }
+
     const handleImport = async () => {
         try {
             const result = await window.ipcRenderer.loadProject()
             if (result.success && result.data) {
                 const parsed = JSON.parse(result.data)
-                if (parsed.slides && Array.isArray(parsed.slides)) {
+                if (parsed.type === 'library' && Array.isArray(parsed.data)) {
+                    await importPresentations(parsed.data)
+                    addToast(`성공적으로 ${parsed.data.length}개의 프레젠테이션을 불러왔습니다.`, 'success')
+                } else if (parsed.slides && Array.isArray(parsed.slides)) {
                     setSlides(parsed.slides)
                     addToast('성공적으로 불러왔습니다. 저장 버튼을 눌러 라이브러리에 추가해주세요.', 'success')
                 } else {
@@ -125,6 +143,15 @@ const LibraryPanel: React.FC = () => {
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                                         </svg>
                                         파일로 내보내기
+                                    </button>
+                                    <button
+                                        onClick={() => { setFileMenuOpen(false); handleExportAll(); }}
+                                        className="w-full text-left px-3 py-1.5 text-xs text-gray-200 hover:bg-gray-700 flex items-center gap-2"
+                                    >
+                                        <svg className="w-3.5 h-3.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                        전체 라이브러리 내보내기
                                     </button>
                                     <button
                                         onClick={() => { setFileMenuOpen(false); handleImport(); }}

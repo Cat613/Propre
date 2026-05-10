@@ -17,6 +17,16 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
         }
     },
 
+    importPresentations: async (presentations: import('../../types').Presentation[]) => {
+        try {
+            const library = await window.ipcRenderer.mergeToLibrary(presentations)
+            set({ library })
+        } catch (error) {
+            console.error('Failed to import presentations:', error)
+            get().addToast('프레젠테이션 불러오기에 실패했습니다.', 'error')
+        }
+    },
+
     saveCurrentPresentation: async () => {
         const { slides, currentPresentationId, currentPresentationTitle } = get()
         let presentation: Presentation

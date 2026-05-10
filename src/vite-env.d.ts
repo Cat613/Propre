@@ -13,6 +13,7 @@ export interface IpcRenderer {
 
     getLibrary: () => Promise<Presentation[]>
     saveToLibrary: (presentation: Presentation) => Promise<boolean>
+    mergeToLibrary: (presentations: Presentation[]) => Promise<Presentation[]>
     deleteFromLibrary: (id: string) => Promise<Presentation[]>
     getPlaylist: () => Promise<PlaylistItem[]>
     savePlaylist: (playlist: PlaylistItem[]) => Promise<boolean>

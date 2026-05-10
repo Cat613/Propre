@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     // Library & Playlist API
     getLibrary: async (): Promise<Presentation[]> => ipcRenderer.invoke('get-library'),
     saveToLibrary: async (presentation: Presentation): Promise<boolean> => ipcRenderer.invoke('save-to-library', presentation),
+    mergeToLibrary: async (presentations: Presentation[]): Promise<Presentation[]> => ipcRenderer.invoke('merge-to-library', presentations),
     deleteFromLibrary: async (id: string): Promise<Presentation[]> => ipcRenderer.invoke('delete-from-library', id),
     getPlaylist: async (): Promise<PlaylistItem[]> => ipcRenderer.invoke('get-playlist'),
     savePlaylist: async (playlist: PlaylistItem[]): Promise<boolean> => ipcRenderer.invoke('save-playlist', playlist),

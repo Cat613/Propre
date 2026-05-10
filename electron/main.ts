@@ -345,6 +345,16 @@ app.whenReady().then(() => {
     store.set('library', newLibrary)
     return newLibrary
   })
+  ipcMain.handle('merge-to-library', (_event, presentations: any[]) => {
+    const library = (store.get('library', []) as any[])
+    for (const p of presentations) {
+      const index = library.findIndex((ext) => ext.id === p.id)
+      if (index !== -1) library[index] = p
+      else library.push(p)
+    }
+    store.set('library', library)
+    return library
+  })
   ipcMain.handle('get-playlist', () => store.get('playlist', []))
   ipcMain.handle('save-playlist', (_event, playlist) => {
     store.set('playlist', playlist)

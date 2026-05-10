@@ -34,6 +34,7 @@ export interface LibrarySlice {
     playlist: PlaylistItem[]
 
     loadLibrary: () => Promise<void>
+    importPresentations: (presentations: Presentation[]) => Promise<void>
     saveCurrentPresentation: () => Promise<void>
     createNewPresentation: () => void
     deletePresentation: (id: string) => Promise<void>
