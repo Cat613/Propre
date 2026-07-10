@@ -44,7 +44,7 @@ const StageDisplay: React.FC = () => {
             <div className="flex-[7] flex items-center justify-center p-12 border-b-2 border-gray-800">
                 <div
                     className="text-center font-bold text-white whitespace-pre-wrap leading-tight"
-                    style={{ fontSize: '5rem' }} // text-7xl or 8xl equivalent, responsive
+                    style={{ fontSize: `${data.settings?.currentFontSize ?? 80}px` }}
                 >
                     {data.current?.content || ""}
                 </div>
@@ -57,7 +57,7 @@ const StageDisplay: React.FC = () => {
                 </span>
                 <div
                     className="text-center font-medium whitespace-pre-wrap line-clamp-3 text-white"
-                    style={{ fontSize: '2.25rem' }} // text-4xl
+                    style={{ fontSize: `${data.settings?.nextFontSize ?? 36}px` }}
                 >
                     {data.next?.content || "(End of Presentation)"}
                 </div>

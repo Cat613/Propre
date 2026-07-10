@@ -1,5 +1,5 @@
 import { StoreSlice, SettingsSlice } from '../types'
-import { syncOutputState } from '../helpers'
+import { syncOutputState, syncStageState } from '../helpers'
 import { DEFAULT_SCREEN_LOOK, LayerType, ScreenLook, GlobalStylePreset } from '../../types'
 
 const initialScreenLooks = {
@@ -23,6 +23,22 @@ export const createSettingsSlice: StoreSlice<SettingsSlice> = (set, get) => {
         globalStylePresets: [],
         defaultSongPresetId: null,
         defaultBiblePresetId: null,
+        
+        // Stage Display Settings
+        stageCurrentFontSize: 80,
+        stageNextFontSize: 36,
+
+        setStageCurrentFontSize: (size: number) => {
+            set({ stageCurrentFontSize: size })
+            localStorage.setItem('propre-stage-current-fontsize', size.toString())
+            syncStageState(get)
+        },
+
+        setStageNextFontSize: (size: number) => {
+            set({ stageNextFontSize: size })
+            localStorage.setItem('propre-stage-next-fontsize', size.toString())
+            syncStageState(get)
+        },
 
         setGeminiKey: (key: string | null) => {
             window.ipcRenderer.setApiKey(key).catch(console.error)
@@ -110,6 +126,12 @@ export const createSettingsSlice: StoreSlice<SettingsSlice> = (set, get) => {
 
             const defaultBible = localStorage.getItem('propre-default-bible-preset')
             if (defaultBible) set({ defaultBiblePresetId: defaultBible })
+
+            const stageCurrent = localStorage.getItem('propre-stage-current-fontsize')
+            if (stageCurrent) set({ stageCurrentFontSize: parseInt(stageCurrent, 10) })
+
+            const stageNext = localStorage.getItem('propre-stage-next-fontsize')
+            if (stageNext) set({ stageNextFontSize: parseInt(stageNext, 10) })
         }
     }
 }

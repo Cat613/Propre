@@ -1,5 +1,18 @@
 import React from 'react'
+import {
+    DndContext,
+    closestCenter,
+    PointerSensor,
+    useSensor,
+    useSensors,
+    DragEndEvent
+} from '@dnd-kit/core'
+import {
+    SortableContext,
+    verticalListSortingStrategy
+} from '@dnd-kit/sortable'
 import { usePresentationStore } from '../store'
+import { SortablePlaylistItem } from './SortablePlaylistItem'
 
 const PlaylistPanel: React.FC = () => {
     const {
@@ -7,14 +20,34 @@ const PlaylistPanel: React.FC = () => {
         addToPlaylist,
         removeFromPlaylist,
         selectPresentation,
-        currentPresentationId
+        currentPresentationId,
+        reorderPlaylist
     } = usePresentationStore()
+
+    const sensors = useSensors(
+        useSensor(PointerSensor, {
+            activationConstraint: {
+                distance: 5, // Requires moving 5px to start drag, allowing clicks to pass through
+            },
+        })
+    )
 
     const handleDrop = (e: React.DragEvent) => {
         e.preventDefault()
         const id = e.dataTransfer.getData('presentationId')
         if (id) {
             addToPlaylist(id)
+        }
+    }
+
+    const handleDragEnd = (event: DragEndEvent) => {
+        const { active, over } = event
+        if (over && active.id !== over.id) {
+            const oldIndex = playlist.findIndex((item) => item.id === active.id)
+            const newIndex = playlist.findIndex((item) => item.id === over.id)
+            if (oldIndex !== -1 && newIndex !== -1) {
+                reorderPlaylist(oldIndex, newIndex)
+            }
         }
     }
 
@@ -39,38 +72,27 @@ const PlaylistPanel: React.FC = () => {
                         <span className="text-xs">라이브러리에서 곡을 추가하세요</span>
                     </div>
                 ) : (
-                    playlist.map((item, index) => (
-                        <div
-                            key={item.id}
-                            onClick={() => selectPresentation(item.presentationId)}
-                            className={`group flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors ${currentPresentationId === item.presentationId
-                                ? 'bg-blue-600/20 shadow-[inset_2px_0_0_0_rgb(59,130,246)]'
-                                : 'hover:bg-gray-800'
-                                }`}
+                    <DndContext
+                        sensors={sensors}
+                        collisionDetection={closestCenter}
+                        onDragEnd={handleDragEnd}
+                    >
+                        <SortableContext
+                            items={playlist.map(item => item.id)}
+                            strategy={verticalListSortingStrategy}
                         >
-                            <div className={`w-6 h-6 flex items-center justify-center rounded text-xs font-bold transition-colors ${currentPresentationId === item.presentationId
-                                ? 'bg-blue-500 text-white'
-                                : 'bg-gray-800 text-gray-500 group-hover:bg-blue-600 group-hover:text-white'
-                                }`}>
-                                {index + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                                <p className="text-sm text-gray-200 truncate">{item.presentation?.title || 'Unknown'}</p>
-                                <p className="text-[10px] text-gray-500">{item.presentation?.slides?.length || 0} slides</p>
-                            </div>
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    removeFromPlaylist(item.id)
-                                }}
-                                className="p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                            </button>
-                        </div>
-                    ))
+                            {playlist.map((item, index) => (
+                                <SortablePlaylistItem
+                                    key={item.id}
+                                    item={item}
+                                    index={index}
+                                    currentPresentationId={currentPresentationId}
+                                    selectPresentation={selectPresentation}
+                                    removeFromPlaylist={removeFromPlaylist}
+                                />
+                            ))}
+                        </SortableContext>
+                    </DndContext>
                 )}
             </div>
         </div>

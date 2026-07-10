@@ -41,6 +41,7 @@ export interface LibrarySlice {
 
     addToPlaylist: (presentationId: string) => Promise<void>
     removeFromPlaylist: (playlistItemId: string) => Promise<void>
+    reorderPlaylist: (oldIndex: number, newIndex: number) => Promise<void>
     selectPresentation: (presentationId: string) => void
 }
 
@@ -90,6 +91,12 @@ export interface SettingsSlice {
     deleteGlobalStylePreset: (id: string) => void
     setDefaultPreset: (type: 'song' | 'bible', presetId: string | null) => void
     loadPresetsFromStorage: () => void
+
+    // Stage Display Settings
+    stageCurrentFontSize: number
+    stageNextFontSize: number
+    setStageCurrentFontSize: (size: number) => void
+    setStageNextFontSize: (size: number) => void
 }
 
 export interface StageSlice {

@@ -1,7 +1,7 @@
 import { StoreSlice, MediaSlice } from '../types'
 import type { MediaItem, ActiveBackground } from '../../types'
 import { generateId } from '../../utils/generateId'
-import { syncOutputState } from '../helpers'
+import { syncOutputState, syncStageState } from '../helpers'
 
 export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     mediaBin: [],
@@ -94,7 +94,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
                 break
             case 'slide':
                 set({ activeSlideId: null })
-                window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
+                syncStageState(get)
                 break
             case 'announcement':
                 set({ activeAnnouncement: null })
@@ -112,8 +112,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     clearText: () => {
         set({ activeSlideId: null })
         syncOutputState(get)
-
-        window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
+        syncStageState(get)
     },
 
     clearAll: () => {
@@ -126,6 +125,6 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
             activeAnnouncement: null,
         })
         syncOutputState(get)
-        window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
+        syncStageState(get)
     },
 })

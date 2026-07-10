@@ -199,17 +199,32 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                     If we align content to bottom right, reference should stay Top Left? 
                     Yes, absolutely positioned.
                 */}
-                {isBible && slide.bibleReference && (
-                    <div
-                        className="absolute top-16 left-20 text-yellow-500 font-serif font-bold text-5xl z-20"
-                        style={{
-                            textShadow: isGreenScreen ? '0px 4px 10px rgba(0,0,0,0.8)' : '2px 2px 4px rgba(0,0,0,0.5)',
-                            WebkitTextStroke: isGreenScreen ? '2px black' : undefined
-                        }}
-                    >
-                        {slide.bibleReference}
-                    </div>
-                )}
+                {isBible && slide.bibleReference && (() => {
+                    const pos = effectiveGlobalStyle.bibleRefPosition || 'top-left';
+                    const offsetX = effectiveGlobalStyle.bibleRefOffsetX ?? 80;
+                    const offsetY = effectiveGlobalStyle.bibleRefOffsetY ?? 64;
+                    const isTop = pos.startsWith('top');
+                    const isLeft = pos.endsWith('left');
+
+                    return (
+                        <div
+                            className="absolute font-bold z-20 whitespace-nowrap"
+                            style={{
+                                top: isTop ? `${offsetY}px` : undefined,
+                                bottom: !isTop ? `${offsetY}px` : undefined,
+                                left: isLeft ? `${offsetX}px` : undefined,
+                                right: !isLeft ? `${offsetX}px` : undefined,
+                                color: effectiveGlobalStyle.bibleRefFontColor || '#EAB308',
+                                fontSize: `${effectiveGlobalStyle.bibleRefFontSize || 48}px`,
+                                fontFamily: effectiveGlobalStyle.bibleRefFontFamily || 'serif',
+                                textShadow: isGreenScreen ? '0px 4px 10px rgba(0,0,0,0.8)' : '2px 2px 4px rgba(0,0,0,0.5)',
+                                WebkitTextStroke: isGreenScreen ? '2px black' : undefined
+                            }}
+                        >
+                            {slide.bibleReference}
+                        </div>
+                    );
+                })()}
 
                 {/* Dynamic Elements Render (Phase 3) */}
                 {slide.elements && slide.elements.length > 0 ? (
@@ -270,7 +285,7 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                                 style.WebkitTextStroke = isGreenScreen ? '3px black' : '1px rgba(0,0,0,0.5)';
                             }
 
-                            style.lineHeight = isBible ? 1.6 : 1.2
+                            style.lineHeight = effectiveGlobalStyle.lineHeight ?? (isBible ? 1.6 : 1.2)
                             if (tStyles.backgroundColor) style.backgroundColor = tStyles.backgroundColor
 
                             return (
@@ -318,7 +333,7 @@ const ScaledSlide: React.FC<ScaledSlideProps> = ({ slide, width, height, scale: 
                             maxWidth: '98%',
                             textShadow: isGreenScreen ? '0px 4px 10px rgba(0,0,0,0.8)' : '2px 2px 4px rgba(0,0,0,0.7)',
                             WebkitTextStroke: isGreenScreen ? '3px black' : undefined,
-                            lineHeight: isBible ? 1.6 : 1.2,
+                            lineHeight: effectiveGlobalStyle.lineHeight ?? (isBible ? 1.6 : 1.2),
                             transform: (effectiveGlobalStyle.offsetX || effectiveGlobalStyle.offsetY)
                                 ? `translate(${effectiveGlobalStyle.offsetX || 0}px, ${effectiveGlobalStyle.offsetY || 0}px)`
                                 : 'none',

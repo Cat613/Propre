@@ -47,3 +47,33 @@ export const syncOutputState = (get: () => StoreState) => {
         }))
     })
 }
+
+export const syncStageState = (get: () => StoreState) => {
+    const state = get()
+    let slide = null
+    let nextSlide = null
+
+    if (state.activeSlideId) {
+        const slideIndex = state.slides.findIndex(s => s.id === state.activeSlideId)
+        slide = state.slides[slideIndex]
+        if (slideIndex < state.slides.length - 1) {
+            nextSlide = state.slides[slideIndex + 1]
+        } else {
+            nextSlide = {
+                id: 'end',
+                content: '(End of Presentation)',
+                type: 'text',
+                styles: {}
+            } as any
+        }
+    }
+
+    window.ipcRenderer.send('update-stage', JSON.stringify({
+        current: slide,
+        next: nextSlide,
+        settings: {
+            currentFontSize: state.stageCurrentFontSize,
+            nextFontSize: state.stageNextFontSize
+        }
+    }))
+}

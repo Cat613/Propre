@@ -134,6 +134,15 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
         await window.ipcRenderer.savePlaylist(newPlaylist)
     },
 
+    reorderPlaylist: async (oldIndex: number, newIndex: number) => {
+        const { playlist } = get()
+        const newPlaylist = [...playlist]
+        const [removed] = newPlaylist.splice(oldIndex, 1)
+        newPlaylist.splice(newIndex, 0, removed)
+        set({ playlist: newPlaylist })
+        await window.ipcRenderer.savePlaylist(newPlaylist)
+    },
+
     selectPresentation: (presentationId: string) => {
         const { library, globalStylePresets, defaultBiblePresetId, defaultSongPresetId, updateGlobalSlideStyle } = get()
         const presentation = library.find(p => p.id === presentationId)

@@ -199,6 +199,25 @@ const GlobalStylePanel: React.FC = () => {
                     </select>
                 </div>
 
+                {/* Line Height */}
+                <div>
+                    <div className="flex items-center justify-between mb-1 text-xs text-gray-500">
+                        <label>줄 간격 (Line Height)</label>
+                        <span>{globalSlideStyle.lineHeight ?? 1.4}</span>
+                    </div>
+                    <input
+                        type="range"
+                        min="1"
+                        max="3"
+                        step="0.1"
+                        value={globalSlideStyle.lineHeight ?? 1.4}
+                        onChange={(e) => updateGlobalSlideStyle({ lineHeight: parseFloat(e.target.value) })}
+                        className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                        draggable={false}
+                        onDragStart={(e) => e.preventDefault()}
+                    />
+                </div>
+
                 {/* Alignment */}
                 <div className="flex gap-4">
                     <div className="flex-1">
@@ -296,6 +315,140 @@ const GlobalStylePanel: React.FC = () => {
                             step="1"
                             value={globalSlideStyle.offsetY || 0}
                             onChange={(e) => updateGlobalSlideStyle({ offsetY: parseInt(e.target.value) })}
+                            className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
+                        />
+                    </div>
+                </div>
+            </div>
+
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mt-6 mb-3">
+                성경 출처 스타일 (Bible Reference)
+            </h3>
+            <div className="space-y-3">
+                {/* Font Size & Color */}
+                <div className="flex gap-2">
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1 text-xs text-gray-500">
+                            <label>크기</label>
+                            <input
+                                type="number"
+                                value={globalSlideStyle.bibleRefFontSize || 48}
+                                onChange={(e) => updateGlobalSlideStyle({ bibleRefFontSize: Number(e.target.value) })}
+                                className="w-14 bg-gray-800 text-white rounded px-1 text-xs border border-gray-700 text-right"
+                            />
+                        </div>
+                        <input
+                            type="range"
+                            min="10"
+                            max="150"
+                            step="1"
+                            value={globalSlideStyle.bibleRefFontSize || 48}
+                            onChange={(e) => updateGlobalSlideStyle({ bibleRefFontSize: parseInt(e.target.value) })}
+                            className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <label className="block text-xs text-gray-500 mb-1">색상</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="color"
+                                value={globalSlideStyle.bibleRefFontColor || '#EAB308'}
+                                onChange={(e) => updateGlobalSlideStyle({ bibleRefFontColor: e.target.value })}
+                                className="h-7 w-8 rounded cursor-pointer bg-transparent border-none p-0"
+                            />
+                            <input
+                                type="text"
+                                value={globalSlideStyle.bibleRefFontColor || '#EAB308'}
+                                onChange={(e) => updateGlobalSlideStyle({ bibleRefFontColor: e.target.value })}
+                                className="w-full bg-gray-800 text-white rounded px-2 py-1 text-sm border border-gray-700"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* Font Family */}
+                <div>
+                    <label className="block text-xs text-gray-500 mb-1">글꼴 (Font Family)</label>
+                    <select
+                        value={globalSlideStyle.bibleRefFontFamily || 'serif'}
+                        onChange={(e) => updateGlobalSlideStyle({ bibleRefFontFamily: e.target.value })}
+                        className="w-full bg-gray-800 text-white rounded px-2 py-1 text-sm border border-gray-700 outline-none"
+                    >
+                        <option value="sans-serif">Sans Serif</option>
+                        <option value="serif">Serif</option>
+                        <option value="monospace">Monospace</option>
+                        <option value="'Nanum Gothic', sans-serif">나눔고딕 (Nanum Gothic)</option>
+                        <option value="'Malgun Gothic', sans-serif">맑은 고딕 (Malgun Gothic)</option>
+                    </select>
+                </div>
+
+                {/* Position */}
+                <div>
+                    <label className="block text-xs text-gray-500 mb-1">위치 (Position)</label>
+                    <div className="grid grid-cols-2 gap-1 bg-gray-800 rounded p-1 border border-gray-700">
+                        {(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const).map((pos) => {
+                            const isSelected = (globalSlideStyle.bibleRefPosition || 'top-left') === pos;
+                            return (
+                                <button
+                                    key={pos}
+                                    onClick={() => updateGlobalSlideStyle({ bibleRefPosition: pos })}
+                                    className={`p-1.5 rounded text-[10px] transition-colors ${isSelected
+                                        ? 'bg-blue-600 text-white'
+                                        : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                                        }`}
+                                >
+                                    {pos === 'top-left' ? '↖️ 좌측 상단' : pos === 'top-right' ? '↗️ 우측 상단' : pos === 'bottom-left' ? '↙️ 좌측 하단' : '↘️ 우측 하단'}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Fine Tuning Offsets */}
+                <div className="flex gap-4">
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1 text-xs text-gray-500">
+                            <label>여백 X (px)</label>
+                            <input
+                                type="number"
+                                value={globalSlideStyle.bibleRefOffsetX ?? 80}
+                                onChange={(e) => updateGlobalSlideStyle({ bibleRefOffsetX: Number(e.target.value) })}
+                                className="w-14 bg-gray-800 text-white rounded px-1 text-xs border border-gray-700 text-right"
+                            />
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="500"
+                            step="1"
+                            value={globalSlideStyle.bibleRefOffsetX ?? 80}
+                            onChange={(e) => updateGlobalSlideStyle({ bibleRefOffsetX: parseInt(e.target.value) })}
+                            className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                            draggable={false}
+                            onDragStart={(e) => e.preventDefault()}
+                        />
+                    </div>
+                    <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1 text-xs text-gray-500">
+                            <label>여백 Y (px)</label>
+                            <input
+                                type="number"
+                                value={globalSlideStyle.bibleRefOffsetY ?? 64}
+                                onChange={(e) => updateGlobalSlideStyle({ bibleRefOffsetY: Number(e.target.value) })}
+                                className="w-14 bg-gray-800 text-white rounded px-1 text-xs border border-gray-700 text-right"
+                            />
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="500"
+                            step="1"
+                            value={globalSlideStyle.bibleRefOffsetY ?? 64}
+                            onChange={(e) => updateGlobalSlideStyle({ bibleRefOffsetY: parseInt(e.target.value) })}
                             className="w-full h-1.5 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
                             draggable={false}
                             onDragStart={(e) => e.preventDefault()}

@@ -126,6 +126,13 @@ const AdvancedLayersPanel: React.FC = () => {
                 <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
                     {activeProps.map(prop => (
                         <div key={prop.id} className="bg-gray-800 rounded p-2 border border-gray-700 flex items-center gap-2">
+                            <input
+                                type="checkbox"
+                                checked={prop.isVisible !== false}
+                                onChange={(e) => updateProp(prop.id, { isVisible: e.target.checked })}
+                                className="w-3.5 h-3.5 text-blue-500 bg-gray-900 border-gray-600 rounded focus:ring-blue-500 focus:ring-1 cursor-pointer"
+                                title="표시/숨기기"
+                            />
                             {prop.type === 'text' ? (
                                 <AutoResizeTextarea 
                                     value={prop.content || ''} 

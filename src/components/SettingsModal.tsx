@@ -9,9 +9,14 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
-    const { geminiApiKey, setGeminiKey, screenLooks, updateScreenLook } = usePresentationStore()
+    const { 
+        geminiApiKey, setGeminiKey, 
+        screenLooks, updateScreenLook,
+        stageCurrentFontSize, setStageCurrentFontSize,
+        stageNextFontSize, setStageNextFontSize
+    } = usePresentationStore()
     const [keyInput, setKeyInput] = useState('')
-    const [activeTab, setActiveTab] = useState<'general' | 'routing'>('general')
+    const [activeTab, setActiveTab] = useState<'general' | 'routing' | 'stage'>('general')
 
     const layers: { id: LayerType, label: string }[] = [
         { id: 'audio', label: '오디오' },
@@ -50,7 +55,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                             onClick={() => setActiveTab('routing')}
                             className={`text-lg font-bold pb-1 border-b-2 transition-colors ${activeTab === 'routing' ? 'text-white border-blue-500' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
                         >
-                            출력 라우팅 (Looks)
+                            출력 라우팅
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('stage')}
+                            className={`text-lg font-bold pb-1 border-b-2 transition-colors ${activeTab === 'stage' ? 'text-white border-blue-500' : 'text-gray-500 border-transparent hover:text-gray-300'}`}
+                        >
+                            무대 모니터
                         </button>
                     </div>
 
@@ -123,6 +134,42 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose }) => {
                                         ))}
                                     </tbody>
                                 </table>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'stage' && (
+                        <div className="space-y-6">
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-sm font-medium text-gray-300">현재 슬라이드 가사 크기</label>
+                                    <span className="text-sm text-blue-400">{stageCurrentFontSize}px</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="20"
+                                    max="200"
+                                    value={stageCurrentFontSize}
+                                    onChange={(e) => setStageCurrentFontSize(parseInt(e.target.value, 10))}
+                                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">무대 모니터 화면 위쪽(70% 영역)에 표시되는 현재 가사의 크기를 조절합니다.</p>
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-1">
+                                    <label className="text-sm font-medium text-gray-300">다음 슬라이드 가사 크기</label>
+                                    <span className="text-sm text-blue-400">{stageNextFontSize}px</span>
+                                </div>
+                                <input
+                                    type="range"
+                                    min="10"
+                                    max="100"
+                                    value={stageNextFontSize}
+                                    onChange={(e) => setStageNextFontSize(parseInt(e.target.value, 10))}
+                                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">무대 모니터 화면 아래쪽(30% 영역)에 표시되는 다음 슬라이드 가사의 크기를 조절합니다.</p>
                             </div>
                         </div>
                     )}

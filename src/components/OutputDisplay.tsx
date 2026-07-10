@@ -194,6 +194,7 @@ const OutputDisplay: React.FC = () => {
             <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden flex items-center justify-center">
                 <div style={{ width: 1920, height: 1080, transform: `scale(${canvasScale})`, position: 'relative', flexShrink: 0 }}>
                     {layers.props && layers.props.map(prop => {
+                        if (prop.isVisible === false) return null;
                         const scale = prop.scale ?? 1.0;
                         let style: React.CSSProperties = {};
                         

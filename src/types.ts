@@ -96,9 +96,16 @@ export interface GlobalSlideStyle {
     fontFamily: string
     align: 'left' | 'center' | 'right'
     verticalAlign: 'top' | 'center' | 'bottom'
+    lineHeight?: number // Global line height for text (e.g. 1.0 to 3.0)
     backgroundDim?: number // Global opacity for black overlay (0 to 1)
     offsetX?: number // Global fine-tuning X offset in px
     offsetY?: number // Global fine-tuning Y offset in px
+    bibleRefFontSize?: number
+    bibleRefFontColor?: string
+    bibleRefFontFamily?: string
+    bibleRefPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'
+    bibleRefOffsetX?: number
+    bibleRefOffsetY?: number
 }
 
 export interface GlobalStylePreset {
@@ -157,6 +164,7 @@ export interface PropItem {
     customX?: number // percentage 0-100
     customY?: number // percentage 0-100
     scale?: number   // default 1.0
+    isVisible?: boolean // toggle visibility
 }
 
 export interface MessageItem {
@@ -216,7 +224,13 @@ export interface OutputState {
 }
 
 // Stage Display Data
+export interface StageSettings {
+    currentFontSize: number
+    nextFontSize: number
+}
+
 export interface StageData {
     current: Slide | null
     next: Slide | null
+    settings?: StageSettings
 }

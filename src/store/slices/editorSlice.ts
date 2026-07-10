@@ -1,7 +1,7 @@
 import { StoreSlice } from '../types'
 import type { EditorSlice } from '../types'
 import type { Slide, GlobalSlideStyle, CanvasElement } from '../../types'
-import { syncOutputState } from '../helpers'
+import { syncOutputState, syncStageState } from '../helpers'
 
 export const defaultGlobalSlideStyle: GlobalSlideStyle = {
     fontSize: 60,
@@ -31,7 +31,7 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
         if (id === null) {
             set({ activeSlideId: null })
             syncOutputState(get)
-            window.ipcRenderer.send('update-stage', JSON.stringify({ current: null, next: null }))
+            syncStageState(get)
             return
         }
 
@@ -55,22 +55,7 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
         syncOutputState(get)
 
         // ----------- 2. Stage Display Logic -----------
-        let nextSlide: Slide | null = null
-        if (slideIndex < slides.length - 1) {
-            nextSlide = slides[slideIndex + 1]
-        } else {
-            nextSlide = {
-                id: 'end',
-                content: '(End of Presentation)',
-                type: 'text',
-                styles: {}
-            }
-        }
-
-        window.ipcRenderer.send('update-stage', JSON.stringify({
-            current: slide,
-            next: nextSlide
-        }))
+        syncStageState(get)
     },
 
     setSlides: (slides: Slide[]) => set({ slides, activeSlideId: null }),
