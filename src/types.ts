@@ -14,11 +14,11 @@ export interface SlideStyles {
 // Slide type union
 export type SlideType = 'text' | 'image' | 'video' | 'bible'
 
-// Slide label options
-export type SlideLabel = 'None' | 'Intro' | 'Verse 1' | 'Verse 2' | 'Verse 3' | 'Chorus' | 'Bridge' | 'Ending'
+// Slide label options (supporting presets and free-form strings)
+export type SlideLabel = 'None' | 'Intro' | 'Verse 1' | 'Verse 2' | 'Verse 3' | 'Chorus' | 'Bridge' | 'Ending' | 'A' | 'B' | 'C' | 'D' | (string & {})
 
 // Label color mapping
-export const LABEL_COLORS: Record<SlideLabel, string> = {
+export const LABEL_COLORS: Record<string, string> = {
     'None': 'transparent',
     'Intro': '#8B5CF6',    // Purple
     'Verse 1': '#3B82F6',  // Blue
@@ -27,7 +27,24 @@ export const LABEL_COLORS: Record<SlideLabel, string> = {
     'Chorus': '#EF4444',   // Red
     'Bridge': '#22C55E',   // Green
     'Ending': '#F59E0B',   // Amber
+    'A': '#EC4899',        // Pink
+    'B': '#3B82F6',        // Blue
+    'C': '#10B981',        // Emerald
+    'D': '#F97316',        // Orange
 }
+
+export const PRESET_LABELS = ['None', 'A', 'B', 'C', 'D', 'Intro', 'Verse 1', 'Chorus', 'Bridge']
+
+export const PRESET_COLORS = [
+    { name: '투명 (없음)', color: 'transparent' },
+    { name: '보라', color: '#8B5CF6' },
+    { name: '파랑', color: '#3B82F6' },
+    { name: '청록', color: '#06B6D4' },
+    { name: '초록', color: '#10B981' },
+    { name: '주황', color: '#F97316' },
+    { name: '빨강', color: '#EF4444' },
+    { name: '핑크', color: '#EC4899' },
+]
 
 // --- Phase 3: Element-Based Slide Canvas ---
 
@@ -74,6 +91,7 @@ export interface Slide {
     type: SlideType
     label?: SlideLabel
     labelColor?: string
+    borderColor?: string
     bibleReference?: string // e.g., "Gen 1:1"
 
     // --- Legacy / Backward Compatibility ---

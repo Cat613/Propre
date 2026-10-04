@@ -2,6 +2,7 @@ import { StoreSlice } from '../types'
 import type { EditorSlice } from '../types'
 import type { Slide, GlobalSlideStyle, CanvasElement } from '../../types'
 import { syncOutputState, syncStageState } from '../helpers'
+import { generateId } from '../../utils/generateId'
 
 export const defaultGlobalSlideStyle: GlobalSlideStyle = {
     fontSize: 60,
@@ -15,6 +16,8 @@ export const defaultGlobalSlideStyle: GlobalSlideStyle = {
 export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
     slides: [],
     activeSlideId: null,
+    selectedSlideIds: [],
+    copiedSlides: [],
     currentPresentationId: null,
     currentPresentationTitle: null,
     globalSlideStyle: defaultGlobalSlideStyle,
@@ -23,6 +26,140 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
 
     setCurrentPresentationTitle: (title: string | null) => set({ currentPresentationTitle: title }),
     setActivePresetId: (id: string | null) => set({ activePresetId: id }),
+
+    setSelectedSlideIds: (ids: string[]) => set({ selectedSlideIds: ids }),
+
+    toggleSelectSlide: (id: string, isMulti: boolean, isRange: boolean) => {
+        const { slides, selectedSlideIds } = get()
+        if (isRange && selectedSlideIds.length > 0) {
+            const lastSelectedId = selectedSlideIds[selectedSlideIds.length - 1]
+            const lastIdx = slides.findIndex(s => s.id === lastSelectedId)
+            const currentIdx = slides.findIndex(s => s.id === id)
+            if (lastIdx !== -1 && currentIdx !== -1) {
+                const start = Math.min(lastIdx, currentIdx)
+                const end = Math.max(lastIdx, currentIdx)
+                const rangeIds = slides.slice(start, end + 1).map(s => s.id)
+                const newIds = Array.from(new Set([...selectedSlideIds, ...rangeIds]))
+                set({ selectedSlideIds: newIds })
+                return
+            }
+        }
+        if (isMulti) {
+            if (selectedSlideIds.includes(id)) {
+                set({ selectedSlideIds: selectedSlideIds.filter(item => item !== id) })
+            } else {
+                set({ selectedSlideIds: [...selectedSlideIds, id] })
+            }
+        } else {
+            set({ selectedSlideIds: [id] })
+        }
+    },
+
+    batchUpdateSlides: (ids: string[], updates: Partial<Slide>) => {
+        const idSet = new Set(ids)
+        set((state) => ({
+            slides: state.slides.map((slide) =>
+                idSet.has(slide.id) ? { ...slide, ...updates } : slide
+            ),
+        }))
+        const { activeSlideId, slides } = get()
+        if (activeSlideId && idSet.has(activeSlideId)) {
+            const updatedSlide = slides.find(s => s.id === activeSlideId)
+            if (updatedSlide && updatedSlide.backgroundUrl) {
+                set({
+                    activeBackground: {
+                        type: updatedSlide.type === 'video' ? 'video' : 'image',
+                        url: updatedSlide.backgroundUrl
+                    }
+                })
+            }
+            syncOutputState(get)
+            syncStageState(get)
+        }
+    },
+
+    batchDeleteSlides: (ids: string[]) => {
+        const idSet = new Set(ids)
+        set((state) => ({
+            slides: state.slides.filter((slide) => !idSet.has(slide.id)),
+            activeSlideId: state.activeSlideId && idSet.has(state.activeSlideId) ? null : state.activeSlideId,
+            selectedSlideIds: state.selectedSlideIds.filter(id => !idSet.has(id))
+        }))
+        syncOutputState(get)
+        syncStageState(get)
+    },
+
+    copySelectedSlides: () => {
+        const { slides, selectedSlideIds } = get()
+        const idSet = new Set(selectedSlideIds)
+        const copied = slides.filter(s => idSet.has(s.id)).map(s => JSON.parse(JSON.stringify(s)))
+        set({ copiedSlides: copied })
+    },
+
+    pasteSlides: () => {
+        const { slides, selectedSlideIds, copiedSlides } = get()
+        if (!copiedSlides || copiedSlides.length === 0) return
+
+        const newSlides: Slide[] = copiedSlides.map((s: Slide) => ({
+            ...JSON.parse(JSON.stringify(s)),
+            id: generateId()
+        }))
+
+        let insertIdx = slides.length
+        if (selectedSlideIds.length > 0) {
+            const lastSelectedId = selectedSlideIds[selectedSlideIds.length - 1]
+            const idx = slides.findIndex(s => s.id === lastSelectedId)
+            if (idx !== -1) {
+                insertIdx = idx + 1
+            }
+        }
+
+        const updatedSlides = [...slides]
+        updatedSlides.splice(insertIdx, 0, ...newSlides)
+
+        set({
+            slides: updatedSlides,
+            selectedSlideIds: newSlides.map(s => s.id)
+        })
+    },
+
+    reorderMultiSlides: (activeId: string, overId: string) => {
+        const { slides, selectedSlideIds } = get()
+        if (activeId === overId) return
+
+        const selectedSet = new Set(selectedSlideIds)
+        if (!selectedSet.has(activeId) || selectedSet.size <= 1) {
+            const oldIdx = slides.findIndex(s => s.id === activeId)
+            const newIdx = slides.findIndex(s => s.id === overId)
+            if (oldIdx !== -1 && newIdx !== -1) {
+                get().reorderSlides(oldIdx, newIdx)
+            }
+            return
+        }
+
+        const movingSlides = slides.filter(s => selectedSet.has(s.id))
+        const remainingSlides = slides.filter(s => !selectedSet.has(s.id))
+
+        const activeOrigIndex = slides.findIndex(s => s.id === activeId)
+        const overOrigIndex = slides.findIndex(s => s.id === overId)
+
+        let targetIndex = remainingSlides.findIndex(s => s.id === overId)
+        if (targetIndex !== -1) {
+            if (overOrigIndex > activeOrigIndex) {
+                targetIndex += 1
+            }
+        } else {
+            targetIndex = remainingSlides.filter(s => {
+                const idx = slides.findIndex(orig => orig.id === s.id)
+                return idx <= overOrigIndex
+            }).length
+        }
+
+        const newSlides = [...remainingSlides]
+        newSlides.splice(targetIndex, 0, ...movingSlides)
+
+        set({ slides: newSlides })
+    },
 
     setActiveSlide: (id: string | null) => {
         const { slides, activeBackground } = get()
@@ -58,7 +195,7 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
         syncStageState(get)
     },
 
-    setSlides: (slides: Slide[]) => set({ slides, activeSlideId: null }),
+    setSlides: (slides: Slide[]) => set({ slides, activeSlideId: null, selectedSlideIds: [] }),
 
     clearActiveSlide: () => {
         get().clearText()
@@ -93,6 +230,7 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
         set((state) => ({
             slides: state.slides.filter((slide) => slide.id !== id),
             activeSlideId: state.activeSlideId === id ? null : state.activeSlideId,
+            selectedSlideIds: state.selectedSlideIds.filter(sId => sId !== id),
         })),
 
     reorderSlides: (oldIndex: number, newIndex: number) =>

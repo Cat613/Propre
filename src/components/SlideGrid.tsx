@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { usePresentationStore } from '../store'
 import type { Slide } from '../types'
 import EditModal from './EditModal'
+import SlideSelectionToolbar from './SlideSelectionToolbar'
 import {
     DndContext,
     closestCenter,
@@ -9,6 +10,8 @@ import {
     useSensor,
     useSensors,
     DragEndEvent,
+    DragStartEvent,
+    DragOverlay,
 } from '@dnd-kit/core'
 import {
     SortableContext,
@@ -27,11 +30,13 @@ const SortableSlideCard: React.FC<{
     slide: Slide
     index: number
     isActive: boolean
-    onSlideClick: () => void
+    isSelected: boolean
+    isGroupDragging?: boolean
+    onSlideClick: (e: React.MouseEvent) => void
     onEditClick: (e: React.MouseEvent) => void
     onDeleteClick: (e: React.MouseEvent) => void
     onSaveEdit: (id: string, updates: Partial<Slide>) => void
-}> = ({ slide, index, isActive, onSlideClick, onEditClick, onDeleteClick, onSaveEdit }) => {
+}> = ({ slide, index, isActive, isSelected, isGroupDragging, onSlideClick, onEditClick, onDeleteClick, onSaveEdit }) => {
     const {
         attributes,
         listeners,
@@ -41,13 +46,15 @@ const SortableSlideCard: React.FC<{
         isDragging,
     } = useSortable({ id: slide.id })
 
+    const labelColor = slide.labelColor && slide.labelColor !== 'transparent' ? slide.labelColor : undefined
+    const customBorder = slide.borderColor && slide.borderColor !== 'transparent' ? slide.borderColor : labelColor
+
     const style = {
         transform: CSS.Transform.toString(transform),
         transition: isDragging ? undefined : transition,
-        opacity: isDragging ? 0.5 : 1,
+        opacity: isDragging || isGroupDragging ? 0.35 : 1,
+        borderColor: !isActive && !isSelected && customBorder ? customBorder : undefined,
     }
-
-    const labelColor = slide.labelColor || 'transparent'
 
     const [isEditing, setIsEditing] = useState(false)
     const [editText, setEditText] = useState(slide.content)
@@ -90,13 +97,15 @@ const SortableSlideCard: React.FC<{
             ref={setNodeRef}
             style={style}
             className={`
-        relative h-28 rounded-lg text-left cursor-grab active:cursor-grabbing overflow-hidden focus:outline-none
-        bg-gray-700/50 hover:bg-gray-700
-        border-2 group
+        relative h-28 rounded-xl text-left cursor-grab active:cursor-grabbing overflow-hidden focus:outline-none
+        transition-shadow duration-200 border-2 group
         ${isActive
-                    ? 'border-orange-500 ring-2 ring-orange-500/30 shadow-lg shadow-orange-500/10'
-                    : 'border-gray-600/50 hover:border-gray-500'
+                    ? 'bg-gray-800 border-orange-500 ring-2 ring-orange-500/40 shadow-lg shadow-orange-500/20 z-10'
+                    : isSelected
+                        ? 'bg-blue-950/50 border-blue-400 ring-2 ring-blue-500/40 shadow-md shadow-blue-500/10 z-10'
+                        : 'bg-gray-800/80 hover:bg-gray-700 border-gray-700 hover:border-gray-500'
                 }
+        ${!isActive && !isSelected && customBorder ? 'shadow-sm' : ''}
       `}
             {...attributes}
             {...listeners}
@@ -105,25 +114,34 @@ const SortableSlideCard: React.FC<{
                 handleCardKeyDown(e)
             }}
         >
-            {/* Label Color Bar (Top) */}
-            {labelColor !== 'transparent' && (
+            {/* Top Border Color Glow / Accent Line */}
+            {customBorder && (
                 <div
-                    className="absolute top-0 left-0 right-0 h-1"
-                    style={{ backgroundColor: labelColor }}
+                    className="absolute top-0 left-0 right-0 h-1.5 opacity-90 shadow"
+                    style={{ backgroundColor: customBorder }}
                 />
             )}
 
             {/* Content Area */}
-            <div className="p-3 pt-2">
-                {/* Slide Number */}
-                <span className="absolute top-2 left-2 w-5 h-5 flex items-center justify-center text-xs font-bold rounded bg-gray-600 text-gray-300">
-                    {index + 1}
-                </span>
+            <div className="p-3 pt-2 h-full flex flex-col justify-between">
+                <div className="flex items-center gap-1.5 relative z-10">
+                    {/* Slide Number */}
+                    <span className={`w-5 h-5 flex items-center justify-center text-[11px] font-bold rounded shadow-sm ${
+                        isActive ? 'bg-orange-500 text-white' : isSelected ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-300'
+                    }`}>
+                        {index + 1}
+                    </span>
+                    {isSelected && (
+                        <span className="w-5 h-5 bg-blue-600 text-white rounded flex items-center justify-center text-[11px] font-extrabold shadow-sm" title="선택됨">
+                            ✓
+                        </span>
+                    )}
+                </div>
 
                 {/* Delete Button */}
                 <button
                     onClick={onDeleteClick}
-                    className="absolute top-2 right-2 p-1.5 rounded bg-gray-600/80 hover:bg-red-600 text-gray-300 hover:text-white opacity-0 group-hover:opacity-100 z-10"
+                    className="absolute top-2 right-2 p-1.5 rounded bg-gray-700/90 hover:bg-red-600 text-gray-300 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow"
                     title="슬라이드 삭제"
                 >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,7 +152,7 @@ const SortableSlideCard: React.FC<{
                 {/* Edit Button */}
                 <button
                     onClick={onEditClick}
-                    className="absolute top-2 right-9 p-1.5 rounded bg-gray-600/80 hover:bg-blue-600 text-gray-300 hover:text-white opacity-0 group-hover:opacity-100 z-10"
+                    className="absolute top-2 right-9 p-1.5 rounded bg-gray-700/90 hover:bg-blue-600 text-gray-300 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow"
                     title="슬라이드 편집"
                 >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -155,48 +173,107 @@ const SortableSlideCard: React.FC<{
                         onKeyDown={handleKeyDown}
                         onClick={e => e.stopPropagation()}
                         onPointerDown={e => e.stopPropagation()} // Prevent DnD dragging
-                        className="absolute inset-0 z-20 w-full h-full p-2 pt-8 pb-6 text-xs bg-gray-800 text-white resize-none outline-none border-2 border-blue-500 rounded-lg shadow-xl"
+                        className="absolute inset-0 z-20 w-full h-full p-2 pt-8 pb-6 text-xs bg-gray-800 text-white resize-none outline-none border-2 border-blue-500 rounded-xl shadow-xl"
                         placeholder="텍스트 입력 (Cmd+Enter 저장)"
                     />
                 ) : (
-                    <p className="text-xs text-gray-200 line-clamp-4 whitespace-pre-line mt-5 relative z-0 pointer-events-none">
+                    <p className="text-xs text-gray-200 line-clamp-2 whitespace-pre-line mt-1 relative z-0 pointer-events-none font-medium drop-shadow-sm">
                         {slide.content || (slide.backgroundUrl ? '(미디어)' : '(빈 슬라이드)')}
                     </p>
                 )}
 
-                {/* Label Badge */}
-                {slide.label && slide.label !== 'None' && (
-                    <span
-                        className="absolute bottom-2 left-2 px-2 py-0.5 text-[10px] font-bold rounded text-white pointer-events-none"
-                        style={{ backgroundColor: labelColor }}
-                    >
-                        {slide.label}
-                    </span>
-                )}
+                <div className="flex items-center justify-between relative z-0 pointer-events-none mt-auto pt-1">
+                    {/* Label Badge */}
+                    {slide.label && slide.label !== 'None' ? (
+                        <span
+                            className="px-2 py-0.5 text-[10px] font-extrabold rounded-md text-white shadow-sm border border-white/20 uppercase tracking-tight truncate max-w-[100px]"
+                            style={{ backgroundColor: customBorder || '#3B82F6' }}
+                        >
+                            {slide.label}
+                        </span>
+                    ) : <span />}
 
-                {/* Active Indicator */}
-                {isActive && (
-                    <span className="absolute bottom-2 right-2 flex items-center gap-1 text-xs text-orange-400 pointer-events-none">
-                        <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
-                        LIVE
-                    </span>
-                )}
+                    {/* Active Indicator */}
+                    {isActive && (
+                        <span className="flex items-center gap-1 text-xs font-bold text-orange-400">
+                            <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+                            LIVE
+                        </span>
+                    )}
+                </div>
             </div>
         </div>
     )
 }
 
 const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }) => {
-    const { slides, activeSlideId, setActiveSlide, updateSlide, deleteSlide, reorderSlides } = usePresentationStore()
+    const {
+        slides,
+        activeSlideId,
+        setActiveSlide,
+        updateSlide,
+        deleteSlide,
+        reorderSlides,
+        selectedSlideIds,
+        setSelectedSlideIds,
+        toggleSelectSlide,
+        reorderMultiSlides,
+        copySelectedSlides,
+        pasteSlides,
+        batchDeleteSlides
+    } = usePresentationStore()
+
     const [editingSlide, setEditingSlide] = useState<Slide | null>(null)
+    const [activeDragId, setActiveDragId] = useState<string | null>(null)
 
     const sensors = useSensors(
         useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
     )
 
-    const handleSlideClick = (slide: Slide) => {
-        setActiveSlide(slide.id)
-        onSlideClick?.(slide)
+    // Keyboard shortcuts for Copy, Paste, Delete, and Escape on multi-selected slides
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            const target = e.target as HTMLElement
+            if (
+                editingSlide !== null ||
+                target instanceof HTMLInputElement ||
+                target instanceof HTMLTextAreaElement ||
+                target.isContentEditable
+            ) {
+                return
+            }
+
+            if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
+                if (selectedSlideIds && selectedSlideIds.length > 0) {
+                    e.preventDefault()
+                    copySelectedSlides()
+                }
+            } else if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v') {
+                e.preventDefault()
+                pasteSlides()
+            } else if ((e.key === 'Delete' || e.key === 'Backspace') && selectedSlideIds && selectedSlideIds.length > 0) {
+                e.preventDefault()
+                batchDeleteSlides(selectedSlideIds)
+            } else if (e.key === 'Escape' && selectedSlideIds && selectedSlideIds.length > 0) {
+                setSelectedSlideIds([])
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [selectedSlideIds, editingSlide, copySelectedSlides, pasteSlides, batchDeleteSlides, setSelectedSlideIds])
+
+    const handleSlideClick = (e: React.MouseEvent, slide: Slide) => {
+        e.stopPropagation()
+        if (e.shiftKey) {
+            toggleSelectSlide(slide.id, false, true)
+        } else if (e.metaKey || e.ctrlKey) {
+            toggleSelectSlide(slide.id, true, false)
+        } else {
+            setActiveSlide(slide.id)
+            setSelectedSlideIds([]) // Simply clicking clears selection (does not show checkmark or toolbar)
+            onSlideClick?.(slide)
+        }
     }
 
     const handleEditClick = (e: React.MouseEvent, slide: Slide) => {
@@ -219,22 +296,47 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
         onEditModalChange?.(false)
     }
 
+    const handleDragStart = (event: DragStartEvent) => {
+        setActiveDragId(String(event.active.id))
+    }
+
+    const handleDragCancel = () => {
+        setActiveDragId(null)
+    }
+
     const handleDragEnd = (event: DragEndEvent) => {
+        setActiveDragId(null)
         const { active, over } = event
         if (over && active.id !== over.id) {
-            const oldIndex = slides.findIndex((s) => s.id === active.id)
-            const newIndex = slides.findIndex((s) => s.id === over.id)
-            reorderSlides(oldIndex, newIndex)
+            const activeId = String(active.id)
+            const overId = String(over.id)
+            if (selectedSlideIds && selectedSlideIds.includes(activeId) && selectedSlideIds.length > 1) {
+                reorderMultiSlides(activeId, overId)
+            } else {
+                const oldIndex = slides.findIndex((s) => s.id === activeId)
+                const newIndex = slides.findIndex((s) => s.id === overId)
+                reorderSlides(oldIndex, newIndex)
+            }
         }
     }
 
+    const isMultiDragging = Boolean(activeDragId && selectedSlideIds?.includes(activeDragId) && selectedSlideIds.length > 1)
+
     return (
-        <>
-            <div className="p-4 overflow-y-auto h-full">
-                <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                    슬라이드 ({slides.length}) · 숫자키 1-9로 이동
-                </h2>
-                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <div className="relative h-full flex flex-col overflow-hidden">
+            <div className="p-4 overflow-y-auto flex-1 pb-20">
+                <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                        슬라이드 ({slides.length}) · Shift/Ctrl 다중 선택 및 드래그 일괄 이동
+                    </h2>
+                </div>
+                <DndContext
+                    sensors={sensors}
+                    collisionDetection={closestCenter}
+                    onDragStart={handleDragStart}
+                    onDragCancel={handleDragCancel}
+                    onDragEnd={handleDragEnd}
+                >
                     <SortableContext items={slides.map((s) => s.id)} strategy={rectSortingStrategy}>
                         <div className="grid grid-cols-2 xl:grid-cols-3 gap-3">
                             {slides.map((slide, index) => (
@@ -243,7 +345,9 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
                                     slide={slide}
                                     index={index}
                                     isActive={activeSlideId === slide.id}
-                                    onSlideClick={() => handleSlideClick(slide)}
+                                    isSelected={Boolean(selectedSlideIds && selectedSlideIds.includes(slide.id))}
+                                    isGroupDragging={Boolean(isMultiDragging && selectedSlideIds?.includes(slide.id))}
+                                    onSlideClick={(e) => handleSlideClick(e, slide)}
                                     onEditClick={(e) => handleEditClick(e, slide)}
                                     onDeleteClick={(e) => handleDeleteClick(e, slide.id)}
                                     onSaveEdit={handleSaveEdit}
@@ -251,8 +355,80 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
                             ))}
                         </div>
                     </SortableContext>
+
+                    {/* Drag Overlay for Custom Visuals during dragging */}
+                    <DragOverlay>
+                        {activeDragId ? (
+                            (() => {
+                                const dragSlide = slides.find(s => s.id === activeDragId)
+                                const dragIndex = slides.findIndex(s => s.id === activeDragId)
+                                if (!dragSlide) return null
+
+                                const isMulti = Boolean(selectedSlideIds && selectedSlideIds.includes(activeDragId) && selectedSlideIds.length > 1)
+                                const labelColor = dragSlide.labelColor && dragSlide.labelColor !== 'transparent' ? dragSlide.labelColor : undefined
+                                const customBorder = dragSlide.borderColor && dragSlide.borderColor !== 'transparent' ? dragSlide.borderColor : labelColor
+
+                                return (
+                                    <div className="relative cursor-grabbing">
+                                        {/* Stacked cards visual representation when dragging multiple slides */}
+                                        {isMulti && (
+                                            <>
+                                                <div className="absolute inset-0 bg-blue-900 border-2 border-blue-400 rounded-xl transform rotate-3 scale-95 translate-x-2.5 translate-y-2.5 opacity-75 shadow-lg" />
+                                                <div className="absolute inset-0 bg-blue-950 border-2 border-blue-500 rounded-xl transform -rotate-1 scale-95 -translate-x-1 translate-y-1.5 opacity-85 shadow-md" />
+                                            </>
+                                        )}
+
+                                        <div
+                                            className={`relative h-28 w-56 rounded-xl text-left bg-gray-800 border-2 shadow-2xl p-3 pt-2 flex flex-col justify-between ${
+                                                isMulti ? 'border-blue-400 ring-4 ring-blue-500/40 bg-blue-950/90' : 'border-orange-500 ring-2 ring-orange-500/30'
+                                            }`}
+                                            style={{ borderColor: !isMulti && customBorder ? customBorder : undefined }}
+                                        >
+                                            {customBorder && (
+                                                <div
+                                                    className="absolute top-0 left-0 right-0 h-1.5 opacity-90 shadow rounded-t-xl"
+                                                    style={{ backgroundColor: customBorder }}
+                                                />
+                                            )}
+
+                                            <div className="flex items-center justify-between z-10">
+                                                <span className={`w-5 h-5 flex items-center justify-center text-[11px] font-bold rounded shadow-sm ${
+                                                    isMulti ? 'bg-blue-500 text-white' : 'bg-orange-500 text-white'
+                                                }`}>
+                                                    {dragIndex + 1}
+                                                </span>
+                                                {isMulti && (
+                                                    <span className="px-2 py-0.5 bg-blue-600 text-white font-extrabold text-[11px] rounded-full shadow border border-blue-300 animate-pulse">
+                                                        {selectedSlideIds.length}개 일괄 이동 중
+                                                    </span>
+                                                )}
+                                            </div>
+
+                                            <p className="text-xs text-gray-200 line-clamp-2 whitespace-pre-line mt-1 relative z-10 font-medium drop-shadow-sm">
+                                                {dragSlide.content || (dragSlide.backgroundUrl ? '(미디어)' : '(빈 슬라이드)')}
+                                            </p>
+
+                                            <div className="flex items-center justify-between z-10 mt-auto pt-1">
+                                                {dragSlide.label && dragSlide.label !== 'None' ? (
+                                                    <span
+                                                        className="px-2 py-0.5 text-[10px] font-extrabold rounded-md text-white shadow-sm border border-white/20 uppercase tracking-tight truncate max-w-[100px]"
+                                                        style={{ backgroundColor: customBorder || '#3B82F6' }}
+                                                    >
+                                                        {dragSlide.label}
+                                                    </span>
+                                                ) : <span />}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )
+                            })()
+                        ) : null}
+                    </DragOverlay>
                 </DndContext>
             </div>
+
+            {/* Floating Selection Action Toolbar */}
+            <SlideSelectionToolbar />
 
             <EditModal
                 isOpen={editingSlide !== null}
@@ -260,7 +436,7 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
                 slide={editingSlide}
                 onSave={handleSaveEdit}
             />
-        </>
+        </div>
     )
 }
 

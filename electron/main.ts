@@ -45,6 +45,10 @@ function createMainWindow() {
   } else {
     mainWindow.loadFile(path.join(process.env.DIST!, 'index.html'), { hash: 'control-panel' })
   }
+
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
 }
 
 function getTargetDisplay(storeKey: string) {
@@ -60,17 +64,17 @@ function getTargetDisplay(storeKey: string) {
 
 // Create a specific output window (e.g. 'main', 'chroma')
 function createOutputWindow(id: string = 'main') {
-  // We use different settings keys for different screens
   const storeKey = id === 'main' ? 'outputDisplayId' : `outputDisplayId_${id}`
   const targetDisplay = getTargetDisplay(storeKey)
 
-  let win = outputWindows.get(id)
-
-  if (win && !win.isDestroyed()) {
-    win.close()
+  const existingWin = outputWindows.get(id)
+  if (existingWin && !existingWin.isDestroyed()) {
+    existingWin.removeAllListeners('closed')
+    existingWin.close()
   }
+  outputWindows.delete(id)
 
-  win = new BrowserWindow({
+  const win = new BrowserWindow({
     x: targetDisplay.bounds.x,
     y: targetDisplay.bounds.y,
     width: targetDisplay.bounds.width,
@@ -81,23 +85,36 @@ function createOutputWindow(id: string = 'main') {
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       webSecurity: false,
-      additionalArguments: [`--screen-id=${id}`] // Pass ID to renderer
+      additionalArguments: [`--screen-id=${id}`]
     },
   })
 
-  // Append screenId to URL hash
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(`${VITE_DEV_SERVER_URL}#output-display?screenId=${id}`)
   } else {
-    // Note: loadFile with query params in hash requires simple encoding
     win.loadFile(path.join(process.env.DIST!, 'index.html'), { hash: `output-display?screenId=${id}` })
   }
 
   win.on('closed', () => {
-    outputWindows.delete(id)
+    if (outputWindows.get(id) === win) {
+      outputWindows.delete(id)
+      if (id === 'main') {
+        store.set('wasOutputActive', false)
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('output-status-changed', false)
+        }
+      }
+    }
   })
 
   outputWindows.set(id, win)
+
+  if (id === 'main') {
+    store.set('wasOutputActive', true)
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('output-status-changed', true)
+    }
+  }
 }
 
 function createStageWindow() {
@@ -105,16 +122,18 @@ function createStageWindow() {
   const wasVisible = stageWindow && !stageWindow.isDestroyed() ? stageWindow.isVisible() : false
 
   if (stageWindow && !stageWindow.isDestroyed()) {
+    stageWindow.removeAllListeners('closed')
     stageWindow.close()
   }
+  stageWindow = null
 
-  stageWindow = new BrowserWindow({
+  const win = new BrowserWindow({
     x: targetDisplay.bounds.x + 100,
     y: targetDisplay.bounds.y + 100,
     width: 800,
     height: 600,
-    show: wasVisible, // Keep previous visibility state
-    frame: true, // Stage window might need move/resize
+    show: wasVisible,
+    frame: true,
     backgroundColor: '#000000',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
@@ -124,14 +143,22 @@ function createStageWindow() {
   })
 
   if (VITE_DEV_SERVER_URL) {
-    stageWindow.loadURL(`${VITE_DEV_SERVER_URL}#stage-display`)
+    win.loadURL(`${VITE_DEV_SERVER_URL}#stage-display`)
   } else {
-    stageWindow.loadFile(path.join(process.env.DIST!, 'index.html'), { hash: 'stage-display' })
+    win.loadFile(path.join(process.env.DIST!, 'index.html'), { hash: 'stage-display' })
   }
 
-  stageWindow.on('closed', () => {
-    stageWindow = null
+  win.on('closed', () => {
+    if (stageWindow === win) {
+      stageWindow = null
+      store.set('wasStageActive', false)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('stage-status-changed', false)
+      }
+    }
   })
+
+  stageWindow = win
 }
 
 app.on('window-all-closed', () => {
@@ -143,16 +170,18 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     createMainWindow()
-    // Restore previously active screens later
-    createOutputWindow('main')
-    createStageWindow()
+    if (store.get('wasOutputActive', false)) {
+      createOutputWindow('main')
+    }
+    if (store.get('wasStageActive', false)) {
+      createStageWindow()
+    }
   }
 })
 
 app.whenReady().then(() => {
   createMainWindow()
 
-  // Restore previous window states instead of always opening them
   if (store.get('wasOutputActive', false)) {
     createOutputWindow('main')
   }
@@ -160,17 +189,12 @@ app.whenReady().then(() => {
     createStageWindow()
   }
 
-  // IPC: Update Specific Screen (Phase 2 Routing)
-  // Listen for dynamically created channels (e.g. update-screen-main, update-screen-chroma)
   ipcMain.on('update-output', (_event, text: string) => {
-    // Legacy fallback: broadcast to all output windows
     outputWindows.forEach(win => {
       if (!win.isDestroyed()) win.webContents.send('update-output', text)
     })
   })
 
-  // Since we construct channel dynamically in frontend: `window.ipcRenderer.send('update-screen-main', ...)`
-  // We need to listen dynamically, or intercept. A better approach is an explicit routing event:
   ipcMain.on('route-screen-update', (_event, payloadStr: string) => {
     try {
       const payload = JSON.parse(payloadStr)
@@ -184,28 +208,31 @@ app.whenReady().then(() => {
     }
   })
 
-  // IPC: Update Stage
   ipcMain.on('update-stage', (_event, data: string) => {
     if (stageWindow && !stageWindow.isDestroyed()) {
       stageWindow.webContents.send('update-stage', data)
     }
   })
 
-  // IPC: Toggle Stage
   ipcMain.handle('toggle-stage', () => {
     if (!stageWindow || stageWindow.isDestroyed()) {
       createStageWindow()
     }
 
-    if (stageWindow) { // Check again after potential creation
+    if (stageWindow) {
       if (stageWindow.isVisible()) {
         stageWindow.hide()
         store.set('wasStageActive', false)
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('stage-status-changed', false)
+        }
         return false
       } else {
         stageWindow.show()
         store.set('wasStageActive', true)
-        // Ensure it's fullscreen or positioned correctly if needed, but stage is usually just a window
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('stage-status-changed', true)
+        }
         return true
       }
     }
@@ -213,22 +240,32 @@ app.whenReady().then(() => {
     return false
   })
 
-  // IPC: Toggle Output (Toggles the physical 'main' output window)
   ipcMain.handle('toggle-output', () => {
     const mainWin = outputWindows.get('main')
     if (mainWin && !mainWin.isDestroyed()) {
+      mainWin.removeAllListeners('closed')
       mainWin.close()
       outputWindows.delete('main')
       store.set('wasOutputActive', false)
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('output-status-changed', false)
+      }
       return false
     } else {
       createOutputWindow('main')
-      store.set('wasOutputActive', true)
       return true
     }
   })
 
-  // IPC: Display Management
+  ipcMain.handle('get-output-status', () => {
+    const mainWin = outputWindows.get('main')
+    return Boolean(mainWin && !mainWin.isDestroyed())
+  })
+
+  ipcMain.handle('get-stage-status', () => {
+    return Boolean(stageWindow && !stageWindow.isDestroyed() && stageWindow.isVisible())
+  })
+
   ipcMain.handle('get-displays', () => {
     return screen.getAllDisplays().map(d => ({
       id: d.id,
@@ -246,17 +283,21 @@ app.whenReady().then(() => {
 
   ipcMain.handle('set-output-display', (_event, displayId) => {
     store.set('outputDisplayId', displayId)
-    createOutputWindow('main') // Reboot main on same ID
+    const mainWin = outputWindows.get('main')
+    if (mainWin && !mainWin.isDestroyed()) {
+      createOutputWindow('main') // Reposition only if active
+    }
     return true
   })
 
   ipcMain.handle('set-stage-display', (_event, displayId) => {
     store.set('stageDisplayId', displayId)
-    createStageWindow()
+    if (stageWindow && !stageWindow.isDestroyed() && stageWindow.isVisible()) {
+      createStageWindow() // Reposition only if active
+    }
     return true
   })
 
-  // IPC: File Dialog & Copy Media
   ipcMain.handle('dialog:openFile', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       properties: ['openFile', 'multiSelections'],
@@ -267,7 +308,6 @@ app.whenReady().then(() => {
 
     if (result.canceled || result.filePaths.length === 0) return []
 
-    // Ensure media directory exists in userData
     const userDataPath = app.getPath('userData')
     const mediaDir = path.join(userDataPath, 'media')
     try {
@@ -278,12 +318,10 @@ app.whenReady().then(() => {
 
     const copiedPaths: string[] = []
 
-    // Copy selected files to app's media directory
     for (const filePath of result.filePaths) {
       try {
         const fileName = path.basename(filePath)
         const timestamp = Date.now()
-        // Prevent name collisions by prefixing timestamp
         const destFileName = `${timestamp}_${fileName}`
         const destPath = path.join(mediaDir, destFileName)
 
@@ -297,7 +335,6 @@ app.whenReady().then(() => {
     return copiedPaths
   })
 
-  // IPC: Save Project (File)
   ipcMain.handle('save-project', async (_event, data: string) => {
     const result = await dialog.showSaveDialog(mainWindow!, {
       title: '프로젝트 저장',
@@ -313,7 +350,6 @@ app.whenReady().then(() => {
     }
   })
 
-  // IPC: Load Project (File)
   ipcMain.handle('load-project', async () => {
     const result = await dialog.showOpenDialog(mainWindow!, {
       title: '프로젝트 열기',
@@ -329,7 +365,6 @@ app.whenReady().then(() => {
     }
   })
 
-  // IPC: Library & Playlist Management
   ipcMain.handle('get-library', () => store.get('library', []))
   ipcMain.handle('save-to-library', (_event, presentation) => {
     const library = (store.get('library', []) as any[])
@@ -361,7 +396,6 @@ app.whenReady().then(() => {
     return true
   })
 
-  // IPC: Gemini API Key (safeStorage)
   ipcMain.handle('set-api-key', (_event, key: string | null) => {
     if (!key) {
       store.delete('geminiKeyEncrypted')

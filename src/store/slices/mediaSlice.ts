@@ -120,7 +120,6 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
             activeSlideId: null,
             activeBackground: { type: 'none' },
             activeAudio: null,
-            activeProps: [],
             activeMessage: null,
             activeAnnouncement: null,
         })

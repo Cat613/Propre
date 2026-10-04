@@ -16,17 +16,16 @@ interface LoadResult {
     error?: string
 }
 
+const validChannels = ['update-output', 'update-stage', 'route-screen-update', 'update-screen', 'output-status-changed', 'stage-status-changed']
+
 contextBridge.exposeInMainWorld('ipcRenderer', {
     send: (channel: string, data: any) => {
-        const validChannels = ['update-output', 'update-stage', 'route-screen-update', 'update-screen']
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, data)
         }
     },
     on: (channel: string, func: (...args: any[]) => void) => {
-        const validChannels = ['update-output', 'update-stage', 'route-screen-update', 'update-screen']
         if (validChannels.includes(channel)) {
-            // Remove _event arg as requested previously to fix undefined data issue
             const subscription = (_event: any, ...args: any[]) => func(...args)
             ipcRenderer.on(channel, subscription)
             return () => {
@@ -65,16 +64,10 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     setOutputDisplay: async (displayId: number) => ipcRenderer.invoke('set-output-display', displayId),
     setStageDisplay: async (displayId: number) => ipcRenderer.invoke('set-stage-display', displayId),
     invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
-    // Explicit is safer usually but user pattern used invoke directly in store.ts: window.ipcRenderer.invoke('toggle-stage')
-    // Wait, let's check store.ts usage.
-    // store.ts used: result = await window.ipcRenderer.invoke('toggle-stage')
-    // But currently exposeInMainWorld does NOT expose a raw 'invoke' method. It exposes specific methods.
-    // So store.ts is calling a non-existent method on window.ipcRenderer!
-    // We should fix typescript definition likely too.
-    // Let's add specific method or expose invoke generically (less safe).
-    // Given the previous pattern, let's add specific method AND update type definition if needed.
     toggleStage: async () => ipcRenderer.invoke('toggle-stage'),
     toggleOutput: async () => ipcRenderer.invoke('toggle-output'),
+    getOutputStatus: async (): Promise<boolean> => ipcRenderer.invoke('get-output-status'),
+    getStageStatus: async (): Promise<boolean> => ipcRenderer.invoke('get-stage-status'),
     // Security API
     getApiKey: async (): Promise<string | null> => ipcRenderer.invoke('get-api-key'),
     setApiKey: async (key: string | null): Promise<void> => ipcRenderer.invoke('set-api-key', key)

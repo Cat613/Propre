@@ -4,7 +4,7 @@ export interface IpcRenderer {
     send: (channel: string, data: any) => void
     on: (channel: string, func: (...args: any[]) => void) => () => void
     off: (channel: string, func: (...args: any[]) => void) => void
-    invoke: (channel: string, ...args: any[]) => Promise<any> // Allow raw invoke for now or strict?
+    invoke: (channel: string, ...args: any[]) => Promise<any>
 
     // Specific methods
     selectMediaFiles: () => Promise<string[]>
@@ -18,9 +18,11 @@ export interface IpcRenderer {
     getPlaylist: () => Promise<PlaylistItem[]>
     savePlaylist: (playlist: PlaylistItem[]) => Promise<boolean>
 
-    // New
+    // Toggle and status getters
     toggleStage: () => Promise<boolean>
     toggleOutput: () => Promise<boolean>
+    getOutputStatus: () => Promise<boolean>
+    getStageStatus: () => Promise<boolean>
 
     // Display Management
     getDisplays: () => Promise<{ id: number, label: string, bounds: { x: number, y: number, width: number, height: number } }[]>

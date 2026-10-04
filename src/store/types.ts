@@ -5,6 +5,8 @@ import { StateCreator } from 'zustand'
 export interface EditorSlice {
     slides: Slide[]
     activeSlideId: string | null
+    selectedSlideIds: string[]
+    copiedSlides: Slide[]
     currentPresentationId: string | null
     currentPresentationTitle: string | null
     globalSlideStyle: GlobalSlideStyle
@@ -12,6 +14,13 @@ export interface EditorSlice {
     isModalOpen: boolean
 
     setActiveSlide: (id: string | null) => void
+    setSelectedSlideIds: (ids: string[]) => void
+    toggleSelectSlide: (id: string, isMulti: boolean, isRange: boolean) => void
+    batchUpdateSlides: (ids: string[], updates: Partial<Slide>) => void
+    batchDeleteSlides: (ids: string[]) => void
+    copySelectedSlides: () => void
+    pasteSlides: () => void
+    reorderMultiSlides: (activeId: string, overId: string) => void
     setSlides: (slides: Slide[]) => void
     addSlide: (slide: Slide) => void
     updateSlide: (id: string, updates: Partial<Slide>) => void
