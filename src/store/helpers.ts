@@ -1,79 +1,32 @@
-import { StoreState } from './types'
-
-export const syncOutputState = (get: () => StoreState) => {
-    const state = get()
-    const activeSlide = state.activeSlideId
-        ? state.slides.find(s => s.id === state.activeSlideId)
-        : null
-
-    const baseLayers = {
-        audio: state.activeAudio,
-        background: state.activeBackground,
-        slide: activeSlide || null,
-        announcement: state.activeAnnouncement || null,
-        props: state.activeProps,
-        message: state.activeMessage
-    }
-
-    // 1. Dispatch individual targeted payloads per screen
-    Object.entries(state.screenLooks).forEach(([screenId, originalLook]) => {
-        // --- Single Output Window Logic (Main switches to Chroma look when toggled) ---
-        // If we are evaluating what to send to the 'main' window, and Green Screen is ON,
-        // we override its look with the 'chroma' look configuration.
-        const look = (screenId === 'main' && state.isGreenScreen && state.screenLooks['chroma'])
-            ? state.screenLooks['chroma']
-            : originalLook
-
-        const tailoredLayers = {
-            audio: look.audio.isVisible ? baseLayers.audio : null,
-            background: look.background.isVisible ? baseLayers.background : { type: 'none' },
-            slide: look.slide.isVisible ? baseLayers.slide : null,
-            announcement: look.announcement.isVisible ? baseLayers.announcement : null,
-            props: look.prop.isVisible ? baseLayers.props : [],
-            message: look.message.isVisible ? baseLayers.message : null
-        }
-
-        const screenData = {
-            type: 'state-update',
-            layers: tailoredLayers,
-            globalSlideStyle: state.globalSlideStyle,
-            isGreenScreen: state.isGreenScreen // Legacy
-        }
-
-        // Target the specific window's IPC channel via the main process router
-        window.ipcRenderer.send('route-screen-update', JSON.stringify({
-            screenId,
-            data: screenData
-        }))
-    })
+import type { StoreState } from './types'
+import type { OutputState, StageData } from '../types'
+export function outputSnapshot(state: StoreState): OutputState {
+  const look = state.screenLooks[state.isGreenScreen ? 'chroma' : 'main']
+  return {
+    type: 'state-update',
+    isGreenScreen: state.isGreenScreen,
+    globalSlideStyle: state.globalSlideStyle,
+    layers: {
+      audio: look.audio.isVisible ? state.activeAudio : null,
+      background: look.background.isVisible ? state.activeBackground : { type: 'none' },
+      slide: look.slide.isVisible
+        ? state.slides.find((s) => s.id === state.activeSlideId) || null
+        : null,
+      announcement: look.announcement.isVisible ? state.activeAnnouncement : null,
+      props: look.prop.isVisible ? state.activeProps : [],
+      message: look.message.isVisible ? state.activeMessage : null,
+    },
+  }
 }
-
-export const syncStageState = (get: () => StoreState) => {
-    const state = get()
-    let slide = null
-    let nextSlide = null
-
-    if (state.activeSlideId) {
-        const slideIndex = state.slides.findIndex(s => s.id === state.activeSlideId)
-        slide = state.slides[slideIndex]
-        if (slideIndex < state.slides.length - 1) {
-            nextSlide = state.slides[slideIndex + 1]
-        } else {
-            nextSlide = {
-                id: 'end',
-                content: '(End of Presentation)',
-                type: 'text',
-                styles: {}
-            } as any
-        }
-    }
-
-    window.ipcRenderer.send('update-stage', JSON.stringify({
-        current: slide,
-        next: nextSlide,
-        settings: {
-            currentFontSize: state.stageCurrentFontSize,
-            nextFontSize: state.stageNextFontSize
-        }
-    }))
+export function stageSnapshot(state: StoreState): StageData {
+  const index = state.slides.findIndex((s) => s.id === state.activeSlideId)
+  return {
+    current: state.slides[index] || null,
+    next: index >= 0 ? state.slides[index + 1] || null : null,
+    globalSlideStyle: state.globalSlideStyle,
+    settings: {
+      currentFontSize: state.stageCurrentFontSize,
+      nextFontSize: state.stageNextFontSize,
+    },
+  }
 }

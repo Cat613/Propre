@@ -9,22 +9,31 @@ import { createStageSlice } from './store/slices/stageSlice'
 import { createToastSlice } from './store/slices/toastSlice'
 
 export const usePresentationStore = create<StoreState>()(
-    temporal(
-        (...a) => ({
-            ...createEditorSlice(...a),
-            ...createLibrarySlice(...a),
-            ...createMediaSlice(...a),
-            ...createSettingsSlice(...a),
-            ...createStageSlice(...a),
-            ...createToastSlice(...a),
-        }),
-        {
-            // Only track meaningful presentation content changes in history
-            partialize: (state) => {
-                const { slides, globalSlideStyle } = state
-                return { slides, globalSlideStyle }
-            },
-            limit: 50 // Limit history to last 50 actions to save memory
-        }
-    )
+  temporal(
+    (...a) => ({
+      preparationBusy: false,
+      saveState: 'saved' as const,
+      saveError: null,
+      lastSavedAt: null,
+      initialized: false,
+      ...createEditorSlice(...a),
+      ...createLibrarySlice(...a),
+      ...createMediaSlice(...a),
+      ...createSettingsSlice(...a),
+      ...createStageSlice(...a),
+      ...createToastSlice(...a),
+    }),
+    {
+      // Only track meaningful presentation content changes in history
+      partialize: (state) => {
+        const { slides, globalSlideStyle, currentPresentationTitle } = state
+        return { slides, globalSlideStyle, currentPresentationTitle }
+      },
+      equality: (a, b) =>
+        a.slides === b.slides &&
+        a.globalSlideStyle === b.globalSlideStyle &&
+        a.currentPresentationTitle === b.currentPresentationTitle,
+      limit: 50, // Limit history to last 50 actions to save memory
+    },
+  ),
 )

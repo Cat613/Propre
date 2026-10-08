@@ -1,43 +1,65 @@
-import { useEffect, useState } from 'react'
-import ControlPanel from './components/ControlPanel'
-import OutputDisplay from './components/OutputDisplay'
-import StageDisplay from './components/StageDisplay'
-import ToastContainer from './components/ToastContainer'
-import { usePresentationStore } from './store'
-
-function App() {
-    const [currentHash, setCurrentHash] = useState(window.location.hash)
-    const { loadPresetsFromStorage } = usePresentationStore()
-
-    useEffect(() => {
-        // Initial check and load presets
-        setCurrentHash(window.location.hash)
-        loadPresetsFromStorage()
-
-        const handleHashChange = () => {
-            setCurrentHash(window.location.hash)
-        }
-
-        window.addEventListener('hashchange', handleHashChange)
-        return () => window.removeEventListener('hashchange', handleHashChange)
-    }, [])
-
-    // Routing
-    if (currentHash.startsWith('#output-display')) {
-        return <OutputDisplay />
+import { lazy, Suspense, useEffect, useState } from 'react'
+import ErrorBoundary from './components/ErrorBoundary'
+const Control = lazy(() => import('./components/ControlPanel'))
+const Output = lazy(() => import('./components/OutputDisplay'))
+const Stage = lazy(() => import('./components/StageDisplay'))
+const Preparation = lazy(() => import('./components/PreparationPreview'))
+function ControlRoot() {
+  const [ready, setReady] = useState(false),
+    [error, setError] = useState(false)
+  useEffect(() => {
+    let canceled = false,
+      dispose: (() => void) | undefined
+    void import('./store/runtime')
+      .then((m) => m.initializeControl())
+      .then(
+        (cleanup) => {
+          if (canceled) cleanup()
+          else {
+            dispose = cleanup
+            setReady(true)
+          }
+        },
+        () => setError(true),
+      )
+    return () => {
+      canceled = true
+      dispose?.()
     }
-
-    if (currentHash.startsWith('#stage-display')) {
-        return <StageDisplay />
-    }
-
-    // Default to Control Panel
-    return (
-        <>
-            <ControlPanel />
-            <ToastContainer />
-        </>
-    )
+  }, [])
+  return error ? (
+    <div className="p-8 bg-gray-900 text-white h-screen">
+      자료를 불러오지 못했습니다. <button onClick={() => location.reload()}>다시 시도</button>
+    </div>
+  ) : ready ? (
+    <Control />
+  ) : (
+    <div className="h-screen bg-gray-900 text-white p-8">자동 저장 자료를 불러오는 중…</div>
+  )
 }
-
-export default App
+export default function App() {
+  const role = window.ipcRenderer?.role || 'control'
+  useEffect(() => {
+    document.title =
+      role === 'control'
+        ? 'ProPre · 컨트롤'
+        : role === 'main'
+          ? 'ProPre · 메인 송출'
+          : 'ProPre · 모니터'
+  }, [role])
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<div className="h-screen bg-black" />}>
+        {role === 'control' ? (
+          <ControlRoot />
+        ) : role === 'preview' ? (
+          <Preparation />
+        ) : role === 'stage' ? (
+          <Stage />
+        ) : (
+          <Output />
+        )}
+      </Suspense>
+    </ErrorBoundary>
+  )
+}

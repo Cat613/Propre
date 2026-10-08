@@ -1,69 +1,96 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import type { StageData } from '../types'
-
-const StageDisplay: React.FC = () => {
-    const [data, setData] = useState<StageData>({ current: null, next: null })
-    const [time, setTime] = useState('')
-
-    useEffect(() => {
-        // 1. Listen for updates
-        const removeListener = window.ipcRenderer.on('update-stage', (json: string) => {
-            try {
-                const parsed = JSON.parse(json)
-                setData(parsed)
-            } catch (e) {
-                console.error("Failed to parse stage data", e)
-            }
-        })
-
-        // 2. Clock Timer
-        const timer = setInterval(() => {
-            const now = new Date()
-            const timeString = now.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' })
-            setTime(timeString)
-        }, 1000)
-
-        // Initial time set
-        const now = new Date()
-        setTime(now.toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }))
-
-        return () => {
-            removeListener()
-            clearInterval(timer)
-        }
-    }, [])
-
-    return (
-        <div className="w-screen h-screen flex flex-col bg-black text-white overflow-hidden">
-            {/* Clock Overlay (Top Right) */}
-            <div className="absolute top-4 right-4 text-2xl font-mono opacity-70 z-50">
-                {time}
-            </div>
-
-            {/* Current Slide (Top 70%) */}
-            <div className="flex-[7] flex items-center justify-center p-12 border-b-2 border-gray-800">
-                <div
-                    className="text-center font-bold text-white whitespace-pre-wrap leading-tight"
-                    style={{ fontSize: `${data.settings?.currentFontSize ?? 80}px` }}
-                >
-                    {data.current?.content || ""}
-                </div>
-            </div>
-
-            {/* Next Slide (Bottom 30%) */}
-            <div className="flex-[3] flex flex-col items-center justify-center p-6 bg-gray-900 text-gray-300">
-                <span className="text-xl font-semibold text-yellow-500 mb-2 uppercase tracking-widest">
-                    Next Slide
-                </span>
-                <div
-                    className="text-center font-medium whitespace-pre-wrap line-clamp-3 text-white"
-                    style={{ fontSize: `${data.settings?.nextFontSize ?? 36}px` }}
-                >
-                    {data.next?.content || "(End of Presentation)"}
-                </div>
-            </div>
-        </div>
-    )
+import StageSlideContent from './StageSlideContent'
+export default function StageDisplay() {
+  const [data, setData] = useState<StageData>({ current: null, next: null }),
+    [time, setTime] = useState(''),
+    version = useRef(0)
+  useEffect(() => {
+    const stop = window.ipcRenderer.on('update-stage', (json: string) => {
+      try {
+        const parsed = JSON.parse(json) as StageData & { version: number }
+        if (parsed.version <= version.current) return
+        version.current = parsed.version
+        setData(parsed)
+      } catch {
+        window.ipcRenderer.reportMediaError()
+      }
+    })
+    window.ipcRenderer.ready()
+    const tick = () =>
+      setTime(
+        new Date().toLocaleTimeString('ko-KR', {
+          hour12: false,
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+        }),
+      )
+    tick()
+    const timer = setInterval(tick, 1000)
+    return () => {
+      stop()
+      clearInterval(timer)
+    }
+  }, [])
+  useEffect(() => {
+    if (version.current) window.ipcRenderer.acknowledge(version.current)
+  }, [data])
+  return (
+    <div
+      className="w-screen h-screen flex flex-col bg-black text-white overflow-hidden"
+      data-screen="stage"
+    >
+      <div
+        className="shrink-0 flex justify-end px-4 pt-2 font-mono opacity-70"
+        style={{ fontSize: 'clamp(14px, 3vh, 24px)', lineHeight: 1.2 }}
+        data-stage-clock="true"
+      >
+        {time}
+      </div>
+      <div
+        className="flex-[7] min-h-0 border-b-2 border-gray-800"
+        style={{ padding: 'clamp(12px, 3vh, 32px)' }}
+        data-stage-section="current"
+      >
+        {data.current && (
+          <StageSlideContent
+            slide={data.current}
+            globalStyle={data.globalSlideStyle}
+            fontSize={data.settings?.currentFontSize ?? 80}
+          />
+        )}
+      </div>
+      <div
+        className="flex-[3] min-h-0 flex flex-col items-center bg-gray-900 text-gray-300"
+        style={{ padding: 'clamp(8px, 2vh, 24px)' }}
+        data-stage-section="next"
+      >
+        <span
+          className="shrink-0 font-semibold text-yellow-500"
+          style={{
+            fontSize: 'clamp(12px, 2.5vh, 20px)',
+            lineHeight: 1.2,
+            marginBottom: 'clamp(4px, 1vh, 8px)',
+          }}
+        >
+          다음 슬라이드
+        </span>
+        {data.next ? (
+          <StageSlideContent
+            slide={data.next}
+            globalStyle={data.globalSlideStyle}
+            fontSize={data.settings?.nextFontSize ?? 36}
+          />
+        ) : (
+          <div
+            className="flex-1 flex items-center justify-center text-center text-white"
+            style={{ fontSize: `${data.settings?.nextFontSize ?? 36}px` }}
+          >
+            {data.current ? '발표 끝' : '송출 대기'}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
-
-export default StageDisplay

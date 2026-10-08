@@ -1,4 +1,6 @@
-# ProPre (ProPresenter Alternative) 기술 명세서 (Technical Specification)
+> 2026-10-04 문서 관리 정리: 이 문서는 이전 기술 설명을 보존한 기록입니다. 아래의 완료 표현은 현행 검증 결과를 뜻하지 않습니다. 현재 구현과 한계는 [구현 현황](docs/review/feature-inventory.md), 시스템 구조는 [아키텍처](docs/engineering/architecture.md), 목표 계약은 [데이터·IPC 명세](docs/engineering/data-ipc-contracts.md)를 따릅니다. 전체 산출물은 [문서 인덱스](docs/README.md)에서 관리합니다.
+
+# ProPre (ProPresenter Alternative) 기술 명세서 (이전 기록)
 
 ## 1. 프로젝트 개요 (Overview)
 **ProPre**는 교회 및 강연 환경을 위해 제작된 가볍고 직관적인 크로스 플랫폼 프레젠테이션 송출 소프트웨어입니다. 고가의 하이엔드 방송 소프트웨어(예: ProPresenter)를 대체할 수 있는 핵심 기능을 웹 기술 기반의 데스크톱 앱으로 구현하는 것을 목표로 합니다.

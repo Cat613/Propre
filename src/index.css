@@ -1,22 +1,21 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+@config "../tailwind.config.js";
 
 html,
 body,
 #root {
-    height: 100%;
-    margin: 0;
-    overflow: hidden;
-    /* Prevent scrolling in kiosk-like apps */
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  /* Prevent scrolling in kiosk-like apps */
 }
 
 @keyframes marquee {
-    0% {
-        transform: translateX(100vw);
-    }
+  0% {
+    transform: translateX(100%);
+  }
 
-    100% {
-        transform: translateX(-100%);
-    }
+  100% {
+    transform: translateX(-100%);
+  }
 }

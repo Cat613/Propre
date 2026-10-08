@@ -1,169 +1,246 @@
 import { StoreSlice, LibrarySlice } from '../types'
-import type { Presentation, PlaylistItem } from '../../types'
+import { usePresentationStore } from '../../store'
 import { generateId } from '../../utils/generateId'
-
+import { normalizePresentation, DEFAULT_STYLE } from '../../../shared/model'
+import { flushPersistence } from '../persistence'
+import { defaultPreset } from '../presets'
+import { playlistRefs, playlistRevision, PreparationError } from '../../../shared/automation'
+function isolateHistory(action: () => void) {
+  const history = usePresentationStore.temporal.getState()
+  history.pause()
+  try {
+    action()
+    history.clear()
+  } finally {
+    history.resume()
+  }
+}
+let playlistTail: Promise<void> = Promise.resolve()
 export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
-    library: [],
-    playlist: [],
-
-    loadLibrary: async () => {
-        try {
-            const library = await window.ipcRenderer.getLibrary()
-            const playlist = await window.ipcRenderer.getPlaylist()
-            set({ library, playlist })
-        } catch (error) {
-            console.error('Failed to load library:', error)
-            get().addToast('라이브러리를 불러오는데 실패했습니다.', 'error')
+  songJobOperation: async (operation, id, revision) => {
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        window.dispatchEvent(new Event('propre-flush-edits'))
+        await flushPersistence()
+        if (operation === 'apply') await window.ipcRenderer.applySongJob(id, revision!)
+        else if (operation === 'undo') await window.ipcRenderer.undoSongJob(id)
+        else await window.ipcRenderer.rebaseSongJob(id)
+        await get().refreshWorkspace()
+      })
+    await playlistTail
+  },
+  library: [],
+  playlist: [],
+  setlists: [],
+  setlistSongs: [],
+  activeSetlistId: null,
+  refreshWorkspace: async () => {
+    const loaded = await window.ipcRenderer.bootstrap()
+    set({
+      library: loaded.library,
+      playlist: loaded.playlist,
+      setlists: loaded.setlists,
+      setlistSongs: loaded.setlistSongs,
+      activeSetlistId: loaded.activeSetlistId,
+      mediaBin: loaded.media,
+    })
+  },
+  manageSetlist: async (command) => {
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        window.dispatchEvent(new Event('propre-flush-edits'))
+        await flushPersistence()
+        set(await window.ipcRenderer.manageSetlist(command))
+      })
+    await playlistTail
+  },
+  publishSetlistSong: async (id) => {
+    let result: import('../../../shared/contracts').FileResult = { success: false }
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        window.dispatchEvent(new Event('propre-flush-edits'))
+        await flushPersistence()
+        result = await window.ipcRenderer.publishSetlistSong(id)
+        if (result.success) await get().refreshWorkspace()
+      })
+    await playlistTail
+    return result
+  },
+  playlistFile: async (operation) => {
+    let result: import('../../../shared/contracts').FileResult = { success: false }
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        window.dispatchEvent(new Event('propre-flush-edits'))
+        await flushPersistence()
+        const expected = playlistRefs(get().playlist)
+        result = await (operation === 'save'
+          ? window.ipcRenderer.savePlaylistFile(expected)
+          : window.ipcRenderer.loadPlaylistFile(expected))
+        if (result.success && operation === 'load') {
+          await get().refreshWorkspace()
         }
-    },
-
-    importPresentations: async (presentations: import('../../types').Presentation[]) => {
-        try {
-            const library = await window.ipcRenderer.mergeToLibrary(presentations)
-            set({ library })
-        } catch (error) {
-            console.error('Failed to import presentations:', error)
-            get().addToast('프레젠테이션 불러오기에 실패했습니다.', 'error')
-        }
-    },
-
-    saveCurrentPresentation: async () => {
-        const { slides, currentPresentationId, currentPresentationTitle } = get()
-        let presentation: Presentation
-
-        // Use explicitly set title, or find best title from content or elements
-        let title = currentPresentationTitle
-        if (!title || title.trim() === '') {
-            title = 'Untitled Presentation'
-            const candidateSlide = slides.find(s => s.content || (s.elements && s.elements.length > 0))
-            if (candidateSlide) {
-                if (candidateSlide.content) {
-                    title = candidateSlide.content.split('\n')[0].substring(0, 20)
-                } else if (candidateSlide.elements) {
-                    const textElement = candidateSlide.elements.find((el): el is import('../../types').TextElement => el.type === 'text')
-                    if (textElement && textElement.text) {
-                        title = textElement.text.split('\n')[0].substring(0, 20)
-                    }
-                }
-            }
-        }
-
-        if (currentPresentationId) {
-            const existing = get().library.find(p => p.id === currentPresentationId)
-            presentation = {
-                ...(existing || { createdAt: new Date().toISOString() }),
-                id: currentPresentationId,
-                title: title,
-                slides,
-                updatedAt: new Date().toISOString(),
-            }
-        } else {
-            const newId = generateId()
-            presentation = {
-                id: newId,
-                title,
-                slides,
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-            }
-            set({ currentPresentationId: newId })
-        }
-
-        try {
-            await window.ipcRenderer.saveToLibrary(presentation)
-            const library = await window.ipcRenderer.getLibrary()
-            set({ library })
-        } catch (error) {
-            console.error('Failed to save presentation:', error)
-            get().addToast('저장에 실패했습니다.', 'error')
-        }
-    },
-
-    createNewPresentation: () => {
-        const { globalStylePresets, defaultSongPresetId, updateGlobalSlideStyle } = get()
-        set({
-            currentPresentationId: null,
-            currentPresentationTitle: null,
-            slides: [],
-            activeSlideId: null,
+      })
+    await playlistTail
+    return result
+  },
+  savePreparedPresentation: async (presentation, expectedRevision) => {
+    const result = await window.ipcRenderer.savePreparedPresentation(presentation, expectedRevision)
+    if (result.error) throw new PreparationError(result.error.code, result.error.message)
+    if (!result.presentation)
+      throw new PreparationError('SAVE_FAILED', '자료 저장 결과를 확인하지 못했습니다.')
+    const saved = result.presentation
+    await get().refreshWorkspace()
+    return saved
+  },
+  replacePreparedPlaylist: async (ids, expectedRevision) => {
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        await flushPersistence()
+        const before = get().playlist
+        if ((await playlistRevision(before)) !== expectedRevision || get().playlist !== before)
+          throw new PreparationError(
+            'REVISION_CONFLICT',
+            '진행 순서가 변경되었습니다. 다시 조회해주세요.',
+          )
+        const playlist = ids.map((id) => {
+          const presentation =
+            get().library.find((p) => p.id === id) ||
+            get().setlistSongs.find((p) => p.presentation.id === id)?.presentation
+          if (!presentation)
+            throw new PreparationError('NOT_FOUND', '진행 순서의 자료를 찾지 못했습니다.')
+          return { id: generateId(), presentationId: id, presentation }
         })
-        get().clearText()
-
-        // Apply default song preset for new presentations
-        if (defaultSongPresetId) {
-            const preset = globalStylePresets.find(p => p.id === defaultSongPresetId)
-            if (preset) {
-                updateGlobalSlideStyle(preset.style, preset.id)
-            }
-        }
-    },
-
-    deletePresentation: async (id: string) => {
-        try {
-            const library = await window.ipcRenderer.deleteFromLibrary(id)
-            set({ library })
-            if (get().currentPresentationId === id) {
-                get().createNewPresentation()
-            }
-        } catch (error) {
-            console.error('Failed to delete presentation:', error)
-            get().addToast('삭제에 실패했습니다.', 'error')
-        }
-    },
-
-    addToPlaylist: async (presentationId: string) => {
-        const { library, playlist } = get()
-        const presentation = library.find(p => p.id === presentationId)
+        const result = await window.ipcRenderer.savePreparedPlaylist(
+          playlistRefs(playlist),
+          playlistRefs(before),
+        )
+        if (result.error) throw new PreparationError(result.error.code, result.error.message)
+        await get().refreshWorkspace()
+      })
+    await playlistTail
+  },
+  loadLibrary: async () => get().refreshWorkspace(),
+  importPresentations: async (presentations) => {
+    try {
+      await flushPersistence()
+      const library = await window.ipcRenderer.mergeToLibrary(presentations)
+      set({ library })
+    } catch (error) {
+      get().addToast('불러오기에 실패했습니다. 기존 자료는 유지됩니다.', 'error')
+      throw error
+    }
+  },
+  saveCurrentPresentation: async () => {
+    window.dispatchEvent(new Event('propre-flush-edits'))
+    await flushPersistence()
+    get().addToast('자동 저장을 완료했습니다.', 'success')
+  },
+  createNewPresentation: () => {
+    const preset = defaultPreset(get())
+    isolateHistory(() =>
+      set({
+        currentPresentationId: generateId(),
+        currentPresentationTitle: null,
+        slides: [],
+        activeSlideId: null,
+        selectedSlideIds: [],
+        globalSlideStyle: { ...(preset?.style || DEFAULT_STYLE) },
+        activePresetId: preset?.id || null,
+      }),
+    )
+  },
+  deletePresentation: async (id) => {
+    try {
+      await flushPersistence()
+      const library = await window.ipcRenderer.deleteFromLibrary(id)
+      set({ library })
+      if (get().currentPresentationId === id) get().createNewPresentation()
+    } catch (error) {
+      get().addToast('자료 삭제에 실패했습니다.', 'error')
+      throw error
+    }
+  },
+  addToPlaylist: async (id) => {
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        await flushPersistence()
+        const presentation = get().library.find((p) => p.id === id)
         if (!presentation) return
-
-        const newItem: PlaylistItem = {
-            id: generateId(),
-            presentationId,
-            presentation,
-        }
-
-        const newPlaylist = [...playlist, newItem]
-        set({ playlist: newPlaylist })
-        await window.ipcRenderer.savePlaylist(newPlaylist)
-    },
-
-    removeFromPlaylist: async (playlistItemId: string) => {
-        const { playlist } = get()
-        const newPlaylist = playlist.filter(item => item.id !== playlistItemId)
-        set({ playlist: newPlaylist })
-        await window.ipcRenderer.savePlaylist(newPlaylist)
-    },
-
-    reorderPlaylist: async (oldIndex: number, newIndex: number) => {
-        const { playlist } = get()
-        const newPlaylist = [...playlist]
-        const [removed] = newPlaylist.splice(oldIndex, 1)
-        newPlaylist.splice(newIndex, 0, removed)
-        set({ playlist: newPlaylist })
-        await window.ipcRenderer.savePlaylist(newPlaylist)
-    },
-
-    selectPresentation: (presentationId: string) => {
-        const { library, globalStylePresets, defaultBiblePresetId, defaultSongPresetId, updateGlobalSlideStyle } = get()
-        const presentation = library.find(p => p.id === presentationId)
-        if (presentation) {
-            set({
-                currentPresentationId: presentation.id,
-                currentPresentationTitle: presentation.title,
-                slides: presentation.slides || [],
-                activeSlideId: null,
-            })
-            get().clearText()
-
-            // Check if it's a Bible or Song presentation to load default preset
-            const isBible = presentation.slides?.some(s => s.type === 'bible')
-            const presetIdToLoad = isBible ? defaultBiblePresetId : defaultSongPresetId
-            if (presetIdToLoad) {
-                const preset = globalStylePresets.find(p => p.id === presetIdToLoad)
-                if (preset) {
-                    updateGlobalSlideStyle(preset.style, preset.id)
-                }
-            }
-        }
-    },
+        const playlist = [...get().playlist, { id: generateId(), presentationId: id, presentation }]
+        await window.ipcRenderer.savePlaylist(playlist)
+        await get().refreshWorkspace()
+      })
+    await playlistTail.catch((error) => {
+      get().addToast('순서 저장에 실패했습니다.', 'error')
+      throw error
+    })
+  },
+  removeFromPlaylist: async (id) => {
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        const playlist = get().playlist.filter((x) => x.id !== id)
+        await window.ipcRenderer.savePlaylist(playlist)
+        await get().refreshWorkspace()
+      })
+    await playlistTail.catch((error) => {
+      get().addToast('순서 저장에 실패했습니다.', 'error')
+      throw error
+    })
+  },
+  reorderPlaylist: async (oldIndex, newIndex) => {
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        const playlist = [...get().playlist]
+        if (!playlist[oldIndex] || newIndex < 0 || newIndex >= playlist.length) return
+        const [item] = playlist.splice(oldIndex, 1)
+        playlist.splice(newIndex, 0, item)
+        await window.ipcRenderer.savePlaylist(playlist)
+        await get().refreshWorkspace()
+      })
+    await playlistTail.catch((error) => {
+      get().addToast('순서 저장에 실패했습니다.', 'error')
+      throw error
+    })
+  },
+  selectPresentation: (id) => {
+    const snapshot = get().setlistSongs.find((p) => p.presentation.id === id)
+    const saved = snapshot?.presentation || get().library.find((p) => p.id === id)
+    if (!saved || get().currentPresentationId === id) return
+    const p = normalizePresentation(saved)
+    const preset = snapshot ? null : defaultPreset(get(), p.slides[0])
+    isolateHistory(() =>
+      set({
+        currentPresentationId: p.id,
+        currentPresentationTitle: p.title,
+        slides: p.slides,
+        globalSlideStyle: { ...(preset?.style || p.globalSlideStyle!) },
+        activeSlideId: null,
+        selectedSlideIds: [],
+        activePresetId: preset?.id || null,
+      }),
+    )
+  },
+  openPresentation: (raw) => {
+    const p = normalizePresentation({ ...raw, id: generateId(), revision: 0 })
+    const preset = defaultPreset(get(), p.slides[0])
+    isolateHistory(() =>
+      set({
+        currentPresentationId: p.id,
+        currentPresentationTitle: p.title,
+        slides: p.slides,
+        globalSlideStyle: { ...(preset?.style || p.globalSlideStyle!) },
+        activeSlideId: null,
+        selectedSlideIds: [],
+        activePresetId: preset?.id || null,
+      }),
+    )
+  },
 })

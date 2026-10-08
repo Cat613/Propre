@@ -1,0 +1,80 @@
+{
+  "baseCommit": "3f625e3a6c5a78733b35a7cbbc61393e4faddac9",
+  "productVersion": "0.1.0",
+  "date": "2026-10-05",
+  "reason": "Monitor body styles and automatic song/scripture default preset recovery",
+  "files": [
+    {
+      "file": "shared/presentation-style.ts",
+      "sha256": "c6efdb05d25955ee0e16ee4fad84ae85b81d6bd973dd7f0549f4ebc0a187099e"
+    },
+    {
+      "file": "shared/schema.ts",
+      "sha256": "cd0e92437a4e41950ddd4578754f3b566093d5f31ae76f10738fa393d6ce8f2c"
+    },
+    {
+      "file": "src/types.ts",
+      "sha256": "c22058cfbe479d0aa5889be7f8772a8dfc6125293f9e455e6ca66d8b73f01620"
+    },
+    {
+      "file": "src/components/ScaledSlide.tsx",
+      "sha256": "4291d1205aaca2587981e397abf162bf0f382af57db78a68eae53d39fcdaf267"
+    },
+    {
+      "file": "src/components/FittedText.tsx",
+      "sha256": "4eb25fe994afc36a77d5d83033e5ccd1cf3ef800a60ac64a1f4234989a7c9802"
+    },
+    {
+      "file": "src/components/StageSlideContent.tsx",
+      "sha256": "8182ddde4d643e1adefd15d713b9665b5900047518cc273adaa3047a8b177b0b"
+    },
+    {
+      "file": "src/components/StageDisplay.tsx",
+      "sha256": "c2425c6badb65909fdae13a993c46b08f0e3532125be03e05ffb06992fa00656"
+    },
+    {
+      "file": "src/components/SettingsModal.tsx",
+      "sha256": "0a64f692741f75c4358ecb4056887813a947a859a7499efcad5e444360b98176"
+    },
+    {
+      "file": "src/components/SettingsTabPanel.tsx",
+      "sha256": "015d26152f48d20de873471118c961e2fa48a79729a7bfd9d019efad566c3b8c"
+    },
+    {
+      "file": "src/store/helpers.ts",
+      "sha256": "944325567d3b5b56a253cad1ef0134d7732afc29f526776580651042d01e38f4"
+    },
+    {
+      "file": "src/store/presets.ts",
+      "sha256": "8c6b0733a14f208e27efbcacb3e4d50c1315ee825a78342a6bffb7b86d09e295"
+    },
+    {
+      "file": "src/store/slices/editorSlice.ts",
+      "sha256": "39948022766e5e75cdc020805aeafdc60a158d4a062668c10d3b061980e4c68c"
+    },
+    {
+      "file": "src/store/slices/librarySlice.ts",
+      "sha256": "c4a015acf7dc23e8e77f1125ce1d7e99c3d50e55a189a6d4952d7c01671f2ae6"
+    },
+    {
+      "file": "src/store/slices/settingsSlice.ts",
+      "sha256": "f7d25787943d0e4cd5a7c511a82f5adf331cc63eb23a461cc8fc9b93e7899998"
+    },
+    {
+      "file": "tests/presentation-style.test.ts",
+      "sha256": "362a48eda8f3f8aa031716e6ad518928a7cecb34a4cea22db68bf5db0a27cbb9"
+    },
+    {
+      "file": "tests/store.test.ts",
+      "sha256": "abf0602dc491743f149b4914e1a5c3d1d19ebfe4e6613283a941f306c73cd27e"
+    },
+    {
+      "file": "tests/electron/stage.spec.ts",
+      "sha256": "2789578f75e0bc92b2959b86d1d2f6a833f4a6cfdcdbde7804c9faf0b2fd0ef4"
+    }
+  ],
+  "packagedArtifacts": {
+    "app.asar": "1459170161989c256d60d36e35aebbcb434d53a122e703936bc143b4ff55ba7d",
+    "ProPre": "ca7e3290800255f5018160cff99cf6ecc58eae299c66148de1374a70e2715c83"
+  }
+}

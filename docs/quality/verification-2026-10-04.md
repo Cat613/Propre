@@ -1,0 +1,217 @@
+# 2026-10-04 검증 실행 기록
+
+> 이 문서는 변경 전 검토 기록입니다. 현재 구현과 검증 결과는 [후속 개선 기록](verification-2026-10-04-implementation.md)을 기준으로 읽습니다.
+
+실행일: 2026-10-04 (Asia/Seoul) · 상태: 실행 기록 · 문서 작업 결과: 완료 · 제품 안정화: 미완료
+
+## 기준과 환경
+
+| 항목 | 값 |
+| --- | --- |
+| 브랜치·커밋 | `develop`, `3f625e3a6c5a78733b35a7cbbc61393e4faddac9` |
+| 소스 범위 | Git 추적 src·electron·package/lock·Vite/TS/HTML/Tailwind/PostCSS 설정, 57개 파일 |
+| 위 파일 집합의 SHA-256 | `fd4a9ce13043164c361c97e2d090fd58eb4c827fdd3c2dd4af7519a2fa3a8984` |
+| 해시 방법 | 경로를 정렬한 뒤 각 `경로 + NUL + 파일 바이트 + NUL`을 순서대로 SHA-256에 입력 |
+| 호스트 | macOS, Node v25.2.1 |
+| Electron·내장 Node | 28.3.3 / v18.18.2 (`ELECTRON_RUN_AS_NODE=1`로 버전만 확인) |
+| 의존성 설치 | 이미 설치된 node_modules 사용; 새 설치·패키지 변경 없음 |
+| 기존 변경 | dist-electron/main.js·preload.mjs 변경을 보존 |
+| 자료·저장·키 | 메모리 검사에는 합성 자료·mock IPC·mock localStorage 사용. 실제 키·사용자 데이터를 읽지 않음 |
+
+| 패키지 | package 범위 | 잠금·설치 버전 |
+| --- | --- | --- |
+| Electron | ^28.3.3 | 28.3.3 |
+| Vite | ^5.0.8 | 5.4.21 |
+| TypeScript | ^5.2.2 | 5.9.3 |
+| electron-builder | ^24.9.1 | 24.13.3 |
+| electron-store | ^11.0.2 | 11.0.2 |
+| React | ^18.2.0 | 18.3.1 |
+| Zustand | ^5.0.11 | 5.0.11 |
+| Zundo | ^2.3.0 | 2.3.0 |
+| @google/genai | ^1.42.0 | 1.42.0 |
+
+## 검사 요약
+
+| 검사 | 결과 | 실제 범위·한계 |
+| --- | --- | --- |
+| `tsc --noEmit --pretty false` | 통과, 종료 0 | src·electron 타입 검사; 기능 검사 아님 |
+| `tsc -p tsconfig.node.json --noEmit` | 통과, 종료 0 | 임시 사본에서 Vite 설정 검사; build info도 임시 위치 |
+| `vite build` | 통과, 종료 0 | 임시 사본에서 Renderer·Main·preload 번들; electron-builder 설치 패키지 미실행 |
+| 실제 parser·Store 메모리 실행 | 25개 중 기대 일치 10 / 차이 15 | mock IPC·저장소. 일부 기대는 이번 정책안 기준이며 15개 독립 결함을 뜻하지 않음 |
+| `node test-run.js` | 실패, 종료 1 | 없는 BibleService.js 참조로 ERR_MODULE_NOT_FOUND |
+| `npm audit --json --ignore-scripts` | 감사 항목 있음, 종료 1 | 전체 39개 패키지 항목; 실행 가능한 공격 39개로 해석하지 않음 |
+| `npm audit --json --ignore-scripts --omit=dev` | 감사 항목 있음, 종료 1 | 7개 패키지 항목; Electron 런타임은 devDependencies라 빠질 수 있음 |
+| 문서 링크·ID·추적 관계·차이 검사 | 완료 | TC-030; Markdown 관리 구조와 기존 변경 보존 확인 |
+
+TS·Vite 성공은 현재 Electron·의존성 지원 조합이나 설치·실제 창 동작의 통과를 뜻하지 않는다. 설치된 electron-store는 Node ≥20·Electron ≥30, GenAI SDK는 Node ≥20을 요구한다. Electron 내장 Node 18.18.2와의 지원 조건을 조정해야 한다. 실제 AI Renderer의 실행 환경도 별도로 검사해야 한다.
+
+## 번들 결과
+
+| 산출물 | 생성 크기 | gzip |
+| --- | --- | --- |
+| Renderer JS | 2,837.64 kB | 1,548.73 kB |
+| CSS | 38.41 kB | 6.91 kB |
+| Electron main.js | 395.51 kB | 105.41 kB |
+| preload.mjs | 1.69 kB | 0.54 kB |
+
+500 kB보다 큰 chunk 경고와 오래된 Browserslist 데이터 안내가 있었다. 이는 실제 앱 지연·메모리 누수의 측정 결과가 아니다. 패키지 버전이나 번들 설정을 수정하지 않았다.
+
+## 성경 파싱 13개 표본
+
+| 표본 | 입력 | 기대 | 실제 | 판정 |
+| --- | --- | --- | --- | --- |
+| PARSER-1 | 요 3:16-18 | 요·3·16~18 | 일치 | 일치 |
+| PARSER-2 | 창 1 | 창·1·장 전체 | 일치 | 일치 |
+| PARSER-3 | 요한복음 3 16 | 요·3·16 | 일치 | 일치 |
+| PARSER-4 | 요3:16 | 요·3·16 | 일치 | 일치 |
+| PARSER-5 | 시 119:1-3 | 시·119·1~3 | 일치 | 일치 |
+| PARSER-6 | 요1 2:1 | 요1·2·1 | 일치 | 일치 |
+| PARSER-7 | 누 2:1 | 눅·2·1 | 일치 | 일치 |
+| PARSER-8 | 창10:1 | 창·10·1 | 권 null·장 0·절 1 | 차이 |
+| PARSER-9 | 요12:1 | 요·12·1 | 요1·2·1 | 차이 |
+| PARSER-10 | 시119:1 | 시·119·1 | 권 null·장 9·절 1 | 차이 |
+| PARSER-11 | 요한복음12:1 | 요·12·1 | 권 null·장 2·절 1 | 차이 |
+| PARSER-INVALID-CHAPTER | 요 0:1 | 파서 또는 검증 계층에서 오류 | 파서는 요·장 0 반환 | 차이: 계층 계약 |
+| PARSER-REVERSE-RANGE | 요 3:18-16 | 파서 또는 검증 계층에서 오류 | 파서는 요·3·18~16 반환 | 차이 |
+
+장 0은 현행 BiblePanel의 `!chapter` 검사에서 거절된다. 이 표의 장 0 차이를 실제 UI가 잘못된 구절을 송출한 증거로 쓰지 않는다. 역범위·존재하지 않는 장·절의 UI 보존까지는 TC-007에서 검사해야 한다.
+
+## 상태 처리 12개 표본
+
+Output 수는 `route-screen-update` 발신 횟수이고 Stage 수는 `update-stage` 발신 횟수다. 초기 Looks가 Main·Chroma 2개이므로 발신 2회가 정상인 표본이 있다. 두 실제 창이 받아 표시했다는 뜻은 아니다.
+
+| 표본 | 동작·기대 | 실제 | 판정 |
+| --- | --- | --- | --- |
+| STORE-TRIGGER | 활성 slide b → Output 2·Stage 1 | 2·1 | 일치 |
+| STORE-BATCH-DELETE | 활성 a 일괄 삭제 → Output 2·Stage 1 | 2·1 | 일치 |
+| STORE-SINGLE-DELETE | 활성 a 단일 삭제 → 관련 화면 갱신 | active null, Output 0·Stage 0 | 차이 |
+| STORE-UPDATE | 활성 a 내용 수정 → Output·Stage 갱신 | Output 2·Stage 0 | 차이 |
+| STORE-REPLACE | slides 교체·active 해제 → 정책상 관련 화면 수렴 | Output 0·Stage 0 | 차이 |
+| STORE-REORDER | a·b 순서 변경 → Stage 다음 순서 갱신 | Output 0·Stage 0 | 차이 |
+| STORE-CLEAR-ALL | 제안한 전체 중단은 props도 제거 | props 1개 잔존 | 차이: 범위 정책 미확정 |
+| STORE-UNDO | 내용 복원 후 라이브 적용 상태 갱신 | content A 복원, Output 0·Stage 0 | 차이 |
+| STORE-IMPORT-IDENTITY | original 발표에 다른 목록 적용 후 새 자료로 저장 | original ID·Original 제목으로 저장 요청 | 차이 |
+| STORE-HISTORY-BOUNDARY | 편집→새 발표→단일 undo 표본에서 이전 발표로 복귀하지 않음 | 빈 slides·ID null | 표본 일치, 전체 경계 미검증 |
+| STORE-HISTORY-CROSS-PRESENTATION | A 편집→B 전환→두 번 undo에도 B ID와 콘텐츠 일치 | ID B·slide a·content Changed | 차이 |
+| STORE-HISTORY-SELECTION-FLOOD | 편집 후 선택 51회가 내용 이력을 밀어내지 않음 | pastStates 50, 50번 undo 뒤에도 Changed | 차이 |
+
+STORE-HISTORY-BOUNDARY의 단일 undo는 전체 경계를 증명하지 않는다. 추가 두 표본에서 발표 ID·콘텐츠 혼합과 선택 변경의 이력 소모를 재현했다. 반복 redo·저장·실제 라이브까지의 완전한 수용 검사는 TC-004에 남아 있다. 모든 표본의 사용자 자료·파일 저장은 mock으로 처리했다.
+
+## 의존성 감사 스냅샷
+
+| 범위 | info | low | moderate | high | critical | 총 패키지 항목 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 전체 | 0 | 3 | 4 | 30 | 2 | 39 |
+| dev 제외 | 0 | 0 | 2 | 4 | 1 | 7 |
+
+전체 critical 항목은 `protobufjs`, `tar`였다. dev 제외의 패키지 항목은 @protobufjs/utf8, ajv, brace-expansion, fast-uri, minimatch, protobufjs, ws다. 전체 직접 의존성 중 electron, electron-builder, postcss, tailwindcss, vite도 보고됐다.
+
+감사 응답에 포함된 근거 예: [protobufjs advisory](https://github.com/advisories/GHSA-xq3m-2v4x-88gg), [tar advisory](https://github.com/advisories/GHSA-34x7-hfp2-rc4v), [Electron advisory](https://github.com/advisories/GHSA-vmqv-hx8q-j7mg), [Vite advisory](https://github.com/advisories/GHSA-4w7w-66w2-5vf9). 해당 코드를 이용한 공격이나 실제 제품에서의 실행 도달성을 이번에 검증하지 않았다. 감사 DB는 변하므로 구현 착수·릴리즈 때 다시 조회한다.
+
+## 표본 재현 방법
+
+아래는 사용한 메모리 검사와 동일한 원리의 재현 코드다. 저장소 루트에서 실행한다. 실제 사용자 저장소·키를 사용하지 않는다. esbuild는 현재 설치된 Vite 의존성에서 사용했고 저장소에 새 검사 파일이나 의존성을 추가하지 않았다. TASK-018에서 정식 검사로 옮길 필요가 있다.
+
+```bash
+node --input-type=module <<'NODE'
+import fs from 'node:fs';
+import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
+import { buildSync, transformSync } from 'esbuild';
+const parserModule = { exports: {} };
+vm.runInNewContext(
+  transformSync(fs.readFileSync('src/utils/bibleParser.ts', 'utf8'),
+    { loader: 'ts', format: 'cjs' }).code,
+  { module: parserModule, exports: parserModule.exports }
+);
+const parse = parserModule.exports.parseBibleQuery;
+for (const query of ['요 3:16-18', '창 1', '요한복음 3 16', '요3:16',
+  '시 119:1-3', '요1 2:1', '누 2:1', '창10:1', '요12:1',
+  '시119:1', '요한복음12:1', '요 0:1', '요 3:18-16']) {
+  console.log('parser', query, parse(query));
+}
+const messages = [], saved = [], memory = new Map();
+let library = [];
+const ipc = {
+  send: (channel, data) => messages.push({ channel, data }),
+  on: () => () => {}, getApiKey: async () => null,
+  getOutputStatus: async () => false, getStageStatus: async () => false,
+  getLibrary: async () => library, getPlaylist: async () => [],
+  savePlaylist: async () => true,
+  saveToLibrary: async p => { saved.push(structuredClone(p)); library = [p]; return true; }
+};
+const compiled = buildSync({ entryPoints: ['src/store.ts'], bundle: true,
+  platform: 'node', format: 'cjs', write: false,
+  define: { 'process.env.NODE_ENV': '"production"' } });
+const storeModule = { exports: {} };
+vm.runInNewContext(compiled.outputFiles[0].text, {
+  module: storeModule, exports: storeModule.exports,
+  window: { ipcRenderer: ipc }, crypto: webcrypto, structuredClone,
+  localStorage: { getItem: k => memory.get(k) ?? null,
+    setItem: (k, v) => memory.set(k, String(v)) },
+  setTimeout: () => 0, console
+});
+const store = storeModule.exports.usePresentationStore;
+await new Promise(r => setTimeout(r, 0));
+const a = { id: 'a', type: 'text', content: 'A' };
+const b = { id: 'b', type: 'text', content: 'B' };
+function reset() {
+  store.setState({ slides: [structuredClone(a), structuredClone(b)],
+    activeSlideId: 'a', selectedSlideIds: [], activeBackground: { type: 'none' },
+    activeAudio: null, activeProps: [], activeMessage: null, activeAnnouncement: null,
+    currentPresentationId: null, currentPresentationTitle: null, library: [], playlist: [] });
+  store.temporal.getState().clear(); messages.length = 0; saved.length = 0; library = [];
+}
+for (const [name, action] of [
+  ['trigger', () => store.getState().setActiveSlide('b')],
+  ['batch-delete', () => store.getState().batchDeleteSlides(['a'])],
+  ['single-delete', () => store.getState().deleteSlide('a')],
+  ['update', () => store.getState().updateSlide('a', { content: 'Changed' })],
+  ['replace', () => store.getState().setSlides([{ id: 'c', type: 'bible', content: 'Replacement' }])],
+  ['reorder', () => store.getState().reorderSlides(0, 1)]
+]) { reset(); action(); console.log(name, messages.map(x => x.channel)); }
+reset(); store.setState({ activeProps: [{ id: 'p', type: 'text', position: 'center' }] });
+store.getState().clearAll(); console.log('clear-all-props', store.getState().activeProps.length);
+reset(); store.getState().updateSlide('a', { content: 'Changed' }); messages.length = 0;
+store.temporal.getState().undo(); console.log('undo', store.getState().slides[0].content, messages.length);
+reset(); store.setState({ currentPresentationId: 'original', currentPresentationTitle: 'Original' });
+store.getState().setSlides([{ id: 'imported', type: 'text', content: 'Imported' }]);
+await store.getState().saveCurrentPresentation(); console.log('import-save', saved[0].id, saved[0].title);
+reset(); store.getState().updateSlide('a', { content: 'Changed' });
+store.getState().createNewPresentation(); store.temporal.getState().undo();
+console.log('history-single-undo', store.getState().slides.length, store.getState().currentPresentationId);
+reset(); store.setState({ slides: [a], activeSlideId: null,
+  currentPresentationId: 'A', currentPresentationTitle: 'A',
+  library: [{ id: 'A', title: 'A', slides: [a] }, { id: 'B', title: 'B', slides: [b] }] });
+store.temporal.getState().clear(); store.getState().updateSlide('a', { content: 'Changed' });
+store.getState().selectPresentation('B'); store.temporal.getState().undo();
+store.temporal.getState().undo(); console.log('cross-presentation',
+  store.getState().currentPresentationId, store.getState().slides[0].id);
+reset(); store.getState().updateSlide('a', { content: 'Changed' });
+for (let i = 0; i < 51; i++) store.getState().setSelectedSlideIds(i % 2 ? [] : ['a']);
+const pastCount = store.temporal.getState().pastStates.length;
+for (let i = 0; i < 50; i++) store.temporal.getState().undo();
+console.log('selection-history', pastCount, store.getState().slides[0].content);
+NODE
+```
+
+표본의 기대와 실제는 위 표로 비교한다. 코드가 변경된 뒤 결과가 달라지는 것은 재검사의 목적이며 기존 날짜 기록을 덮어쓰지 않는다.
+
+번들은 기존 dist-electron 변경 보존을 위해 소스·설정 사본과 node_modules 연결을 가진 임시 디렉터리에서 실행했다. 검증 재실행도 사용자 변경 파일을 덮지 않는 별도 사본 또는 적합한 체크아웃에서 수행한다.
+
+## 문서 검사 범위
+
+새 문서 19개와 갱신한 루트 문서 4개를 대상으로 내부 대상 경로, 요구사항·작업·테스트 연결, ID 연속성, 표 열 수, 코드 fence·공백을 확인했다. REQ 30, REV 25, TASK 25, TC 30, ADR 7, RISK 10, Q 8의 기준 ID를 확인했다. 소스 57개 집합의 SHA-256은 작업 전후 동일했다. 기존 dist-electron의 추가/삭제 줄 집계도 12,957/8,140으로 작업 시작 값과 동일했다.
+
+작업 도중 별도 운영 검토 파일이 추가되어 문서 인덱스에 참고 링크를 연결했고 그 파일은 수정하지 않았다. 해당 문서의 독립 검사 결과는 위 25개 표본 집계에 합산하지 않았다.
+
+## 미실행·판단 유보
+
+- 실제 Electron 앱 시작·창 토글·CSP·키 backend·파일 권한 검사.
+- 실제 Output·Stage 화면의 수렴, 프로젝터·음향의 긴급 중단.
+- 장비 연결 해제·재연결, 해상도·DPI 조합, 장시간 동작.
+- Gemini 실제 호출·모델 가용성·응답 정확성·제공자 처리 조건.
+- 설치 패키지·코드 서명·업그레이드·롤백·새 환경 백업 복원.
+- 사용자 리허설, 접근성, 성경 원문 정확성·권리 확인.
+
+이 기록은 개발 검토 증거다. 운영 투입 판단에는 [릴리즈 기준](../operations/release-checklist.md)의 추가 증거가 필요하다.

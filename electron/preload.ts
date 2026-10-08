@@ -1,74 +1,114 @@
-import { contextBridge, ipcRenderer } from 'electron'
-import type { Presentation, PlaylistItem } from '../src/types'
-
-interface SaveResult {
-    success: boolean
-    canceled?: boolean
-    filePath?: string
-    error?: string
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
+const role = process.argv.find((a) => a.startsWith('--propre-role='))?.split('=')[1] || 'main'
+const control = role === 'control'
+const receiving = control
+  ? [
+      'output-status-changed',
+      'stage-status-changed',
+      'screen-health',
+      'displays-changed',
+      'operation-warning',
+      'request-flush',
+      'ai-command',
+      'ai-connection-changed',
+      'song-job-changed',
+    ]
+  : role === 'stage'
+    ? ['update-stage']
+    : role === 'preview'
+      ? ['ai-preview']
+      : ['update-screen']
+const sending = control ? ['route-screen-update', 'update-stage'] : []
+const methods: Record<string, string> = {
+  listAIProfiles: 'list-ai-profiles',
+  saveAIProfile: 'save-ai-profile',
+  removeAIProfile: 'remove-ai-profile',
+  listSongJobs: 'list-song-jobs',
+  selectSongFiles: 'select-song-files',
+  songSource: 'song-source',
+  switchSongAI: 'switch-song-ai',
+  analyzeSongJob: 'analyze-song-job',
+  cancelSongJob: 'cancel-song-job',
+  editSongJob: 'edit-song-job',
+  rebaseSongJob: 'rebase-song-job',
+  applySongJob: 'apply-song-job',
+  undoSongJob: 'undo-song-job',
+  songReceipt: 'song-receipt',
+  retainSongSources: 'retain-song-sources',
+  removeSongJob: 'remove-song-job',
+  songPreview: 'song-preview',
+  bootstrap: 'bootstrap',
+  getLibrary: 'get-library',
+  getPlaylist: 'get-playlist',
+  manageSetlist: 'manage-setlist',
+  publishSetlistSong: 'publish-setlist-song',
+  saveToLibrary: 'save-to-library',
+  saveDraft: 'save-draft',
+  mergeToLibrary: 'merge-to-library',
+  deleteFromLibrary: 'delete-from-library',
+  savePlaylist: 'save-playlist',
+  saveSettings: 'save-settings',
+  saveMedia: 'save-media',
+  selectMediaFiles: 'dialog:openFile',
+  cleanupMedia: 'cleanup-media',
+  relinkMedia: 'relink-media',
+  saveProject: 'save-project',
+  loadProject: 'load-project',
+  savePlaylistFile: 'save-playlist-file',
+  loadPlaylistFile: 'load-playlist-file',
+  createBackup: 'create-backup',
+  restoreBackup: 'restore-backup',
+  recoverPrevious: 'recover-previous',
+  getDisplays: 'get-displays',
+  getActiveDisplays: 'get-active-displays',
+  setOutputDisplay: 'set-output-display',
+  setStageDisplay: 'set-stage-display',
+  toggleStage: 'toggle-stage',
+  toggleOutput: 'toggle-output',
+  getOutputStatus: 'get-output-status',
+  getStageStatus: 'get-stage-status',
+  getAIConnection: 'get-ai-connection',
+  setAIConnection: 'set-ai-connection',
+  copyAIConnectionConfig: 'copy-ai-connection-config',
+  completeAICommand: 'complete-ai-command',
+  checkAICommand: 'check-ai-command',
+  savePreparedPresentation: 'save-prepared-presentation',
+  savePreparedPlaylist: 'save-prepared-playlist',
 }
-
-interface LoadResult {
-    success: boolean
-    canceled?: boolean
-    data?: string
-    filePath?: string
-    error?: string
-}
-
-const validChannels = ['update-output', 'update-stage', 'route-screen-update', 'update-screen', 'output-status-changed', 'stage-status-changed']
-
 contextBridge.exposeInMainWorld('ipcRenderer', {
-    send: (channel: string, data: any) => {
-        if (validChannels.includes(channel)) {
-            ipcRenderer.send(channel, data)
-        }
-    },
-    on: (channel: string, func: (...args: any[]) => void) => {
-        if (validChannels.includes(channel)) {
-            const subscription = (_event: any, ...args: any[]) => func(...args)
-            ipcRenderer.on(channel, subscription)
-            return () => {
-                ipcRenderer.removeListener(channel, subscription)
-            }
-        }
-        return () => { }
-    },
-    off: (channel: string, func: (...args: any[]) => void) => {
-        ipcRenderer.removeListener(channel, func)
-    },
-
-    selectMediaFiles: async (): Promise<string[]> => {
-        return ipcRenderer.invoke('dialog:openFile')
-    },
-
-    saveProject: async (data: string): Promise<SaveResult> => {
-        return ipcRenderer.invoke('save-project', data)
-    },
-
-    loadProject: async (): Promise<LoadResult> => {
-        return ipcRenderer.invoke('load-project')
-    },
-
-    // Library & Playlist API
-    getLibrary: async (): Promise<Presentation[]> => ipcRenderer.invoke('get-library'),
-    saveToLibrary: async (presentation: Presentation): Promise<boolean> => ipcRenderer.invoke('save-to-library', presentation),
-    mergeToLibrary: async (presentations: Presentation[]): Promise<Presentation[]> => ipcRenderer.invoke('merge-to-library', presentations),
-    deleteFromLibrary: async (id: string): Promise<Presentation[]> => ipcRenderer.invoke('delete-from-library', id),
-    getPlaylist: async (): Promise<PlaylistItem[]> => ipcRenderer.invoke('get-playlist'),
-    savePlaylist: async (playlist: PlaylistItem[]): Promise<boolean> => ipcRenderer.invoke('save-playlist', playlist),
-
-    // Stage & Display API
-    getDisplays: async () => ipcRenderer.invoke('get-displays'),
-    getActiveDisplays: async () => ipcRenderer.invoke('get-active-displays'),
-    setOutputDisplay: async (displayId: number) => ipcRenderer.invoke('set-output-display', displayId),
-    setStageDisplay: async (displayId: number) => ipcRenderer.invoke('set-stage-display', displayId),
-    invoke: (channel: string, ...args: any[]) => ipcRenderer.invoke(channel, ...args),
-    toggleStage: async () => ipcRenderer.invoke('toggle-stage'),
-    toggleOutput: async () => ipcRenderer.invoke('toggle-output'),
-    getOutputStatus: async (): Promise<boolean> => ipcRenderer.invoke('get-output-status'),
-    getStageStatus: async (): Promise<boolean> => ipcRenderer.invoke('get-stage-status'),
-    // Security API
-    getApiKey: async (): Promise<string | null> => ipcRenderer.invoke('get-api-key'),
-    setApiKey: async (key: string | null): Promise<void> => ipcRenderer.invoke('set-api-key', key)
+  role,
+  send: (channel: string, data: unknown) => {
+    if (sending.includes(channel)) ipcRenderer.send(channel, data)
+  },
+  on: (channel: string, callback: (...args: unknown[]) => void) => {
+    if (!receiving.includes(channel)) return () => {}
+    const listener = (_event: Electron.IpcRendererEvent, ...args: unknown[]) => callback(...args)
+    ipcRenderer.on(channel, listener)
+    return () => ipcRenderer.removeListener(channel, listener)
+  },
+  ready: () => ipcRenderer.send(role === 'preview' ? 'ai-preview-ready' : 'screen-ready'),
+  acknowledge: (version: number) => {
+    if (!control) ipcRenderer.send('screen-applied', version)
+  },
+  reportMediaError: () => ipcRenderer.send(role === 'preview' ? 'ai-preview-error' : 'media-error'),
+  ...(role === 'preview'
+    ? { previewRendered: (id: string) => ipcRenderer.send('ai-preview-rendered', id) }
+    : {}),
+  ...(control
+    ? {
+        ...Object.fromEntries(
+          Object.entries(methods).map(([method, channel]) => [
+            method,
+            (...args: unknown[]) => ipcRenderer.invoke(channel, ...args),
+          ]),
+        ),
+        dropSongFiles: (files: File[], options: unknown) =>
+          ipcRenderer.invoke(
+            'drop-song-files',
+            files.map((file) => webUtils.getPathForFile(file)).filter(Boolean),
+            options,
+          ),
+        closeReady: (success: boolean) => ipcRenderer.send('close-ready', success),
+      }
+    : {}),
 })

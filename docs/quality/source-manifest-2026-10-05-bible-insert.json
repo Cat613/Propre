@@ -1,0 +1,107 @@
+{
+  "date": "2026-10-05",
+  "productVersion": "0.1.0",
+  "reason": "Insert selected Bible verses into the current song document",
+  "evidence": "93 unit/contract tests; 22 Electron tests before final modal stacking adjustment; 3 scripture cases after adjustment; isolated packaged resources smoke passed",
+  "concurrencyNote": "AI connection source edits are in progress in the same checkout. These source and artifact hashes identify the captured files, not a completed AI integration or release.",
+  "files": [
+    {
+      "file": "src/components/BibleInsertModal.tsx",
+      "sha256": "b6b907147f225a0f19c8396eb7849168237cae2aa29581785a9a9471fe3cdce8"
+    },
+    {
+      "file": "src/components/ControlToolbar.tsx",
+      "sha256": "5df9bd7b1b613b2733b3067a36801d153eca1119d3406504b3d9af78a5c4ba88"
+    },
+    {
+      "file": "src/components/ToolbarActions.tsx",
+      "sha256": "e0d1f4aad495f34c0a7991a695f4fdae672cef3654df5ecb6c2a87dc3d208d39"
+    },
+    {
+      "file": "src/components/BiblePanel.tsx",
+      "sha256": "22597fa714762fcdb05a8c0af406bf31a83f17087912b7e52729ccbe44cc3a75"
+    },
+    {
+      "file": "src/services/BibleService.ts",
+      "sha256": "e8638d44565cb2c132bd908f5f7841a03c804d673079fe6567872d1d18d4d034"
+    },
+    {
+      "file": "src/store/slices/editorSlice.ts",
+      "sha256": "31ca9305361a45587f9c81920c9d54ade7042c6505a23eea0b9c67024be00dfa"
+    },
+    {
+      "file": "src/store/types.ts",
+      "sha256": "41b974f5248bd1c4ed1c8301567e8038c70a6e9fd7731a7a1314c0a935dc2d44"
+    },
+    {
+      "file": "tests/domain.test.ts",
+      "sha256": "c5c7a43817cf74fe76be48d4e99141b4c2c12ecbc52b9dd63baf9750822e3258"
+    },
+    {
+      "file": "tests/store.test.ts",
+      "sha256": "e33195cf338554f724ce0b69d7ca39de69b544fb6a6479fd71566253f19627ab"
+    },
+    {
+      "file": "tests/electron/bible-insert.spec.ts",
+      "sha256": "aa68264ae706acce1a24119d59d36763e265a1e9c54b4d80fba29132ac3754a5"
+    }
+  ],
+  "builtArtifacts": [
+    {
+      "file": "dist-electron/main.js",
+      "sha256": "30706e36bf46b082024efa6bdc16e2a72ff85576a96fd501c9eb9b022261d93e"
+    },
+    {
+      "file": "dist-electron/preload.mjs",
+      "sha256": "ec94abed6adde9da5b9ec58e0dc0e9afa8c3fe2cd9cf170ef216f3ccff17e483"
+    },
+    {
+      "file": "dist/index.html",
+      "sha256": "dbb50ac0e236e9712fbb99c0efa3fdeb348081cb161d321a10f217bd8b1cf7ed"
+    },
+    {
+      "file": "release/0.1.0/mac-arm64/ProPre.app/Contents/Resources/app.asar",
+      "sha256": "8a93714ffe652841ef20b2803d8fff206262a9ab55735a755dd6052ec728bd4b"
+    },
+    {
+      "file": "release/0.1.0/mac-arm64/ProPre.app/Contents/MacOS/ProPre",
+      "sha256": "ca7e3290800255f5018160cff99cf6ecc58eae299c66148de1374a70e2715c83"
+    },
+    {
+      "file": "dist/assets/CompositeFrame-DLG1MDvw.js",
+      "sha256": "43522cac31b5b79d20945c86165f28b492e49eb57cd1b3bad4ec2ca5d18f4034"
+    },
+    {
+      "file": "dist/assets/ControlPanel-CbNaf_IC.js",
+      "sha256": "dd3f485d7aa8ba6b1505b2c1ee50143a500ea1e26f47089f4f9a00c7b2d60d4f"
+    },
+    {
+      "file": "dist/assets/OutputDisplay-Dd9W1iUW.js",
+      "sha256": "dc256b481e61d2d9319b95360f21c181ab1308d3d18757527dc2f48249ce1b10"
+    },
+    {
+      "file": "dist/assets/StageDisplay-D-Pa9YZL.js",
+      "sha256": "f37d5edcfc576310547016f496fb05da88766a290c6deee35dcd06f21c4d6449"
+    },
+    {
+      "file": "dist/assets/index-CkEuxCbs.js",
+      "sha256": "c9de4bb97a46c7cd6573f69c1a3492cb1a39c1c9c802529ba5ea47c942511d43"
+    },
+    {
+      "file": "dist/assets/model-39OQ-JqK.js",
+      "sha256": "a940510f9263600ef7f290a3173d5c572141c101dfe9d7495755bc474e42ee33"
+    },
+    {
+      "file": "dist/assets/presentation-style-D5p8sGtS.js",
+      "sha256": "ad2e9243fbff87bae4456338fd792e37124408b1ea358cbc393927d8280ea569"
+    },
+    {
+      "file": "dist/assets/runtime-BRUNeR27.js",
+      "sha256": "64823bbb3d2a9f829604a43db606dda9166d38d1afe86a7607456ca4b6deead4"
+    },
+    {
+      "file": "dist/assets/개역개정-rnEUFhzd.js",
+      "sha256": "67dc4a8e5fd5c5b82dd546ad4d708b3e833197ab9840717aad0f0d5d31a4f651"
+    }
+  ]
+}
