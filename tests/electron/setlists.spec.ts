@@ -109,7 +109,7 @@ test('setlist duplication and editing keep historical songs and originals; expli
   await edit('지난 주 예배 구성')
   const past = (await state()).setlistSongs[0].presentation
   expect((await state()).library.find((p) => p.id === 'a')?.slides[0].content).toBe('원곡 가사')
-  expect(past.globalSlideStyle?.fontSize).toBe(73)
+  expect(past.globalSlideStyle?.fontSize).toBe(110)
   let modal = await manager()
   await modal.getByRole('button', { name: '콘티 복제: 지난 주 예배', exact: true }).click()
   await modal.getByLabel('콘티 이름', { exact: true }).fill('이번 주 예배')
@@ -128,7 +128,7 @@ test('setlist duplication and editing keep historical songs and originals; expli
   expect(
     (await state()).setlistSongs.find((x) => x.presentation.id === past.id)?.presentation,
   ).toEqual(past)
-  expect(current.globalSlideStyle?.fontSize).toBe(73)
+  expect(current.globalSlideStyle?.fontSize).toBe(110)
   await page.getByTestId('slide-card').first().click()
   await page.evaluate(async () => {
     await window.ipcRenderer.toggleOutput()
@@ -190,6 +190,7 @@ test('setlist duplication and editing keep historical songs and originals; expli
 })
 test('create/rename/date, trash and restore preserve song snapshots and allow retry after a failed save', async () => {
   let modal = await manager()
+  await modal.getByRole('button', { name: '새 콘티', exact: true }).click()
   await modal.getByLabel('콘티 이름', { exact: true }).fill('빈 수요예배')
   await modal.getByLabel('현재 순서로 만들기').uncheck()
   await modal.getByRole('button', { name: '콘티 만들기', exact: true }).click()
@@ -197,6 +198,7 @@ test('create/rename/date, trash and restore preserve song snapshots and allow re
   expect((await state()).playlist).toHaveLength(0)
   await expect(page.getByRole('button', { name: '파일 저장', exact: true })).toBeDisabled()
   modal = await manager()
+  await modal.getByLabel('콘티 검색').fill('빈 수요예배')
   await modal.getByRole('button', { name: '콘티 이름 변경: 빈 수요예배', exact: true }).click()
   await modal.getByLabel('콘티 이름', { exact: true }).fill('수요예배')
   await modal.getByLabel('예배 날짜', { exact: true }).fill('2026-10-14')
@@ -210,19 +212,21 @@ test('create/rename/date, trash and restore preserve song snapshots and allow re
   await fs.rm(filename, { recursive: true })
   await fs.rename(protectedFile, filename)
   await modal.getByRole('button', { name: '변경 저장', exact: true }).click()
-  await expect(modal).toHaveCount(0)
+  await expect(modal.getByRole('heading', { name: '수요예배', exact: true })).toBeVisible()
   const emptyId = (await state()).activeSetlistId!
-  modal = await manager()
+  await modal.getByRole('button', { name: '보관 콘티: 지난 주 예배', exact: true }).click()
   await modal
     .getByRole('button', { name: '콘티 휴지통으로 이동: 지난 주 예배', exact: true })
     .click()
+  expect((await state()).setlists.find((x) => x.id === firstId)?.deletedAt).toBeUndefined()
+  await modal.getByRole('button', { name: '휴지통으로 이동', exact: true }).click()
   await expect(
     modal.getByRole('button', { name: '콘티 열기: 지난 주 예배', exact: true }),
   ).toHaveCount(0)
   expect((await state()).activeSetlistId).toBe(emptyId)
-  await modal.getByRole('button', { name: '휴지통', exact: true }).click()
+  await modal.getByRole('button', { name: /^휴지통 \d/ }).click()
   await modal.getByRole('button', { name: '콘티 복원: 지난 주 예배', exact: true }).click()
-  await modal.getByRole('button', { name: '보관한 콘티', exact: true }).click()
+  await modal.getByRole('button', { name: /^보관한 콘티 \d/ }).click()
   await modal.getByRole('button', { name: '콘티 열기: 지난 주 예배', exact: true }).click()
   await expect(modal).toHaveCount(0)
   expect((await state()).playlist).toHaveLength(2)
@@ -277,4 +281,95 @@ test('a private song edit waiting for autosave survives renderer crash without e
     .toBe('중단 직전 콘티 가사')
   expect((await state()).library.find((p) => p.id === 'a')?.slides[0].content).toBe('원곡 가사')
   expect((await state()).library).toHaveLength(2)
+})
+
+test('archive discovery previews ordered songs, searches song titles, sorts and supports keyboard recovery at compact sizes', async () => {
+  const created = await page.evaluate(async () => {
+    const before = await window.ipcRenderer.bootstrap()
+    const source = before.setlists.find((x) => x.id === before.activeSetlistId)!
+    const workspace = await window.ipcRenderer.manageSetlist({
+      operation: 'duplicate',
+      id: source.id,
+      expectedRevision: source.revision,
+      title: '주일 오후예배',
+      date: '2026-10-11',
+    })
+    const current = workspace.setlists.find((x) => x.id === workspace.activeSetlistId)!
+    await window.ipcRenderer.manageSetlist({
+      operation: 'create',
+      title: '청년 기도회',
+      date: '2026-10-16',
+      fromCurrent: false,
+      expectedActiveId: current.id,
+      expectedRevision: current.revision,
+    })
+    return current.id
+  })
+  await page.reload()
+  await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
+  const before = await state()
+  const modal = await manager()
+  await expect(modal.getByRole('heading', { name: '청년 기도회', exact: true })).toBeVisible()
+  await modal.getByLabel('콘티 검색').fill('합성 a')
+  await expect(modal.getByRole('button', { name: /^보관 콘티:/ })).toHaveCount(2)
+  await modal.getByRole('button', { name: '보관 콘티: 주일 오후예배', exact: true }).click()
+  await expect(modal.getByRole('list').getByRole('listitem')).toHaveCount(2)
+  await expect(modal.getByText('2곡 · 2슬라이드', { exact: true })).toBeVisible()
+  expect((await state()).activeSetlistId).toBe(before.activeSetlistId)
+  expect((await state()).draft).toEqual(before.draft)
+  expect((await state()).live).toEqual(before.live)
+  await modal.getByRole('button', { name: '검색 지우기', exact: true }).click()
+  await modal.getByLabel('콘티 정렬').selectOption('date')
+  await expect(modal.getByRole('button', { name: /^보관 콘티:/ }).first()).toHaveAccessibleName(
+    '보관 콘티: 청년 기도회',
+  )
+  await modal.getByLabel('콘티 정렬').selectOption('title')
+  await expect(modal.getByRole('button', { name: /^보관 콘티:/ }).first()).toHaveAccessibleName(
+    '보관 콘티: 주일 오후예배',
+  )
+  await modal.getByLabel('콘티 검색').fill('없는 콘티')
+  await expect(modal.getByText('검색 결과가 없습니다.', { exact: true })).toBeVisible()
+  await modal.getByRole('button', { name: '검색 지우기', exact: true }).click()
+  await modal.getByRole('button', { name: '새 콘티', exact: true }).click()
+  await expect(modal.getByLabel('콘티 이름', { exact: true })).toBeFocused()
+  await modal.getByLabel('콘티 이름', { exact: true }).fill('입력 중 취소')
+  await page.keyboard.press('Escape')
+  await expect(modal).toBeVisible()
+  await expect(modal.getByLabel('콘티 이름', { exact: true })).toHaveCount(0)
+  await modal.getByRole('button', { name: '보관 콘티: 청년 기도회', exact: true }).click()
+  await modal
+    .getByRole('button', { name: '콘티 휴지통으로 이동: 청년 기도회', exact: true })
+    .click()
+  await expect(modal.getByText('현재 콘티의 순서가 비워집니다.', { exact: false })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(modal.getByRole('button', { name: '휴지통으로 이동', exact: true })).toHaveCount(0)
+  expect(
+    (await state()).setlists.find((x) => x.id === before.activeSetlistId)?.deletedAt,
+  ).toBeUndefined()
+  await modal.getByRole('button', { name: '보관 콘티: 주일 오후예배', exact: true }).click()
+  await modal.screenshot({ path: test.info().outputPath('setlist-library-modern.png') })
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((w) => w.webContents.getURL().includes('control-panel'))!
+      .setSize(820, 720)
+  })
+  await modal.screenshot({ path: test.info().outputPath('setlist-library-compact.png') })
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((w) => w.webContents.getURL().includes('control-panel'))!
+      .setSize(700, 720)
+  })
+  await modal.screenshot({ path: test.info().outputPath('setlist-library-narrow.png') })
+  expect(await modal.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true)
+  await modal.getByRole('button', { name: '새 콘티', exact: true }).click()
+  await expect(modal.getByRole('button', { name: '콘티 만들기', exact: true })).toBeInViewport()
+  await modal.getByLabel('콘티 이름', { exact: true }).fill('작은 창에서 새 콘티')
+  await modal.screenshot({ path: test.info().outputPath('setlist-library-editor.png') })
+  await page.keyboard.press('Escape')
+  await expect(modal.getByRole('button', { name: '새 콘티', exact: true })).toBeFocused()
+  const open = modal.getByRole('button', { name: '콘티 열기: 주일 오후예배', exact: true })
+  await expect(open).toBeInViewport()
+  await open.click()
+  await expect(modal).toHaveCount(0)
+  expect((await state()).activeSetlistId).toBe(created)
 })

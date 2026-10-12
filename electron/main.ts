@@ -420,7 +420,7 @@ if (lock)
           }
         }
       })
-      handle('load-playlist-file', async (expected) => {
+      handle('load-playlist-file', async (expected, append = false) => {
         try {
           const before = PlaylistRefsSchema.parse(expected)
           const selected = await dialog.showOpenDialog(windows.windows.get('control')!, {
@@ -443,14 +443,16 @@ if (lock)
             .join('\n')
           const answer = await dialog.showMessageBox(windows.windows.get('control')!, {
             type: 'question',
-            message: `이 파일의 ${portable.playlist.length}개 순서로 바꿀까요?`,
-            detail: `${order}${portable.playlist.length > 50 ? '\n… (앞의 50개 순서 표시)' : ''}\n\n새 콘티로 보관하며 현재 순서를 바꿉니다. 각 곡은 찬양 목록에도 저장됩니다. 같은 곡은 재사용하고, 내용이 다른 곡은 새 자료로 저장합니다. 현재 열어둔 곡과 송출 화면은 유지됩니다.`,
-            buttons: ['취소', '불러오기'],
+            message: append
+              ? `이 파일의 ${portable.playlist.length}개 곡을 현재 콘티 끝에 추가할까요?`
+              : `이 파일의 ${portable.playlist.length}개 순서로 새 콘티를 만들까요?`,
+            detail: `${order}${portable.playlist.length > 50 ? '\n… (앞의 50개 순서 표시)' : ''}\n\n각 곡은 콘티에 독립적으로 보관됩니다. 같은 곡은 재사용하고, 내용이 다른 곡은 새 자료로 저장합니다. 현재 열어둔 곡과 송출 화면은 유지됩니다.`,
+            buttons: ['취소', append ? '현재 콘티에 추가' : '새 콘티로 불러오기'],
             defaultId: 0,
             cancelId: 0,
           })
           if (answer.response !== 1) return { success: false, canceled: true }
-          const imported = await repo.importProject(data, false, before)
+          const imported = await repo.importProject(data, false, before, append)
           return {
             success: true,
             added: imported.added,

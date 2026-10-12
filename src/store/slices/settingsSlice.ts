@@ -2,6 +2,10 @@ import { StoreSlice, SettingsSlice } from '../types'
 import { DEFAULT_SCREEN_LOOK } from '../../types'
 import { presetKind } from '../presets'
 export const createSettingsSlice: StoreSlice<SettingsSlice> = (set, get) => ({
+  interfaceTheme: 'dark',
+  setInterfaceTheme: (interfaceTheme) => set({ interfaceTheme }),
+  showAudioPlayer: true,
+  setShowAudioPlayer: (show) => set({ showAudioPlayer: show }),
   isGreenScreen: false,
   screenLooks: {
     main: structuredClone(DEFAULT_SCREEN_LOOK),

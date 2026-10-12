@@ -709,6 +709,7 @@ export class Repository {
     data: string,
     restore = false,
     expectedPlaylist?: unknown,
+    appendPlaylist = false,
   ): Promise<{
     presentations: Presentation[]
     restored: boolean
@@ -836,16 +837,30 @@ export class Repository {
             }
             mapping.set(p.id, id)
           }
-          s.activeSetlistId = null
-          const list = newSetlist(s, portable.playlistName || '불러온 콘티', portable.playlistDate)
-          replaceOrder(
-            s,
-            portable.playlist.map((item) => ({
-              id: randomUUID(),
-              presentationId: mapping.get(item.presentationId)!,
-            })),
-          )
-          list.lastOpenedAt = new Date().toISOString()
+          if (!appendPlaylist || !s.activeSetlistId) {
+            s.activeSetlistId = null
+            const list = newSetlist(
+              s,
+              portable.playlistName || '불러온 콘티',
+              portable.playlistDate,
+            )
+            replaceOrder(
+              s,
+              portable.playlist.map((item) => ({
+                id: randomUUID(),
+                presentationId: mapping.get(item.presentationId)!,
+              })),
+            )
+            list.lastOpenedAt = new Date().toISOString()
+          } else {
+            replaceOrder(s, [
+              ...s.playlist,
+              ...portable.playlist.map((item) => ({
+                id: randomUUID(),
+                presentationId: mapping.get(item.presentationId)!,
+              })),
+            ])
+          }
         }
         s.assets = s.assets.concat(assets.filter((a) => !s.assets.some((old) => old.id === a.id)))
         if (!restore)

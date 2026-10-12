@@ -114,7 +114,10 @@ export interface API {
   saveProject(data: string): Promise<FileResult>
   loadProject(): Promise<FileResult>
   savePlaylistFile(expected: Pick<PlaylistItem, 'id' | 'presentationId'>[]): Promise<FileResult>
-  loadPlaylistFile(expected: Pick<PlaylistItem, 'id' | 'presentationId'>[]): Promise<FileResult>
+  loadPlaylistFile(
+    expected: Pick<PlaylistItem, 'id' | 'presentationId'>[],
+    append?: boolean,
+  ): Promise<FileResult>
   createBackup(): Promise<FileResult>
   restoreBackup(): Promise<FileResult>
   recoverPrevious(): Promise<void>

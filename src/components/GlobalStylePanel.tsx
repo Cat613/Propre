@@ -1,3 +1,11 @@
+import {
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignVerticalJustifyStart,
+  AlignVerticalJustifyCenter,
+  AlignVerticalJustifyEnd,
+} from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import React, { useState } from 'react'
 import { usePresentationStore } from '../store'
@@ -97,10 +105,11 @@ const GlobalStylePanel: React.FC = () => {
             </button>
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={activePresetId || ''}
-              className="flex-1 bg-gray-900 text-xs border border-gray-700 rounded px-2 py-1.5 focus:border-blue-500 text-gray-300 min-w-0"
+              aria-label="일반 텍스트 스타일 프리셋"
+              className="w-full bg-gray-900 text-xs border border-gray-700 rounded px-2 py-1.5 focus:border-blue-500 text-gray-300 min-w-0"
               onChange={(e) => {
                 const val = e.target.value
                 if (val) {
@@ -252,6 +261,8 @@ const GlobalStylePanel: React.FC = () => {
               {(['left', 'center', 'right'] as const).map((align) => (
                 <button
                   key={align}
+                  aria-label={`가로 ${align === 'left' ? '왼쪽' : align === 'center' ? '가운데' : '오른쪽'} 정렬`}
+                  aria-pressed={globalSlideStyle.align === align}
                   onClick={() => handleAlignChange(align)}
                   className={`flex-1 p-1 rounded text-xs transition-colors ${
                     globalSlideStyle.align === align
@@ -259,7 +270,13 @@ const GlobalStylePanel: React.FC = () => {
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
                   }`}
                 >
-                  {align === 'left' ? '⬅️' : align === 'center' ? '↔️' : '➡️'}
+                  {align === 'left' ? (
+                    <AlignLeft size={15} className="mx-auto" />
+                  ) : align === 'center' ? (
+                    <AlignCenter size={15} className="mx-auto" />
+                  ) : (
+                    <AlignRight size={15} className="mx-auto" />
+                  )}
                 </button>
               ))}
             </div>
@@ -270,6 +287,8 @@ const GlobalStylePanel: React.FC = () => {
               {(['top', 'center', 'bottom'] as const).map((valign) => (
                 <button
                   key={valign}
+                  aria-label={`세로 ${valign === 'top' ? '위쪽' : valign === 'center' ? '가운데' : '아래쪽'} 정렬`}
+                  aria-pressed={globalSlideStyle.verticalAlign === valign}
                   onClick={() => handleVAlignChange(valign)}
                   className={`flex-1 p-1 rounded text-xs transition-colors ${
                     globalSlideStyle.verticalAlign === valign
@@ -277,7 +296,13 @@ const GlobalStylePanel: React.FC = () => {
                       : 'text-gray-400 hover:text-white hover:bg-gray-700'
                   }`}
                 >
-                  {valign === 'top' ? '⬆️' : valign === 'center' ? '↕️' : '⬇️'}
+                  {valign === 'top' ? (
+                    <AlignVerticalJustifyStart size={15} className="mx-auto" />
+                  ) : valign === 'center' ? (
+                    <AlignVerticalJustifyCenter size={15} className="mx-auto" />
+                  ) : (
+                    <AlignVerticalJustifyEnd size={15} className="mx-auto" />
+                  )}
                 </button>
               ))}
             </div>

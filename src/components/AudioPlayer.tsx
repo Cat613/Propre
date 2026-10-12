@@ -3,6 +3,7 @@ import { usePresentationStore } from '../store'
 import { mediaKind } from '../../shared/model'
 export default function AudioPlayer() {
   const audio = usePresentationStore((s) => s.activeAudio),
+    showAudioPlayer = usePresentationStore((s) => s.showAudioPlayer),
     green = usePresentationStore((s) => s.isGreenScreen),
     looks = usePresentationStore((s) => s.screenLooks),
     ref = useRef<HTMLAudioElement>(null)
@@ -48,7 +49,9 @@ export default function AudioPlayer() {
     }
   }
   return (
-    <div className="bg-gray-900 border-b border-gray-700 px-3 py-1 flex items-center justify-end gap-3 text-xs">
+    <div
+      className={`bg-gray-900 border-b border-gray-700 px-3 py-1 ${showAudioPlayer ? 'flex' : 'hidden'} items-center justify-end gap-3 text-xs`}
+    >
       <audio
         ref={ref}
         src={audio?.url}

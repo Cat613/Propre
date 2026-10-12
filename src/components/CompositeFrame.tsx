@@ -69,6 +69,7 @@ export default function CompositeFrame({ state }: { state: OutputState }) {
   return (
     <CanvasViewport width={slide?.canvasWidth || 1920} height={slide?.canvasHeight || 1080}>
       <div
+        data-output-surface="true"
         className="absolute inset-0 overflow-hidden"
         style={{ background: green ? '#00ff00' : '#000' }}
       >

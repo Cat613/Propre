@@ -170,9 +170,7 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
     const slide = slides.find((s) => s.id === id)
     if (!slide) return
     const previous = slides.find((s) => s.id === activeSlideId)
-    const preset = state.setlistSongs.some((p) => p.presentation.id === state.currentPresentationId)
-      ? null
-      : defaultPreset(state, slide)
+    const preset = defaultPreset(state, slide)
     const applyPreset =
       preset &&
       (previous ? presetKind(previous) !== presetKind(slide) : state.activePresetId !== preset.id)

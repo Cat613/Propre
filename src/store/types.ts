@@ -69,7 +69,7 @@ export interface LibrarySlice {
   refreshWorkspace: () => Promise<void>
   manageSetlist: (command: SetlistCommand) => Promise<void>
   publishSetlistSong: (id: string) => Promise<FileResult>
-  playlistFile: (operation: 'save' | 'load') => Promise<FileResult>
+  playlistFile: (operation: 'save' | 'load', append?: boolean) => Promise<FileResult>
   openPresentation: (presentation: Presentation) => void
   library: Presentation[]
   playlist: PlaylistItem[]
@@ -119,6 +119,10 @@ export interface MediaSlice {
 }
 
 export interface SettingsSlice {
+  interfaceTheme: 'dark' | 'light'
+  setInterfaceTheme: (theme: 'dark' | 'light') => void
+  showAudioPlayer: boolean
+  setShowAudioPlayer: (show: boolean) => void
   isGreenScreen: boolean // Legacy flag, will be phased out by Looks
   screenLooks: LooksState
 

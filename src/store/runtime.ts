@@ -314,6 +314,8 @@ async function boot(): Promise<() => void> {
     if (s.activeSlideId && !s.slides.some((x) => x.id === s.activeSlideId))
       store.setState({ activeSlideId: null })
     const settingsChanged =
+      s.interfaceTheme !== prev.interfaceTheme ||
+      s.showAudioPlayer !== prev.showAudioPlayer ||
       s.isGreenScreen !== prev.isGreenScreen ||
       s.screenLooks !== prev.screenLooks ||
       s.globalStylePresets !== prev.globalStylePresets ||

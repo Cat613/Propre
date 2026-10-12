@@ -78,6 +78,8 @@ export function presentationFingerprint(p: {
 }
 export function persistentSettings(state: StoreState): Settings {
   return {
+    interfaceTheme: state.interfaceTheme,
+    showAudioPlayer: state.showAudioPlayer,
     isGreenScreen: state.isGreenScreen,
     screenLooks: { main: state.screenLooks.main, chroma: state.screenLooks.chroma },
     globalStylePresets: state.globalStylePresets,

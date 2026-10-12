@@ -69,7 +69,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
     await playlistTail
     return result
   },
-  playlistFile: async (operation) => {
+  playlistFile: async (operation, append = false) => {
     let result: import('../../../shared/contracts').FileResult = { success: false }
     playlistTail = playlistTail
       .catch(() => {})
@@ -79,7 +79,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
         const expected = playlistRefs(get().playlist)
         result = await (operation === 'save'
           ? window.ipcRenderer.savePlaylistFile(expected)
-          : window.ipcRenderer.loadPlaylistFile(expected))
+          : window.ipcRenderer.loadPlaylistFile(expected, append))
         if (result.success && operation === 'load') {
           await get().refreshWorkspace()
         }
@@ -215,7 +215,7 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
     const saved = snapshot?.presentation || get().library.find((p) => p.id === id)
     if (!saved || get().currentPresentationId === id) return
     const p = normalizePresentation(saved)
-    const preset = snapshot ? null : defaultPreset(get(), p.slides[0])
+    const preset = defaultPreset(get(), p.slides[0])
     isolateHistory(() =>
       set({
         currentPresentationId: p.id,

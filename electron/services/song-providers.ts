@@ -32,20 +32,30 @@ export class SongProvider {
     files: ProviderFile[],
     tools: ModelTool[],
     signal: AbortSignal,
+    systemInstruction?: string,
   ): Promise<ModelTurn> {
     const provider = this.profile.provider
-    const content = files.map((f) =>
-      provider === 'gemini'
-        ? { inlineData: { mimeType: f.mime, data: f.data } }
-        : provider === 'openai'
-          ? f.mime === 'application/pdf'
-            ? { type: 'input_file', filename: f.name, file_data: `data:${f.mime};base64,${f.data}` }
-            : { type: 'input_image', image_url: `data:${f.mime};base64,${f.data}` }
-          : {
-              type: f.mime === 'application/pdf' ? 'document' : 'image',
-              source: { type: 'base64', media_type: f.mime, data: f.data },
-            },
-    )
+    const content = files.flatMap((f) => {
+      const label = `첨부 파일: ${JSON.stringify({ sourceId: f.id, name: f.name })}`
+      const attachment =
+        provider === 'gemini'
+          ? { inlineData: { mimeType: f.mime, data: f.data } }
+          : provider === 'openai'
+            ? f.mime === 'application/pdf'
+              ? {
+                  type: 'input_file',
+                  filename: f.name,
+                  file_data: `data:${f.mime};base64,${f.data}`,
+                }
+              : { type: 'input_image', image_url: `data:${f.mime};base64,${f.data}` }
+            : {
+                type: f.mime === 'application/pdf' ? 'document' : 'image',
+                source: { type: 'base64', media_type: f.mime, data: f.data },
+              }
+      return provider === 'gemini'
+        ? [{ text: label }, attachment]
+        : [{ type: provider === 'openai' ? 'input_text' : 'text', text: label }, attachment]
+    })
     const user =
       provider === 'gemini'
         ? { role: 'user', parts: [{ text: prompt }, ...content] }
@@ -60,6 +70,9 @@ export class SongProvider {
     const body =
       provider === 'gemini'
         ? {
+            ...(systemInstruction
+              ? { systemInstruction: { parts: [{ text: systemInstruction }] } }
+              : {}),
             contents: this.history,
             tools: [
               {
@@ -75,6 +88,7 @@ export class SongProvider {
         : provider === 'openai'
           ? {
               model: this.profile.model,
+              ...(systemInstruction ? { instructions: systemInstruction } : {}),
               input: this.history,
               store: false,
               max_output_tokens: 16000,
@@ -89,6 +103,7 @@ export class SongProvider {
           : {
               model: this.profile.model,
               max_tokens: 16000,
+              ...(systemInstruction ? { system: systemInstruction } : {}),
               messages: this.history,
               tools: tools.map((t) => ({
                 name: t.name,

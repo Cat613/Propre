@@ -29,6 +29,7 @@ async function launch() {
       PROPRE_TEST_USER_DATA: dir,
     },
   })
+  expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(dir)
   await app.firstWindow()
   await expect.poll(() => app.windows().some((p) => p.url().includes('control-panel'))).toBe(true)
   page = app.windows().find((p) => p.url().includes('control-panel'))!
@@ -149,7 +150,7 @@ test('monitor follows song and scripture styles, updates live, and replays on re
   await expect(stage.locator('[data-stage-clock]')).toHaveText(/\d\d:\d\d:\d\d/)
   await stage.screenshot({ path: test.info().outputPath('stage-bible.png') })
   await page.getByRole('button', { name: '스타일', exact: true }).click()
-  await page.getByRole('button', { name: '➡️', exact: true }).click()
+  await page.getByRole('button', { name: '가로 오른쪽 정렬', exact: true }).click()
   await expect(current.getByText('스타일 테스트 성경 본문 1', { exact: true })).toHaveCSS(
     'text-align',
     'right',

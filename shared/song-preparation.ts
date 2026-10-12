@@ -42,16 +42,43 @@ export const SongFormSchema = z
           .object({
             id: identifier,
             label: z.string().trim().min(1).max(50),
-            pages: z.array(z.string().max(5000)).min(1).max(50),
-            sourceId: identifier,
-            sourcePage: z.number().int().min(1).max(50),
+            pages: z
+              .array(z.string().max(5000))
+              .min(1)
+              .max(50)
+              .describe(
+                '슬라이드별 가사 문자열. 문자열 내부 줄바꿈은 한 슬라이드의 줄이며 원본 페이지가 아닙니다. 간주는 빈 문자열.',
+              ),
+            sourceId: identifier.describe(
+              '이 파트 전체 가사의 근거인 첨부 파일 ID. get_song_job의 sources에 있는 ID를 사용합니다.',
+            ),
+            sourcePage: z
+              .number()
+              .int()
+              .min(1)
+              .max(50)
+              .describe(
+                '근거인 원본 PDF 페이지 번호, 1부터 시작. 이미지에서는 1. 원본 페이지가 바뀌면 새 파트로 분리합니다.',
+              ),
           })
           .strict(),
       )
       .min(1)
       .max(50),
     sequence: z
-      .array(z.object({ partId: identifier, repeat: z.number().int().min(1).max(20) }).strict())
+      .array(
+        z
+          .object({
+            partId: identifier,
+            repeat: z
+              .number()
+              .int()
+              .min(1)
+              .max(20)
+              .describe('해당 파트 전체의 연속 반복 횟수. 반복하지 않으면 1.'),
+          })
+          .strict(),
+      )
       .min(1)
       .max(100),
   })
@@ -73,7 +100,11 @@ export const SongDraftSchema = z
     id: identifier,
     title: z.string().trim().min(1).max(500),
     form: SongFormSchema,
-    formEvidence: z.enum(['explicit', 'inferred']),
+    formEvidence: z
+      .enum(['explicit', 'inferred'])
+      .describe(
+        '전체 진행이 원문 또는 사용자 지시에 명확하면 explicit. 일부라도 추정하면 inferred와 issues에 근거를 기록합니다.',
+      ),
     issues: z.array(z.string().min(1).max(500)).max(100),
     confirmed: z.boolean(),
     originalId: identifier.nullable(),

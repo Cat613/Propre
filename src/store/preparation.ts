@@ -341,10 +341,7 @@ export async function executePreparation(
     const active = s.slides.find((item) => item.id === s.activeSlideId)
     const applyDefault =
       s.currentPresentationId !== p.id || !active || presetKind(active) !== presetKind(slide)
-    const preset =
-      applyDefault && !s.setlistSongs.some((x) => x.presentation.id === p.id)
-        ? defaultPreset(s, slide)
-        : undefined
+    const preset = applyDefault ? defaultPreset(s, slide) : undefined
     const style =
       preset?.style ||
       (s.currentPresentationId === p.id ? s.globalSlideStyle : p.globalSlideStyle) ||

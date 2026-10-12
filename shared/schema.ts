@@ -169,6 +169,8 @@ export const Look = z.object({
   message: override,
 })
 export const SettingsSchema = z.object({
+  interfaceTheme: z.enum(['dark', 'light']).optional(),
+  showAudioPlayer: z.boolean().optional(),
   isGreenScreen: z.boolean().optional(),
   screenLooks: z.record(z.enum(['main', 'chroma']), Look).optional(),
   globalStylePresets: z

@@ -25,6 +25,7 @@ async function launch() {
       PROPRE_TEST_USER_DATA: dir,
     },
   })
+  expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(dir)
   page = await app.firstWindow()
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
   operationalMetrics.startupMs.push(Date.now() - started)
@@ -454,6 +455,24 @@ test('registered video element decodes through the restricted media protocol', a
     .toEqual({ width: 32, loaded: true, error: null })
 })
 
+test('audio player visibility is saved across restart and can be restored', async () => {
+  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '설정', exact: true }).click()
+  let toggle = page.getByRole('checkbox', { name: '오디오 플레이어 표시', exact: true })
+  await expect(toggle).toBeChecked()
+  await toggle.uncheck()
+  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeHidden()
+  await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
+  await app.close()
+  await launch()
+  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeHidden()
+  await page.getByRole('button', { name: '설정', exact: true }).click()
+  toggle = page.getByRole('checkbox', { name: '오디오 플레이어 표시', exact: true })
+  await expect(toggle).not.toBeChecked()
+  await toggle.check()
+  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeVisible()
+})
+
 test('audio has one owner, survives tab switches, and stops with clear all', async () => {
   const clip = path.join(dir, 'audio.wav')
   await fs.copyFile(path.resolve('tests/fixtures/silence.wav'), clip)
@@ -465,6 +484,12 @@ test('audio has one owner, survives tab switches, and stops with clear all', asy
   }, clip)
   await page.getByRole('button', { name: '오디오 선택', exact: true }).click()
   await page.getByRole('button', { name: '오디오 재생', exact: true }).click()
+  await expect
+    .poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.paused))
+    .toBe(false)
+  await page.getByRole('button', { name: '설정', exact: true }).click()
+  await page.getByRole('checkbox', { name: '오디오 플레이어 표시', exact: true }).uncheck()
+  await expect(page.getByRole('button', { name: '오디오 일시정지', exact: true })).toBeHidden()
   await expect
     .poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.paused))
     .toBe(false)

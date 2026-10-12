@@ -136,12 +136,12 @@ const BiblePanel: React.FC = () => {
   return (
     <div className="flex flex-col h-full">
       {/* Search Input Area */}
-      <div className="p-3 bg-gray-900 border-b border-gray-800 relative">
+      <div className="shrink-0 p-3 border-b border-white/5 relative">
         <form onSubmit={handleSearch} className="flex gap-2 relative">
           <input
             ref={inputRef}
             type="text"
-            className="flex-1 bg-gray-800 text-white border border-gray-700 rounded px-3 py-2 focus:border-blue-500 outline-none text-sm placeholder-gray-500"
+            className="workbench-field flex-1 w-0"
             placeholder="예: 요 3:16, 창 1"
             value={query}
             onChange={handleQueryChange}
@@ -161,9 +161,9 @@ const BiblePanel: React.FC = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="bg-blue-700 hover:bg-blue-600 text-white font-bold px-4 py-2 rounded text-sm disabled:opacity-50"
+            className="workbench-button workbench-button-primary"
           >
-            Go
+            검색
           </button>
 
           {/* Autocomplete Dropdown */}
@@ -187,7 +187,7 @@ const BiblePanel: React.FC = () => {
       </div>
 
       {/* Verses List */}
-      <div className="flex-1 overflow-y-auto p-2 space-y-1">
+      <div className="workbench-scroll min-h-0 flex-1 overflow-y-auto p-2 space-y-1">
         {verses.length === 0 ? (
           <div className="text-gray-500 text-xs text-center mt-4">
             {isLoading ? '검색 중...' : '말씀을 검색하세요 (Enter)'}
@@ -197,7 +197,7 @@ const BiblePanel: React.FC = () => {
             <div
               key={idx}
               onClick={() => handleVerseClick(idx)}
-              className="p-2 rounded hover:bg-gray-700 cursor-pointer text-gray-300 text-sm group transition-colors"
+              className="p-2.5 rounded-lg hover:bg-white/5 cursor-pointer text-gray-300 text-sm group transition-colors"
             >
               <div className="flex gap-2 mb-1">
                 <span className="font-bold text-yellow-500 text-xs">{verse.reference}</span>

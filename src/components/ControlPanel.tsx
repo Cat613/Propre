@@ -1,5 +1,6 @@
 import { useShallow } from 'zustand/react/shallow'
 import SaveStatus from './SaveStatus'
+import { Image, Layers, Pencil, Settings2, SlidersHorizontal } from 'lucide-react'
 import ToastContainer from './ToastContainer'
 import AudioPlayer from './AudioPlayer'
 import { hotkeysBlocked } from '../hooks/useModalGuard'
@@ -49,7 +50,7 @@ const ControlPanel: React.FC = () => {
 
   useEffect(() => {
     if (isEditingTitle) {
-      setEditingTitleText(currentPresentationTitle || '새 프레젠테이션')
+      setEditingTitleText(currentPresentationTitle ?? '')
     }
   }, [isEditingTitle, currentPresentationTitle])
 
@@ -102,121 +103,150 @@ const ControlPanel: React.FC = () => {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [slides, isModalOpen, setActiveSlide, clearText, clearAll, clearBackground])
 
+  const interfaceTheme = usePresentationStore((s) => s.interfaceTheme)
+  const currentId = usePresentationStore((s) => s.currentPresentationId)
+  const setlistSongs = usePresentationStore((s) => s.setlistSongs)
+  const isSetlistSong = setlistSongs.some((song) => song.presentation.id === currentId)
+  const tabs = [
+    { id: 'media', label: '미디어', icon: Image },
+    { id: 'styles', label: '스타일', icon: SlidersHorizontal },
+    { id: 'layers', label: '레이어', icon: Layers },
+    { id: 'settings', label: '설정', icon: Settings2 },
+  ] as const
+
   return (
     <div
       data-control-root="true"
+      data-theme={interfaceTheme}
       aria-busy={preparationBusy}
-      className="h-screen w-screen bg-gray-900 text-gray-100 flex flex-col overflow-hidden"
+      className="workbench h-screen w-screen flex flex-col overflow-hidden"
     >
       {preparationBusy && (
         <div
           role="status"
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] rounded bg-blue-900 px-4 py-2 text-sm"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] rounded-xl border border-blue-400/20 bg-blue-950 px-4 py-3 text-sm text-blue-200"
         >
           AI 변경 내용을 저장하는 중… · F2로 전체 중단 가능
         </div>
       )}
       <AudioPlayer />
       <ToastContainer />
-      <PanelGroup direction="horizontal">
-        {/* Left Sidebar */}
-        <Panel defaultSize={15} minSize={10} maxSize={30} className="bg-gray-900 flex flex-col">
+      <PanelGroup
+        direction="horizontal"
+        className="min-h-0 flex-1 p-3"
+        autoSaveId="propre-workbench-panels-v1"
+      >
+        <Panel
+          id="workbench-left"
+          defaultSize={23}
+          minSize={17}
+          maxSize={35}
+          className="workbench-panel flex min-w-0 flex-col"
+        >
           <LeftSidebar />
         </Panel>
-
-        <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-blue-600 transition-colors cursor-col-resize" />
-
-        {/* Main Content */}
-        <Panel defaultSize={60} minSize={30} className="bg-gray-800 flex flex-col overflow-hidden">
-          {/* Header */}
-          <header className="flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700 flex-shrink-0">
-            <div className="flex items-center gap-3">
+        <PanelResizeHandle
+          aria-label="왼쪽 패널 너비 조절"
+          className="workbench-resize workbench-resize-horizontal"
+        />
+        <Panel
+          id="workbench-editor"
+          defaultSize={50}
+          minSize={30}
+          className="workbench-panel flex min-w-0 flex-col"
+        >
+          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/5 px-4 py-4">
+            <div className="min-w-0 flex-1">
+              <p className="workbench-muted mb-2">
+                슬라이드 편집 <span className="mx-1 text-gray-600">/</span>{' '}
+                {isSetlistSong ? '콘티 곡' : '찬양 자료'}
+              </p>
               {isEditingTitle ? (
                 <input
                   autoFocus
-                  className="text-lg font-bold text-blue-400 bg-gray-900 border border-blue-500 rounded px-2 py-0.5 outline-none w-64"
+                  aria-label="프레젠테이션 제목"
+                  className="workbench-field w-full text-base font-semibold"
                   value={editingTitleText}
-                  onChange={(e) => {
-                    setEditingTitleText(e.target.value)
-                    setCurrentPresentationTitle(e.target.value)
-                  }}
+                  onChange={(e) => setEditingTitleText(e.target.value)}
                   onBlur={handleTitleSave}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') handleTitleSave()
                     if (e.key === 'Escape') {
-                      setEditingTitleText(currentPresentationTitle || '새 프레젠테이션')
+                      setEditingTitleText(currentPresentationTitle ?? '')
                       setIsEditingTitle(false)
                     }
                   }}
                 />
               ) : (
-                <h1
-                  className="text-lg font-bold text-blue-400 cursor-text hover:bg-gray-700/50 px-2 py-0.5 rounded -ml-2 transition-colors"
-                  onDoubleClick={() => setIsEditingTitle(true)}
-                  title="더블클릭하여 제목 수정"
-                >
-                  {currentPresentationTitle || '새 프레젠테이션'}
-                </h1>
+                <div className="flex items-center gap-2">
+                  <h1
+                    className="min-w-0 truncate text-lg font-semibold tracking-tight cursor-text"
+                    onDoubleClick={() => setIsEditingTitle(true)}
+                    title="더블클릭하여 제목 수정"
+                  >
+                    {currentPresentationTitle || '새 프레젠테이션'}
+                  </h1>
+                  <button
+                    type="button"
+                    aria-label="제목 수정"
+                    onClick={() => setIsEditingTitle(true)}
+                    className="shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-200"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                </div>
               )}
-              <span className="px-2 py-0.5 text-xs bg-gray-700 text-gray-300 rounded">
-                {slides.length} 슬라이드
-              </span>
             </div>
-            <div className="text-xs text-gray-500">
-              F1: 텍스트 삭제 · F2: 모두 삭제 · F4: 배경 삭제
-            </div>
-            <SaveStatus />
+            <span className="mt-7 shrink-0 rounded-md border border-white/5 bg-white/5 px-2 py-1 text-[11px] tabular-nums text-gray-400">
+              {slides.length} 슬라이드
+            </span>
           </header>
-
-          {/* Slide Grid Area - FULL MIDDLE */}
-          <div className="flex-1 overflow-y-auto min-h-0 bg-gray-800">
+          <ControlToolbar />
+          <div data-workbench-editor="true" className="min-h-0 flex-1 workbench-editor-surface">
             <SlideGrid />
           </div>
+          <footer className="flex shrink-0 flex-wrap items-center justify-between gap-1 border-t border-white/5 px-4 py-2 text-[10px] text-gray-500">
+            <SaveStatus />
+            <span>← → 이동 · F1 텍스트 · F2 전체 중지</span>
+          </footer>
         </Panel>
-
-        <PanelResizeHandle className="w-1 bg-gray-800 hover:bg-blue-600 transition-colors cursor-col-resize" />
-
-        {/* Right Sidebar */}
-        <Panel defaultSize={22} minSize={20} maxSize={50} className="bg-gray-900 flex flex-col">
+        <PanelResizeHandle
+          aria-label="오른쪽 패널 너비 조절"
+          className="workbench-resize workbench-resize-horizontal"
+        />
+        <Panel
+          id="workbench-inspector"
+          defaultSize={27}
+          minSize={22}
+          maxSize={42}
+          className="workbench-panel flex min-w-0 flex-col"
+        >
           <PreviewPanel />
-
-          {/* Tab Navigation */}
-          <div className="flex-none flex bg-gray-800 border-b border-gray-700 text-[10px] font-medium uppercase tracking-wider">
-            <button
-              onClick={() => setActiveRightTab('media')}
-              className={`flex-1 py-3 text-center transition-colors border-b-2 ${activeRightTab === 'media' ? 'border-blue-500 text-blue-400 bg-gray-900' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'}`}
-            >
-              미디어
-            </button>
-            <button
-              onClick={() => setActiveRightTab('styles')}
-              className={`flex-1 py-3 text-center transition-colors border-b-2 ${activeRightTab === 'styles' ? 'border-blue-500 text-blue-400 bg-gray-900' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'}`}
-            >
-              스타일
-            </button>
-            <button
-              onClick={() => setActiveRightTab('layers')}
-              className={`flex-1 py-3 text-center transition-colors border-b-2 ${activeRightTab === 'layers' ? 'border-blue-500 text-blue-400 bg-gray-900' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'}`}
-            >
-              레이어
-            </button>
-            <button
-              onClick={() => setActiveRightTab('settings')}
-              className={`flex-1 py-3 text-center transition-colors border-b-2 ${activeRightTab === 'settings' ? 'border-blue-500 text-blue-400 bg-gray-900' : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-700/50'}`}
-            >
-              설정
-            </button>
-          </div>
-
-          {/* Tab Content */}
-          <div className="flex-1 overflow-y-auto flex flex-col min-h-0">
+          <nav aria-label="송출 도구" className="shrink-0 border-b border-white/5 p-3">
+            <div className="workbench-tabs">
+              {tabs.map(({ id, label, icon: Icon }) => (
+                <button
+                  type="button"
+                  key={id}
+                  aria-pressed={activeRightTab === id}
+                  onClick={() => setActiveRightTab(id)}
+                  className="workbench-tab"
+                >
+                  <Icon size={13} className="shrink-0" />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </nav>
+          <div
+            data-workbench-inspector="true"
+            className="workbench-inspector workbench-scroll flex min-h-0 flex-1 flex-col overflow-y-auto"
+          >
             {activeRightTab === 'media' && <MediaBin />}
             {activeRightTab === 'styles' && <GlobalStylePanel />}
             {activeRightTab === 'layers' && <AdvancedLayersPanel />}
             {activeRightTab === 'settings' && <SettingsTabPanel />}
           </div>
-
-          <ControlToolbar />
         </Panel>
       </PanelGroup>
     </div>

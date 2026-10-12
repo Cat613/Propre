@@ -1,0 +1,341 @@
+.workbench {
+  --wb-base: #090e18;
+  --wb-panel: #101827;
+  --wb-raised: #172131;
+  --wb-line: rgb(255 255 255 / 8%);
+  --wb-text: #e5eaf3;
+  --wb-heading: #c3cddd;
+  --wb-muted: #7e8da3;
+  --wb-field: #0b1220;
+  --wb-editor: #0c1320;
+  --wb-card: #141e2d;
+  --wb-card-hover: #192638;
+  --wb-soft: rgb(255 255 255 / 4%);
+  --wb-hover: rgb(255 255 255 / 8%);
+  --wb-tab-active: #1d2a3c;
+  --wb-tab-text: #bfdbfe;
+  color-scheme: dark;
+  background: var(--wb-base);
+  color: var(--wb-text);
+}
+.workbench-panel {
+  overflow: hidden;
+  border: 1px solid var(--wb-line);
+  border-radius: 14px;
+  background: var(--wb-panel);
+}
+.workbench-heading {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wb-heading);
+}
+.workbench-muted {
+  font-size: 11px;
+  color: var(--wb-muted);
+}
+.workbench-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid var(--wb-line);
+  border-radius: 8px;
+  background: var(--wb-soft);
+  padding: 7px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: var(--wb-text);
+  cursor: pointer;
+  transition:
+    background 150ms,
+    color 150ms,
+    border-color 150ms;
+}
+.workbench-button:hover {
+  background: var(--wb-hover);
+  color: #fff;
+}
+.workbench-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.workbench-button-primary {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: #fff;
+}
+.workbench-button-primary:hover {
+  background: #3b82f6;
+}
+.workbench-button-danger {
+  color: #fca5a5;
+  background: rgb(239 68 68 / 8%);
+  border-color: rgb(239 68 68 / 18%);
+}
+.workbench-button-danger:hover {
+  background: rgb(239 68 68 / 18%);
+}
+.workbench-field {
+  min-width: 0;
+  border: 1px solid var(--wb-line);
+  border-radius: 8px;
+  background: var(--wb-field);
+  padding: 8px 10px;
+  color: var(--wb-text);
+  font-size: 12px;
+  outline: none;
+}
+.workbench-field:focus {
+  border-color: #60a5fa;
+  box-shadow: 0 0 0 2px rgb(96 165 250 / 12%);
+}
+.workbench-field::placeholder {
+  color: #6b7b93;
+}
+.workbench-tabs {
+  display: flex;
+  gap: 3px;
+  padding: 4px;
+  background: var(--wb-field);
+  border-radius: 10px;
+}
+.workbench-tab {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  border-radius: 7px;
+  padding: 8px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #8392a9;
+  cursor: pointer;
+  transition:
+    background 150ms,
+    color 150ms;
+}
+.workbench-tab:hover {
+  color: var(--wb-text);
+  background: rgb(255 255 255 / 3%);
+}
+.workbench-tab[aria-pressed='true'] {
+  background: var(--wb-tab-active);
+  color: var(--wb-tab-text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 15%);
+}
+.workbench-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #334155 transparent;
+}
+.workbench :where(button:not(:disabled), select, input[type='checkbox']) {
+  cursor: pointer;
+}
+.workbench :where(button, select, [tabindex='0']):focus-visible {
+  outline: 2px solid #60a5fa;
+  outline-offset: 2px;
+}
+.workbench-resize {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+.workbench-resize::after {
+  content: '';
+  border-radius: 4px;
+  background: #273449;
+  transition: background 150ms;
+}
+.workbench-resize:hover::after,
+.workbench-resize[data-resize-handle-active]::after {
+  background: #60a5fa;
+}
+.workbench-resize-horizontal {
+  width: 10px;
+  cursor: col-resize;
+}
+.workbench-resize-horizontal::after {
+  width: 3px;
+  height: 28px;
+}
+.workbench-resize-vertical {
+  height: 10px;
+  cursor: row-resize;
+}
+.workbench-resize-vertical::after {
+  width: 28px;
+  height: 3px;
+}
+.workbench-inspector {
+  background: var(--wb-panel);
+}
+.workbench-inspector > div:not([data-modal]) {
+  background: transparent;
+  border: 0;
+}
+.workbench-inspector
+  :where(input:not([type='checkbox']):not([type='range']):not([type='color']), select, textarea) {
+  background-color: var(--wb-field);
+  border-color: var(--wb-line);
+  border-radius: 7px;
+}
+.workbench-inspector :where(h3, h4) {
+  color: var(--wb-heading);
+  letter-spacing: 0;
+}
+.workbench-inspector > div > div {
+  border-radius: 10px;
+}
+.workbench-inspector input[type='range'] {
+  accent-color: #60a5fa;
+}
+.workbench-slide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr));
+  gap: 12px;
+}
+
+.workbench-inspector .workbench-settings > div {
+  padding: 14px;
+  border: 1px solid var(--wb-line);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 2%);
+}
+.workbench-inspector .workbench-settings h3 {
+  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workbench-compact-action {
+  padding: 6px 4px;
+  gap: 4px;
+  font-size: 10px;
+}
+.workbench-search-field {
+  padding-left: 34px;
+  padding-right: 32px;
+}
+
+.workbench-editor-surface {
+  background: var(--wb-editor);
+}
+.workbench-slide-surface {
+  background: var(--wb-card);
+}
+.workbench-slide-surface:hover {
+  background: var(--wb-card-hover);
+}
+.workbench-media-surface {
+  background: var(--wb-raised);
+}
+.workbench[data-theme='light'] {
+  color-scheme: light;
+  --wb-base: #edf1f6;
+  --wb-panel: #ffffff;
+  --wb-raised: #f1f5f9;
+  --wb-line: rgb(15 23 42 / 12%);
+  --wb-text: #1e293b;
+  --wb-heading: #334155;
+  --wb-muted: #64748b;
+  --wb-field: #f8fafc;
+  --wb-editor: #f6f8fc;
+  --wb-card: #ffffff;
+  --wb-card-hover: #f1f5f9;
+  --wb-soft: rgb(15 23 42 / 4%);
+  --wb-hover: rgb(15 23 42 / 8%);
+  --wb-tab-active: #dbeafe;
+  --wb-tab-text: #1d4ed8;
+  /* Existing neutral utility colors follow the interface palette. */
+  --color-gray-950: #f8fafc;
+  --color-gray-900: #ffffff;
+  --color-gray-800: #f1f5f9;
+  --color-gray-700: #e2e8f0;
+  --color-gray-600: #64748b;
+  --color-gray-500: #64748b;
+  --color-gray-400: #475569;
+  --color-gray-300: #334155;
+  --color-gray-200: #1e293b;
+  --color-gray-100: #0f172a;
+}
+/* Theme only editor controls; the rendered output keeps its chosen colors. */
+@scope (.workbench[data-theme='light']) to ([data-output-surface]) {
+  :where([class*='border-white/']) {
+    border-color: var(--wb-line);
+  }
+  :where([class*='bg-white/']) {
+    background-color: var(--wb-soft);
+  }
+  :where([class*='hover:bg-white/']):hover {
+    background-color: var(--wb-hover);
+  }
+  :where(.text-white, [class*='hover:text-white']:hover) {
+    color: var(--wb-text);
+  }
+  :where(
+    .bg-blue-500,
+    .bg-blue-600,
+    .bg-blue-700,
+    .bg-green-600,
+    .bg-red-600,
+    .bg-purple-600,
+    .bg-indigo-600,
+    .bg-emerald-600,
+    .workbench-button-primary
+  ) {
+    color: white;
+  }
+  :where([style*='background-color'] .text-white, span[style*='background-color']) {
+    color: white;
+  }
+  :where(.text-blue-300, .text-blue-400) {
+    color: #1d4ed8;
+  }
+  :where(.text-red-300, .text-red-400) {
+    color: #b91c1c;
+  }
+  :where(.text-green-300, .text-green-400, .text-emerald-400) {
+    color: #047857;
+  }
+  :where(.text-amber-300, .text-amber-400, .text-orange-400) {
+    color: #92400e;
+  }
+  .workbench-button:hover {
+    color: var(--wb-text);
+  }
+  .workbench-button-primary:hover {
+    color: white;
+  }
+  .workbench-button-danger {
+    color: #b91c1c;
+  }
+  .workbench-resize::after {
+    background: #b8c5d6;
+  }
+  .workbench-scroll,
+  .setlist-scroll {
+    scrollbar-color: #b8c5d6 transparent;
+  }
+  .setlist-scroll::-webkit-scrollbar-thumb {
+    background: #b8c5d6;
+  }
+  .workbench-inspector .workbench-settings > div {
+    background: #f8fafc;
+  }
+}
+
+.workbench [data-output-surface] {
+  color-scheme: dark;
+}
+@scope (.workbench[data-theme='light']) to ([data-output-surface]) {
+  :where(
+    [class*='hover:bg-blue-600'],
+    [class*='hover:bg-red-600'],
+    [class*='hover:bg-green-600']
+  ):hover {
+    color: white;
+  }
+}

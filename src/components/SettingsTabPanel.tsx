@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { usePresentationStore } from '../store'
 import DisplaySelect from './DisplaySelect'
 import SettingsModal from './SettingsModal'
+import { Moon, Sun } from 'lucide-react'
 
 interface DisplayInfo {
   id: number
@@ -12,6 +13,10 @@ interface DisplayInfo {
 
 const SettingsTabPanel: React.FC = () => {
   const {
+    interfaceTheme,
+    setInterfaceTheme,
+    showAudioPlayer,
+    setShowAudioPlayer,
     toggleStage,
     isStageEnabled,
     toggleOutput,
@@ -25,6 +30,10 @@ const SettingsTabPanel: React.FC = () => {
     deleteGlobalStylePreset,
   } = usePresentationStore(
     useShallow((state) => ({
+      interfaceTheme: state.interfaceTheme,
+      setInterfaceTheme: state.setInterfaceTheme,
+      showAudioPlayer: state.showAudioPlayer,
+      setShowAudioPlayer: state.setShowAudioPlayer,
       toggleStage: state.toggleStage,
       isStageEnabled: state.isStageEnabled,
       toggleOutput: state.toggleOutput,
@@ -86,7 +95,45 @@ const SettingsTabPanel: React.FC = () => {
   }
 
   return (
-    <div className="p-4 bg-gray-900 border-t border-gray-800 flex flex-col gap-6">
+    <div className="workbench-settings p-4 flex flex-col gap-4">
+      <div className="text-xs flex flex-col gap-2">
+        <h3 className="font-semibold">화면 테마</h3>
+        <div className="workbench-tabs" role="group" aria-label="화면 테마">
+          <button
+            type="button"
+            className="workbench-tab"
+            aria-pressed={interfaceTheme === 'dark'}
+            onClick={() => setInterfaceTheme('dark')}
+          >
+            <Moon size={14} /> 다크
+          </button>
+          <button
+            type="button"
+            className="workbench-tab"
+            aria-pressed={interfaceTheme === 'light'}
+            onClick={() => setInterfaceTheme('light')}
+          >
+            <Sun size={14} /> 라이트
+          </button>
+        </div>
+        <p className="workbench-muted">편집 화면에 적용되며 선택한 테마는 자동 저장됩니다.</p>
+      </div>
+      <div className="text-xs flex flex-col gap-2">
+        <h3 className="font-semibold">화면 구성</h3>
+        <label className="flex items-center justify-between gap-3 text-gray-300 cursor-pointer">
+          오디오 플레이어 표시
+          <input
+            type="checkbox"
+            checked={showAudioPlayer}
+            onChange={(e) => setShowAudioPlayer(e.target.checked)}
+            className="accent-blue-500"
+          />
+        </label>
+        <p className="text-[10px] text-gray-500 leading-relaxed">
+          상단의 오디오 선택·재생·음량·중지 영역을 표시합니다. 숨겨도 재생 중인 오디오는 유지됩니다.
+          변경한 설정은 자동 저장됩니다.
+        </p>
+      </div>
       <div className="text-xs flex flex-col gap-2">
         <h3 className="font-semibold">미디어 관리</h3>
         <button
@@ -123,13 +170,13 @@ const SettingsTabPanel: React.FC = () => {
           글로벌 스타일 자동 적용 (Presets)
         </h3>
         <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className="text-gray-400">일반/찬양 기본 프리셋:</span>
             <select
               aria-label="일반/찬양 기본 프리셋"
               value={defaultSongPresetId || ''}
               onChange={(e) => setDefaultPreset('song', e.target.value || null)}
-              className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200 focus:border-blue-500 w-32"
+              className="workbench-field min-w-0 max-w-full w-32"
             >
               <option value="">선택 안함</option>
               {globalStylePresets.map((p) => (
@@ -139,13 +186,13 @@ const SettingsTabPanel: React.FC = () => {
               ))}
             </select>
           </div>
-          <div className="flex items-center justify-between text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
             <span className="text-gray-400">성경(Bible) 기본 프리셋:</span>
             <select
               aria-label="성경 기본 프리셋"
               value={defaultBiblePresetId || ''}
               onChange={(e) => setDefaultPreset('bible', e.target.value || null)}
-              className="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-gray-200 focus:border-blue-500 w-32"
+              className="workbench-field min-w-0 max-w-full w-32"
             >
               <option value="">선택 안함</option>
               {globalStylePresets.map((p) => (
