@@ -16,7 +16,13 @@ const fresh = (): ConnectionProfile => ({
   provider: 'gemini',
   model: defaultModels.gemini,
 })
-export default function AIProfilesPanel({ onChanged }: { onChanged?: () => void }) {
+export default function AIProfilesPanel({
+  onChanged,
+  onClose,
+}: {
+  onChanged?: () => void
+  onClose?: () => void
+}) {
   const [profiles, setProfiles] = useState<(ConnectionProfile & { configured: boolean })[]>([])
   const [profile, setProfile] = useState(fresh),
     [key, setKey] = useState(''),
@@ -54,7 +60,14 @@ export default function AIProfilesPanel({ onChanged }: { onChanged?: () => void 
   }
   return (
     <section className="space-y-3 border border-gray-700 rounded p-3">
-      <h3 className="font-bold text-sm">파일 분석에 사용할 AI</h3>
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-bold text-sm">파일 분석에 사용할 AI</h3>
+        {onClose && (
+          <button type="button" onClick={onClose} className="shrink-0 p-2 text-xs">
+            AI 연결 추가 닫기
+          </button>
+        )}
+      </div>
       <p className="text-xs text-gray-400">
         API 연결을 등록하고 작업마다 선택합니다. 선택한 파일과 이번 작업의 지시·준비 중인 곡 내용을
         해당 AI에 전송하며 API 이용 비용은 제공자 계정에 청구됩니다.
@@ -151,6 +164,11 @@ export default function AIProfilesPanel({ onChanged }: { onChanged?: () => void 
         </p>
       )}
       <div className="flex gap-3">
+        {onClose && (
+          <button type="button" onClick={onClose} className="p-2 text-xs">
+            취소
+          </button>
+        )}
         <button
           type="button"
           disabled={busy || !profile.model || (needsKey && !key.trim())}

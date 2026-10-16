@@ -1,3 +1,4 @@
+import DeletedMaterialsDialog from './DeletedMaterialsDialog'
 import { Music2, Search, X } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { parseProject } from '../../shared/schema'
@@ -35,6 +36,7 @@ const LibraryPanel: React.FC = () => {
     })),
   )
 
+  const [showTrash, setShowTrash] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [fileMenuOpen, setFileMenuOpen] = useState(false)
   const fileMenuRef = useRef<HTMLDivElement>(null)
@@ -129,12 +131,16 @@ const LibraryPanel: React.FC = () => {
 
   return (
     <>
+      {showTrash && <DeletedMaterialsDialog kind="library" onClose={() => setShowTrash(false)} />}
       <div className="shrink-0 p-3 border-b border-white/5">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <p className="workbench-muted">
             찬양 목록 <span className="ml-1 text-gray-600">{library.length}</span>
           </p>
           <div className="flex items-center gap-2 ml-auto">
+            <button className="workbench-button" onClick={() => setShowTrash(true)}>
+              찬양 휴지통
+            </button>
             <div className="relative" ref={fileMenuRef}>
               <button onClick={() => setFileMenuOpen(!fileMenuOpen)} className="workbench-button">
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -414,7 +420,7 @@ const LibraryPanel: React.FC = () => {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (confirm('정말로 이 곡을 삭제하시겠습니까?')) {
+                  if (confirm('찬양 목록에서 휴지통으로 옮길까요? 기존 콘티의 곡은 유지됩니다.')) {
                     void deletePresentation(presentation.id).catch(() => {})
                   }
                 }}

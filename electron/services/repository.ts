@@ -1,12 +1,38 @@
+import {
+  AttachCueSchema,
+  ServiceFileTargetSchema,
+  type ServiceFileTarget,
+} from '../../shared/service-session'
+import { SaveServicePlanSchema, songProjection } from '../../shared/service-plan'
+import { TemplateCommand } from '../../shared/service-template'
+import { mutateTemplate, copyTemplate } from './service-templates'
+import {
+  migrateServicePlans,
+  syncSongCues,
+  copyServicePlan,
+  validateServicePlans,
+  importServiceState,
+} from './service-plan-storage'
+import { PDFDocument } from 'pdf-lib'
+import {
+  OutputResourcesSchema,
+  ResourceCommand,
+  normalizeWebURL,
+} from '../../shared/output-resources'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID, createHash } from 'node:crypto'
 import { z } from 'zod'
 import { ApplyReceiptSchema } from '../../shared/song-preparation'
+import { ServiceTemplatesSchema } from '../../shared/schema'
 import type { Presentation, PlaylistItem, MediaItem } from '../../src/types'
 import {
   Id,
+  CuePresentationsSchema,
+  CueResourcesSchema,
   LibrarySchema,
+  DeletedLibrarySchema,
+  DeletedMediaSchema,
   PresentationSchema,
   SettingsSchema,
   MediaSchema,
@@ -27,18 +53,26 @@ import { SetlistCommandSchema, type SetlistWorkspace } from '../../shared/setlis
 const Asset = z.object({
   id: Id,
   name: z.string().max(500),
-  type: z.enum(['image', 'video', 'audio']),
-  extension: z.string().regex(/^\.(png|jpe?g|webp|gif|mp4|webm|mov|m4v|mp3|wav|ogg|m4a|aac|flac)$/),
+  type: z.enum(['image', 'video', 'audio', 'document']),
+  extension: z
+    .string()
+    .regex(/^\.(png|jpe?g|webp|gif|mp4|webm|mov|m4v|mp3|wav|ogg|m4a|aac|flac|pdf)$/),
   filename: z.string().regex(/^[a-zA-Z0-9_-]+\.[a-z0-9]+$/),
 })
 export type AssetRecord = z.infer<typeof Asset>
 const State = z.object({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(4),
+  serviceTemplates: ServiceTemplatesSchema.default([]),
+  cuePresentations: CuePresentationsSchema.default([]),
+  cueResources: CueResourcesSchema.default([]),
+  outputResources: OutputResourcesSchema.default([]),
   songReceipts: z.array(ApplyReceiptSchema).max(5000).default([]),
   setlists: SetlistsSchema.default([]),
   setlistSongs: SetlistSongsSchema.default([]),
   activeSetlistId: Id.nullable().default(null),
   library: LibrarySchema,
+  deletedLibrary: DeletedLibrarySchema.default([]),
+  deletedMedia: DeletedMediaSchema.default([]),
   playlist: PlaylistRefsSchema,
   draft: PresentationSchema.nullable(),
   settings: SettingsSchema,
@@ -51,12 +85,18 @@ const State = z.object({
 })
 export type RepositoryState = z.infer<typeof State>
 const empty = (): RepositoryState => ({
-  schemaVersion: 2,
+  schemaVersion: 4,
+  serviceTemplates: [],
+  cuePresentations: [],
+  cueResources: [],
+  outputResources: [],
   songReceipts: [],
   setlists: [],
   setlistSongs: [],
   activeSetlistId: null,
   library: [],
+  deletedLibrary: [],
+  deletedMedia: [],
   playlist: [],
   draft: null,
   settings: {},
@@ -90,7 +130,7 @@ export async function atomicWrite(filename: string, data: string | Buffer): Prom
   }
 }
 const mediaFields = new Set(['url', 'backgroundUrl', 'thumbnail'])
-function mediaURLs(value: unknown): string[] {
+export function mediaURLs(value: unknown): string[] {
   const found: string[] = []
   const visit = (item: unknown) => {
     if (!item || typeof item !== 'object') return
@@ -146,6 +186,7 @@ function newSetlist(s: RepositoryState, title: string, date?: string) {
     lastOpenedAt: now,
     revision: 0,
     items: [] as RepositoryState['playlist'],
+    servicePlan: { version: 1 as const, timezone: 'Asia/Seoul', items: [] },
   }
   s.setlists.push(list)
   s.activeSetlistId = list.id
@@ -179,6 +220,7 @@ function replaceOrder(s: RepositoryState, refs: RepositoryState['playlist']) {
     return { id: item.id, presentationId: id }
   })
   list.items = items
+  syncSongCues(s, list)
   s.playlist = clone(items)
   touch(list)
 }
@@ -204,15 +246,17 @@ function validateSetlists(s: RepositoryState) {
   )
     throw new Error('현재 콘티와 진행 순서가 일치하지 않습니다.')
 }
+class FutureWorkspaceError extends Error {}
 export class Repository {
   state: RepositoryState = empty()
   warnings: string[] = []
   private tail: Promise<unknown> = Promise.resolve()
   private blocked = false
+  assertServiceMutation: ((draft: RepositoryState) => void) | undefined
   readonly filename: string
   readonly mediaDir: string
   constructor(readonly directory: string) {
-    this.filename = path.join(directory, 'workspace-v2.json')
+    this.filename = path.join(directory, 'workspace-v4.json')
     this.mediaDir = path.join(directory, 'media')
   }
   async open(): Promise<void> {
@@ -225,7 +269,14 @@ export class Repository {
       try {
         this.state = await this.read(this.filename)
         return
-      } catch {
+      } catch (error) {
+        if (error instanceof FutureWorkspaceError) {
+          this.blocked = true
+          this.warnings.push(
+            '더 새로운 앱에서 저장한 자료입니다. 앱을 업데이트해주세요. 원본은 보존했습니다.',
+          )
+          return
+        }
         await fs.copyFile(this.filename, `${this.filename}.damaged-${Date.now()}`).catch(() => {})
         for (let n = 1; n <= 5; n++)
           try {
@@ -245,7 +296,19 @@ export class Repository {
         return
       }
     }
-    const previous = path.join(this.directory, 'workspace-v1.json')
+    let previous = path.join(this.directory, 'workspace-v1.json')
+    for (const version of [3, 2, 1]) {
+      const candidate = path.join(this.directory, `workspace-v${version}.json`)
+      if (
+        await fs.stat(candidate).then(
+          () => true,
+          () => false,
+        )
+      ) {
+        previous = candidate
+        break
+      }
+    }
     if (
       await fs.stat(previous).then(
         () => true,
@@ -261,13 +324,18 @@ export class Repository {
               '이전 작업 공간의 유효 백업으로 콘티를 복구했습니다. 이전 원본은 보존했습니다.',
             )
           return
-        } catch {
+        } catch (error) {
+          if (error instanceof FutureWorkspaceError) {
+            this.blocked = true
+            this.warnings.push('더 새로운 앱에서 저장한 자료입니다. 앱을 업데이트해주세요.')
+            return
+          }
           /* Preserve old files and try another intact checkpoint. */
         }
       }
       this.blocked = true
       this.warnings.push(
-        '이전 작업 공간을 옮기지 못했습니다. workspace-v1.json 원본은 보존했습니다. 백업 복원 또는 원본 확인이 필요합니다.',
+        '이전 작업 공간을 옮기지 못했습니다. 이전 작업 공간 원본은 보존했습니다. 백업 복원 또는 원본 확인이 필요합니다.',
       )
       return
     }
@@ -302,11 +370,16 @@ export class Repository {
     const info = await fs.stat(filename)
     if (info.size > MAX_STATE_BYTES) throw new Error('state too large')
     const raw = boundedJSON(await fs.readFile(filename, 'utf8')) as Record<string, unknown>
-    if (raw?.schemaVersion !== 1 && raw?.schemaVersion !== 2)
+    if (typeof raw?.schemaVersion === 'number' && raw.schemaVersion > 4)
+      throw new FutureWorkspaceError()
+    if (![1, 2, 3, 4].includes(raw?.schemaVersion as number))
       throw new Error('unsupported workspace')
-    const parsed = State.parse({ ...raw, schemaVersion: 2 })
+    const parsed = State.parse({ ...raw, schemaVersion: 4 })
     if (raw.schemaVersion === 1) replaceOrder(parsed, parsed.playlist)
+    if (raw.schemaVersion !== 4) migrateServicePlans(parsed)
     validateSetlists(parsed)
+    validateServicePlans(parsed)
+    this.validateResources(parsed)
     return {
       ...parsed,
       library: parseLibrary(parsed.library),
@@ -321,8 +394,11 @@ export class Repository {
           throw new Error('원본을 보호하기 위해 저장을 중지했습니다. 백업을 복원해주세요.')
         const draft = clone(this.state)
         change(draft)
+        this.assertServiceMutation?.(draft)
         const checked = State.parse(draft)
         validateSetlists(checked)
+        validateServicePlans(checked)
+        this.validateResources(checked)
         const data = JSON.stringify(checked)
         if (Buffer.byteLength(data) > MAX_STATE_BYTES)
           throw new Error('자료 크기가 저장 한도를 초과했습니다.')
@@ -357,29 +433,282 @@ export class Repository {
       return presentation ? [{ ...item, presentation: clone(presentation) as Presentation }] : []
     })
   }
-  workspace(): SetlistWorkspace {
+  workspace(state: RepositoryState = this.state): SetlistWorkspace {
     return {
-      library: this.library(),
-      playlist: this.playlist(),
-      setlists: clone(this.state.setlists),
-      setlistSongs: clone(this.state.setlistSongs) as SetlistWorkspace['setlistSongs'],
-      activeSetlistId: this.state.activeSetlistId,
+      library: clone(state.library),
+      serviceTemplates: clone(state.serviceTemplates),
+      playlist: state.playlist.flatMap((item) => {
+        const presentation = state.setlistSongs.find(
+          (song) => song.presentation.id === item.presentationId,
+        )?.presentation
+        return presentation ? [{ ...clone(item), presentation: clone(presentation) }] : []
+      }),
+      setlists: clone(state.setlists),
+      setlistSongs: clone(state.setlistSongs),
+      activeSetlistId: state.activeSetlistId,
+      cuePresentations: clone(state.cuePresentations),
+      cueResources: clone(state.cueResources),
     }
+  }
+  private planReceipts = new Map<
+    string,
+    { signature: string; promise: Promise<SetlistWorkspace>; done: boolean }
+  >()
+  private async mutateService(
+    requestId: string,
+    signature: string,
+    change: (state: RepositoryState) => void,
+  ): Promise<SetlistWorkspace> {
+    const prior = this.planReceipts.get(requestId)
+    if (prior) {
+      if (prior.signature !== signature) throw new Error('같은 요청 ID의 내용이 다릅니다.')
+      return clone(await prior.promise)
+    }
+    if (this.planReceipts.size >= 1000) {
+      const completed = [...this.planReceipts].find(([, receipt]) => receipt.done)
+      if (!completed) throw new Error('진행 중인 저장을 마친 뒤 다시 시도해주세요.')
+      this.planReceipts.delete(completed[0])
+    }
+    const receipt = {
+      signature,
+      done: false,
+      promise: undefined as unknown as Promise<SetlistWorkspace>,
+    }
+    receipt.promise = (async () => {
+      let result: SetlistWorkspace | undefined
+      await this.transaction((s) => {
+        change(s)
+        result = this.workspace(s)
+      })
+      receipt.done = true
+      return result!
+    })()
+    this.planReceipts.set(requestId, receipt)
+    try {
+      return clone(await receipt.promise)
+    } catch (error) {
+      this.planReceipts.delete(requestId)
+      throw error
+    }
+  }
+  async saveServicePlan(raw: unknown): Promise<SetlistWorkspace> {
+    const command = SaveServicePlanSchema.parse(raw)
+    return this.mutateService(
+      command.requestId,
+      JSON.stringify({ operation: 'save-plan', command }),
+      (s) => {
+        const list = s.setlists.find((x) => x.id === command.setlistId && !x.deletedAt)
+        if (!list || list.revision !== command.expectedSetlistRevision)
+          throw new Error('예배 순서가 변경되었습니다. 최신 내용을 다시 확인해주세요.')
+        if (command.plan.items.length > Math.max(1000, list.servicePlan?.items.length || 0))
+          throw new Error('새 예배 순서는 1,000개까지 추가할 수 있습니다.')
+        const rowIds = new Set(
+          command.plan.items.filter((cue) => cue.kind === 'song').map((cue) => cue.songItemId),
+        )
+        const rows = command.restoreSongRows
+          ? clone(command.restoreSongRows)
+          : list.items.filter((row) => rowIds.has(row.id))
+        if (command.restoreSongRows)
+          for (const row of rows) {
+            const saved = s.setlistSongs.find(
+              (entry) => entry.presentation.id === row.presentationId,
+            )
+            if (!saved) throw new Error('되돌릴 찬양 사본이 없습니다.')
+            if (
+              s.setlists.some(
+                (owner) =>
+                  owner.id !== list.id &&
+                  owner.items.some((item) => item.presentationId === row.presentationId),
+              )
+            ) {
+              const copy = {
+                presentation: {
+                  ...clone(saved.presentation),
+                  id: 'setlist_' + randomUUID(),
+                  revision: 0,
+                },
+              }
+              s.setlistSongs.push(copy)
+              row.presentationId = copy.presentation.id
+            }
+          }
+        list.items = songProjection(command.plan, rows)
+        list.servicePlan = clone(command.plan)
+        if (s.activeSetlistId === list.id) s.playlist = clone(list.items)
+        touch(list)
+      },
+    )
+  }
+  async manageServiceTemplate(raw: unknown) {
+    const command = TemplateCommand.parse(raw)
+    return this.mutateService(
+      command.requestId,
+      JSON.stringify({ operation: 'template', command }),
+      (state) => mutateTemplate(state, command),
+    )
+  }
+  async exportServiceTemplate(id: string, revision: number) {
+    await this.settled()
+    const template = this.state.serviceTemplates.find(
+      (entry) => entry.id === id && !entry.deletedAt,
+    )
+    if (!template || template.revision !== revision)
+      throw new Error('템플릿이 바뀌었습니다. 다시 저장해주세요.')
+    const bundle = clone({
+      format: 'propre-project',
+      schemaVersion: 3,
+      kind: 'service-template',
+      presentations: [],
+      serviceTemplates: [template],
+      assets: [] as unknown[],
+    })
+    this.assertAssets(bundle)
+    const ids = new Set(mediaURLs(bundle).map((url) => new URL(url).pathname.split('/')[1]))
+    for (const resource of template.resources)
+      if (resource.kind === 'pdf') ids.add(resource.assetId)
+    let bytes = Buffer.byteLength(JSON.stringify(bundle))
+    for (const id of ids) {
+      const asset = this.state.assets.find((entry) => entry.id === id)
+      if (!asset) throw new Error('템플릿에 필요한 파일이 없습니다.')
+      const content = await fs.readFile(await this.assetPath(this.assetURL(asset)))
+      bytes += Math.ceil((content.length * 4) / 3)
+      if (bytes > MAX_FILE_BYTES) throw new Error('템플릿 파일이200MB를 초과합니다.')
+      bundle.assets.push({
+        id: asset.id,
+        name: asset.name,
+        type: asset.type,
+        extension: asset.extension,
+        sha256: createHash('sha256').update(content).digest('hex'),
+        data: content.toString('base64'),
+      })
+    }
+    const result = JSON.stringify(bundle)
+    parseProject(result)
+    if (
+      Buffer.byteLength(result) > MAX_FILE_BYTES ||
+      this.state.serviceTemplates.find((entry) => entry.id === template.id)?.revision !== revision
+    )
+      throw new Error('저장 중 템플릿이 바뀌거나 파일 상한을 초과했습니다.')
+    return result
+  }
+  async attachServiceCue(raw: unknown): Promise<SetlistWorkspace> {
+    const command = AttachCueSchema.parse(raw)
+    return this.mutateService(
+      command.requestId,
+      JSON.stringify({ operation: 'attach', command }),
+      (s) => {
+        const list = s.setlists.find((x) => x.id === command.setlistId && !x.deletedAt)
+        if (!list || list.revision !== command.expectedSetlistRevision)
+          throw new Error('예배 순서가 변경되었습니다. 다시 확인해주세요.')
+        if (command.plan) {
+          if (command.plan.items.length > Math.max(1000, list.servicePlan?.items.length || 0))
+            throw new Error('새 예배 순서는 1,000개까지 추가할 수 있습니다.')
+          const rowIds = new Set(
+            command.plan.items.filter((cue) => cue.kind === 'song').map((cue) => cue.songItemId),
+          )
+          list.items = songProjection(
+            command.plan,
+            list.items.filter((row) => rowIds.has(row.id)),
+          )
+          list.servicePlan = clone(command.plan)
+          if (s.activeSetlistId === list.id) s.playlist = clone(list.items)
+        }
+        const cue = list.servicePlan?.items.find((x) => x.id === command.cueId)
+        if (!cue) throw new Error('자료를 연결할 순서를 선택해주세요.')
+        const source = command.source
+        if (cue.kind === 'song') {
+          if (source.kind !== 'presentation' || !cue.materialPending)
+            throw new Error('찬양 교체는 비어 있는 슬롯에서만 가능합니다.')
+          const original = s.library.find((p) => p.id === source.id)
+          if (!original?.slides.some((slide) => slide.id === source.slideId))
+            throw new Error('연결할 찬양을 확인해주세요.')
+          const row = list.items.find((row) => row.id === cue.songItemId)!
+          const presentation = { ...clone(original), id: 'setlist_' + randomUUID(), revision: 0 }
+          s.setlistSongs.push({ presentation })
+          row.presentationId = presentation.id
+          delete cue.materialPending
+          cue.title = original.title.slice(0, 200)
+          if (s.activeSetlistId === list.id) s.playlist = clone(list.items)
+          touch(list)
+          return
+        }
+        if (source.kind === 'none') {
+          delete cue.materialPending
+          delete cue.binding
+          if (cue.enter.visual === 'bound') cue.enter.visual = 'keep'
+        } else if (source.kind === 'presentation') {
+          delete cue.materialPending
+          const original =
+            s.library.find((x) => x.id === source.id) ||
+            s.setlistSongs.find((x) => x.presentation.id === source.id)?.presentation
+          if (!original || !original.slides.some((slide) => slide.id === source.slideId))
+            throw new Error('연결할 슬라이드를 찾지 못했습니다.')
+          const presentation = { ...clone(original), id: 'cue_' + randomUUID(), revision: 0 }
+          s.cuePresentations.push({ ownerSetlistId: list.id, presentation })
+          cue.binding = {
+            kind: 'presentation',
+            presentationId: presentation.id,
+            slideId: source.slideId,
+          }
+        } else {
+          delete cue.materialPending
+          const original = s.outputResources.find((x) => x.id === source.id && !x.deletedAt)
+          if (
+            !original ||
+            (original.kind === 'pdf' && (!source.page || source.page > original.pageCount)) ||
+            (original.kind === 'web' &&
+              (source.page !== undefined || source.rotation !== undefined))
+          )
+            throw new Error('연결할 자료와 페이지를 확인해주세요.')
+          const resource = { ...clone(original), id: randomUUID(), revision: 0 }
+          s.cueResources.push({ ownerSetlistId: list.id, resource })
+          cue.binding = {
+            kind: 'resource',
+            resourceId: resource.id,
+            ...(resource.kind === 'pdf'
+              ? { page: source.page, rotation: source.rotation ?? resource.rotation }
+              : {}),
+          }
+        }
+        touch(list)
+      },
+    )
   }
   async saveDraft(raw: unknown): Promise<Presentation[]> {
     const p = parsePresentation(raw)
     this.assertAssets(p)
     await this.transaction((s) => {
+      const owned = s.cuePresentations.find((x) => x.presentation.id === p.id)
       const snapshot = s.setlistSongs.find((x) => x.presentation.id === p.id)
-      if (!snapshot && p.id.startsWith('setlist_') && !s.library.some((x) => x.id === p.id))
+      if (
+        !snapshot &&
+        !owned &&
+        (p.id.startsWith('setlist_') || p.id.startsWith('cue_')) &&
+        !s.library.some((x) => x.id === p.id)
+      )
         throw new Error('콘티 곡의 저장 위치를 찾지 못했습니다. 보관함이나 백업을 복원해주세요.')
-      const old = snapshot?.presentation || s.library.find((x) => x.id === p.id)
+      const old =
+        owned?.presentation || snapshot?.presentation || s.library.find((x) => x.id === p.id)
       if ((old?.revision || 0) > (p.revision || 0))
         throw new Error('새 수정본이 이미 저장되어 있습니다. 자료를 다시 열어주세요.')
-      if (snapshot) {
+      if (owned) {
+        owned.presentation = p
+        const list = s.setlists.find((x) => x.id === owned.ownerSetlistId)
+        if (list) touch(list)
+      } else if (snapshot) {
         snapshot.presentation = p
-        for (const list of s.setlists.filter((x) => x.items.some((i) => i.presentationId === p.id)))
+        for (const list of s.setlists.filter((x) =>
+          x.items.some((i) => i.presentationId === p.id),
+        )) {
+          if (p.slides.length)
+            for (const cue of list.servicePlan?.items || [])
+              if (
+                cue.kind === 'song' &&
+                list.items.some((row) => row.id === cue.songItemId && row.presentationId === p.id)
+              )
+                delete cue.materialPending
           touch(list)
+        }
       } else s.library = s.library.filter((x) => x.id !== p.id).concat(p)
       s.draft = p
     })
@@ -434,10 +763,38 @@ export class Repository {
   async delete(id: string): Promise<Presentation[]> {
     Id.parse(id)
     await this.transaction((s) => {
+      const presentation = s.library.find((p) => p.id === id)
+      if (presentation) {
+        s.deletedLibrary = s.deletedLibrary.filter((x) => x.presentation.id !== id)
+        s.deletedLibrary.push({ deletedAt: new Date().toISOString(), presentation })
+      }
       s.library = s.library.filter((p) => p.id !== id)
       if (s.draft?.id === id) s.draft = null
     })
     return this.library()
+  }
+  async restoreDeleted(kind: 'library' | 'media', id: string) {
+    Id.parse(id)
+    await this.transaction((s) => {
+      if (kind === 'library') {
+        const entry = s.deletedLibrary.find((x) => x.presentation.id === id)
+        if (!entry) throw new Error('복원할 찬양을 찾지 못했습니다.')
+        if (s.library.some((x) => x.id === id))
+          throw new Error(
+            '같은 ID의 찬양이 있습니다. 현재 자료를 보존하기 위해 복원을 중단했습니다.',
+          )
+        this.assertAssets(entry.presentation)
+        s.library.push(entry.presentation)
+        s.deletedLibrary = s.deletedLibrary.filter((x) => x !== entry)
+      } else {
+        const entry = s.deletedMedia.find((x) => x.media.id === id)
+        if (!entry) throw new Error('복원할 미디어를 찾지 못했습니다.')
+        if (s.media.some((x) => x.id === id)) throw new Error('이미 같은 미디어가 있습니다.')
+        this.assertAssets(entry.media)
+        s.media.push(entry.media)
+        s.deletedMedia = s.deletedMedia.filter((x) => x !== entry)
+      }
+    })
   }
   async setPlaylist(raw: unknown): Promise<void> {
     const refs = PlaylistRefsSchema.parse(raw)
@@ -481,6 +838,7 @@ export class Repository {
         extension,
         filename: 'pending.png',
       })
+    if (extension === '.pdf') throw new Error('PDF 추가를 사용해주세요.')
     const info = await fs.stat(filename)
     if (!info.isFile() || info.size > MAX_FILE_BYTES / 2)
       throw new Error('미디어는 100MB 이하의 지원 파일을 선택해주세요.')
@@ -493,7 +851,7 @@ export class Repository {
         s.assets.push(record)
         s.media.push({
           id: record.id,
-          type: record.type,
+          type: record.type as 'image' | 'video' | 'audio',
           url: this.assetURL(record),
           name: record.name,
         })
@@ -508,6 +866,15 @@ export class Repository {
     const media = z.array(MediaSchema).max(10000).parse(raw)
     this.assertAssets(media)
     await this.transaction((s) => {
+      for (const item of s.media.filter(
+        (item) => !media.some((m) => m.id === item.id || m.url === item.url),
+      )) {
+        s.deletedMedia = s.deletedMedia.filter((x) => x.media.id !== item.id)
+        s.deletedMedia.push({ deletedAt: new Date().toISOString(), media: item })
+      }
+      s.deletedMedia = s.deletedMedia.filter(
+        (x) => !media.some((m) => m.id === x.media.id || m.url === x.media.url),
+      )
       s.media = media
     })
   }
@@ -550,7 +917,12 @@ export class Repository {
         }
       }
       assets.push(asset)
-      media.push({ id: asset.id, type: asset.type, name: asset.name, url: this.assetURL(asset) })
+      media.push({
+        id: asset.id,
+        type: asset.type as 'image' | 'video' | 'audio',
+        name: asset.name,
+        url: this.assetURL(asset),
+      })
       migrated = replaceMediaURL(migrated, url, this.assetURL(asset))
       if (!copied)
         this.warnings.push(
@@ -569,9 +941,12 @@ export class Repository {
           (active?.revision ?? null) !== cmd.expectedRevision
         )
           throw new Error('현재 콘티가 변경되었습니다. 다시 확인해주세요.')
-        const refs = cmd.fromCurrent ? s.playlist : []
-        newSetlist(s, cmd.title, cmd.date)
+        const refs = cmd.fromCurrent
+          ? s.playlist.map((item) => ({ ...item, id: randomUUID() }))
+          : []
+        const target = newSetlist(s, cmd.title, cmd.date)
         replaceOrder(s, refs)
+        if (cmd.fromCurrent && active) copyServicePlan(s, active, target)
         return
       }
       const list = s.setlists.find((x) => x.id === cmd.id)
@@ -586,8 +961,12 @@ export class Repository {
         s.playlist = clone(list.items)
         list.lastOpenedAt = new Date().toISOString()
       } else if (cmd.operation === 'duplicate') {
-        newSetlist(s, cmd.title, cmd.date ?? list.date)
-        replaceOrder(s, list.items)
+        const target = newSetlist(s, cmd.title, cmd.date ?? list.date)
+        replaceOrder(
+          s,
+          list.items.map((item) => ({ ...item, id: randomUUID() })),
+        )
+        copyServicePlan(s, list, target)
       } else if (cmd.operation === 'rename') {
         list.title = cmd.title
         list.date = cmd.date
@@ -654,12 +1033,80 @@ export class Repository {
       }),
     )
   }
+  async exportService(setlistId: string, expectedRevision: number): Promise<string> {
+    Id.parse(setlistId)
+    await this.settled()
+    const list = this.state.setlists.find((entry) => entry.id === setlistId && !entry.deletedAt)
+    if (!list?.servicePlan || list.revision !== expectedRevision)
+      throw new Error('예배 내용이 변경되었습니다. 다시 확인해주세요.')
+    const songIds = new Set(list.items.map((row) => row.presentationId))
+    const presentationIds = new Set(
+      list.servicePlan.items.flatMap((cue) =>
+        cue.binding?.kind === 'presentation' ? [cue.binding.presentationId] : [],
+      ),
+    )
+    const resourceIds = new Set(
+      list.servicePlan.items.flatMap((cue) =>
+        cue.binding?.kind === 'resource' ? [cue.binding.resourceId] : [],
+      ),
+    )
+    const bundle = clone({
+      format: 'propre-project',
+      schemaVersion: 3,
+      kind: 'service',
+      presentations: [],
+      setlists: [list],
+      setlistSongs: this.state.setlistSongs
+        .filter((song) => songIds.has(song.presentation.id))
+        .map((song) => ({ presentation: song.presentation })),
+      cuePresentations: this.state.cuePresentations.filter(
+        (entry) => entry.ownerSetlistId === list.id && presentationIds.has(entry.presentation.id),
+      ),
+      cueResources: this.state.cueResources.filter(
+        (entry) => entry.ownerSetlistId === list.id && resourceIds.has(entry.resource.id),
+      ),
+      activeSetlistId: list.id,
+      playlist: list.items,
+      assets: [] as unknown[],
+    })
+    this.assertAssets(bundle)
+    const ids = new Set(mediaURLs(bundle).map((url) => new URL(url).pathname.split('/')[1]))
+    for (const entry of bundle.cueResources)
+      if (entry.resource.kind === 'pdf') ids.add(entry.resource.assetId)
+    let bytes = Buffer.byteLength(JSON.stringify(bundle))
+    for (const id of ids) {
+      const asset = this.state.assets.find((entry) => entry.id === id)
+      if (!asset) throw new Error('예배에 필요한 파일을 찾지 못했습니다.')
+      const content = await fs.readFile(await this.assetPath(this.assetURL(asset)))
+      bytes += Math.ceil((content.length * 4) / 3)
+      if (bytes > MAX_FILE_BYTES)
+        throw new Error('예배 파일이 200MB를 초과합니다. 자료를 나누어주세요.')
+      bundle.assets.push({
+        id: asset.id,
+        name: asset.name,
+        type: asset.type,
+        extension: asset.extension,
+        sha256: createHash('sha256').update(content).digest('hex'),
+        data: content.toString('base64'),
+      })
+    }
+    const result = JSON.stringify(bundle)
+    parseProject(result)
+    if (Buffer.byteLength(result) > MAX_FILE_BYTES)
+      throw new Error('예배 파일이 200MB를 초과합니다.')
+    if (this.state.setlists.find((entry) => entry.id === setlistId)?.revision !== expectedRevision)
+      throw new Error('저장 중 예배 내용이 바뀌었습니다. 다시 시도해주세요.')
+    return result
+  }
   async exportProject(data: string | undefined): Promise<string> {
     const project = data ? parseProject(data) : null
+    if (project?.portable?.kind === 'service') throw new Error('예배 전용 저장을 사용해주세요.')
+    if (project?.portable?.kind === 'service-template')
+      throw new Error('템플릿 전용 저장을 사용해주세요.')
     const presentations = project?.presentations || this.library()
     const bundle = {
       format: 'propre-project',
-      schemaVersion: 1,
+      schemaVersion: data ? 1 : 3,
       kind: project?.portable?.kind === 'playlist' ? 'playlist' : data ? 'presentation' : 'backup',
       ...(project?.portable?.kind === 'playlist'
         ? {
@@ -677,6 +1124,12 @@ export class Repository {
             activeSetlistId: this.state.activeSetlistId,
             settings: this.state.settings,
             media: this.state.media,
+            deletedLibrary: this.state.deletedLibrary,
+            deletedMedia: this.state.deletedMedia,
+            outputResources: this.state.outputResources,
+            cuePresentations: this.state.cuePresentations,
+            cueResources: this.state.cueResources,
+            serviceTemplates: this.state.serviceTemplates,
             draft: this.state.draft,
           }
         : {}),
@@ -710,6 +1163,8 @@ export class Repository {
     restore = false,
     expectedPlaylist?: unknown,
     appendPlaylist = false,
+    serviceTarget?: ServiceFileTarget,
+    templateImport = false,
   ): Promise<{
     presentations: Presentation[]
     restored: boolean
@@ -717,6 +1172,15 @@ export class Repository {
     reused?: number
   }> {
     const parsed = parseProject(data)
+    if (
+      templateImport
+        ? parsed.portable?.kind !== 'service-template'
+        : parsed.portable?.kind === 'service-template'
+    )
+      throw new Error('템플릿 파일의 불러오기 버튼을 사용해주세요.')
+    if (serviceTarget) ServiceFileTargetSchema.parse(serviceTarget)
+    if (serviceTarget ? parsed.portable?.kind !== 'service' : parsed.portable?.kind === 'service')
+      throw new Error('예배 파일의 불러오기 버튼을 사용해주세요.')
     if (restore && parsed.portable?.kind !== 'backup')
       throw new Error('전체 백업 파일을 선택해주세요.')
     const importingPlaylist = expectedPlaylist !== undefined
@@ -732,6 +1196,13 @@ export class Repository {
           : '플레이리스트의 불러오기 버튼을 사용해주세요.',
       )
     const checkPlaylist = (state: RepositoryState) => {
+      if (
+        serviceTarget &&
+        (state.activeSetlistId !== serviceTarget.activeId ||
+          (state.setlists.find((entry) => entry.id === state.activeSetlistId)?.revision ?? null) !==
+            serviceTarget.revision)
+      )
+        throw new Error('현재 예배가 변경되었습니다. 다시 불러와주세요.')
       if (before && JSON.stringify(before) !== JSON.stringify(state.playlist))
         throw new Error('진행 순서가 변경되었습니다. 다시 불러와주세요.')
     }
@@ -751,7 +1222,7 @@ export class Repository {
             createHash('sha256').update(content).digest('hex') !== entry.sha256
           )
             throw new Error('미디어 무결성 확인에 실패했습니다.')
-          if (importingPlaylist) {
+          if (importingPlaylist || serviceTarget || templateImport) {
             let identical: AssetRecord | undefined
             for (const asset of [...this.state.assets, ...assets]) {
               if (asset.type !== entry.type || asset.extension !== entry.extension) continue
@@ -769,6 +1240,23 @@ export class Repository {
                 if (new URL(url).pathname.split('/')[1] === entry.id)
                   portable = replaceMediaURL(portable, url, this.assetURL(identical))
               }
+              if (portable.cueResources)
+                portable.cueResources = portable.cueResources.map((owned) => ({
+                  ...owned,
+                  resource:
+                    owned.resource.kind === 'pdf' && owned.resource.assetId === entry.id
+                      ? { ...owned.resource, assetId: identical.id }
+                      : owned.resource,
+                }))
+              if (portable.serviceTemplates)
+                portable.serviceTemplates = portable.serviceTemplates.map((template) => ({
+                  ...template,
+                  resources: template.resources.map((resource) =>
+                    resource.kind === 'pdf' && resource.assetId === entry.id
+                      ? { ...resource, assetId: identical!.id }
+                      : resource,
+                  ),
+                }))
               if (!assets.some((a) => a.id === identical.id)) assets.push(identical)
               continue
             }
@@ -786,12 +1274,36 @@ export class Repository {
             }
             id = randomUUID()
             if (!importingPlaylist) {
-              const pattern = `media://asset/${entry.id}/`
-              portable = JSON.parse(
-                JSON.stringify(portable).split(pattern).join(`media://asset/${id}/`),
-              )
+              for (const url of mediaURLs(portable))
+                if (new URL(url).pathname.split('/')[1] === entry.id)
+                  portable = replaceMediaURL(
+                    portable,
+                    url,
+                    url.replace(`media://asset/${entry.id}/`, `media://asset/${id}/`),
+                  )
             }
           }
+          if (id !== entry.id && portable?.cueResources)
+            portable.cueResources = portable.cueResources.map((x) => ({
+              ...x,
+              resource:
+                x.resource.kind === 'pdf' && x.resource.assetId === entry.id
+                  ? { ...x.resource, assetId: id }
+                  : x.resource,
+            }))
+          if (id !== entry.id && portable?.outputResources)
+            portable.outputResources = portable.outputResources.map((r) =>
+              r.kind === 'pdf' && r.assetId === entry.id ? { ...r, assetId: id } : r,
+            )
+          if (id !== entry.id && portable?.serviceTemplates)
+            portable.serviceTemplates = portable.serviceTemplates.map((template) => ({
+              ...template,
+              resources: template.resources.map((resource) =>
+                resource.kind === 'pdf' && resource.assetId === entry.id
+                  ? { ...resource, assetId: id }
+                  : resource,
+              ),
+            }))
           const asset = Asset.parse({
             id,
             name: entry.name,
@@ -822,6 +1334,15 @@ export class Repository {
       }
       await this.transaction((s) => {
         checkPlaylist(s)
+        if (serviceTarget && portable) importServiceState(s, portable)
+        if (templateImport && portable) {
+          if (s.serviceTemplates.length >= 200)
+            throw new Error('템플릿은200개까지 보관할 수 있습니다.')
+          const template = copyTemplate(portable.serviceTemplates![0])
+          if (s.serviceTemplates.some((entry) => entry.name === template.name))
+            template.name = (template.name + ' 복사본').slice(0, 100)
+          s.serviceTemplates.push(template)
+        }
         if (importingPlaylist && portable?.playlist) {
           const mapping = new Map<string, string>()
           const signatures = new Map(s.library.map((p) => [songSignature(p as Presentation), p.id]))
@@ -866,10 +1387,10 @@ export class Repository {
         if (!restore)
           s.media = s.media.concat(
             assets
-              .filter((a) => !s.media.some((item) => item.id === a.id))
+              .filter((a) => a.type !== 'document' && !s.media.some((item) => item.id === a.id))
               .map((asset) => ({
                 id: asset.id,
-                type: asset.type,
+                type: asset.type as 'image' | 'video' | 'audio',
                 name: asset.name,
                 url: this.assetURL(asset),
               })),
@@ -888,7 +1409,14 @@ export class Repository {
               ),
             )
           s.settings = portable.settings || {}
+          s.deletedLibrary = portable.deletedLibrary || []
+          s.deletedMedia = portable.deletedMedia || []
           s.media = portable.media || []
+          s.outputResources = portable.outputResources || []
+          s.cuePresentations = portable.cuePresentations || []
+          s.cueResources = portable.cueResources || []
+          s.serviceTemplates = portable.serviceTemplates || []
+          migrateServicePlans(s)
           s.draft = portable.draft ? parsePresentation(portable.draft) : null
           s.wasOutputActive = false
           s.wasStageActive = false
@@ -900,21 +1428,210 @@ export class Repository {
       throw e
     }
   }
+  private validateResources(s: RepositoryState) {
+    for (const r of [
+      ...s.outputResources,
+      ...s.cueResources.map((entry) => entry.resource),
+      ...s.serviceTemplates.flatMap((template) => template.resources),
+    ])
+      if (r.kind === 'pdf') {
+        if (
+          r.lastPreparedPage > r.pageCount ||
+          !s.assets.some(
+            (a) => a.id === r.assetId && a.type === 'document' && a.extension === '.pdf',
+          )
+        )
+          throw new Error('PDF 자료와 등록 파일이 일치하지 않습니다.')
+      }
+  }
+  private async recoverDeletedOutputResource() {
+    await this.settled()
+    for (let n = 1; n <= 5; n++) {
+      let previous: RepositoryState
+      try {
+        previous = await this.read(`${this.filename}.bak${n}`)
+      } catch {
+        continue
+      }
+      for (const resource of [...previous.outputResources].reverse()) {
+        if (resource.deletedAt || this.state.outputResources.some((r) => r.id === resource.id))
+          continue
+        if (resource.kind === 'pdf') {
+          const asset = this.state.assets.find((a) => a.id === resource.assetId)
+          if (!asset) continue
+          try {
+            const bytes = await fs.readFile(await this.assetPath(this.assetURL(asset)))
+            if (createHash('sha256').update(bytes).digest('hex') !== resource.sha256) continue
+          } catch {
+            continue
+          }
+        }
+        await this.transaction((s) => {
+          if (s.outputResources.some((r) => r.id === resource.id))
+            throw new Error('자료가 변경되었습니다. 다시 확인해주세요.')
+          s.outputResources.push({
+            ...clone(resource),
+            revision: resource.revision + 1,
+            updatedAt: new Date().toISOString(),
+          })
+        })
+        return clone(this.state.outputResources)
+      }
+    }
+    throw new Error(
+      '최근 저장 복사본에서 되돌릴 자료를 찾지 못했습니다. 전체 백업 또는 원본 파일을 확인해주세요.',
+    )
+  }
+  async manageOutputResource(raw: unknown) {
+    const command = ResourceCommand.parse(raw)
+    if (command.action === 'recover-deleted') return this.recoverDeletedOutputResource()
+    await this.transaction((s) => {
+      const now = new Date().toISOString()
+      if (command.action === 'create-web') {
+        const url = normalizeWebURL(command.url)
+        s.outputResources.push({
+          id: randomUUID(),
+          kind: 'web',
+          name: command.name.trim() || new URL(url).hostname,
+          url,
+          revision: 0,
+          createdAt: now,
+          updatedAt: now,
+        })
+      } else {
+        const r = s.outputResources.find((x) => x.id === command.id)
+        if (!r || r.revision !== command.revision)
+          throw new Error('자료가 변경되었습니다. 다시 조회해주세요.')
+        if (command.action === 'restore') {
+          if (!r.deletedAt) throw new Error('삭제한 자료를 선택해주세요.')
+          delete r.deletedAt
+          r.revision++
+          r.updatedAt = now
+        } else if (command.action === 'delete') {
+          if (r.deletedAt) throw new Error('이미 삭제한 자료입니다.')
+          r.deletedAt = now
+          r.revision++
+          r.updatedAt = now
+        } else if (command.action === 'update-web') {
+          if (r.deletedAt) throw new Error('삭제한 자료를 먼저 복원해주세요.')
+          if (r.kind !== 'web') throw new Error('웹 자료를 선택해주세요.')
+          r.name = command.name.trim()
+          r.url = normalizeWebURL(command.url)
+          r.revision++
+          r.updatedAt = now
+        }
+      }
+    })
+    return clone(this.state.outputResources)
+  }
+  async registerPDF(filename: string, validate?: (data: Buffer) => Promise<number>) {
+    const info = await fs.stat(filename)
+    if (
+      !info.isFile() ||
+      info.size > MAX_FILE_BYTES / 2 ||
+      path.extname(filename).toLowerCase() !== '.pdf'
+    )
+      throw new Error('100MiB 이하의 PDF 파일을 선택해주세요.')
+    const data = await fs.readFile(filename)
+    if (data.length > MAX_FILE_BYTES / 2 || !data.subarray(0, 1024).includes(Buffer.from('%PDF-')))
+      throw new Error('PDF 파일 형식을 확인해주세요.')
+    let pageCount: number
+    try {
+      pageCount = validate
+        ? await validate(data)
+        : (await PDFDocument.load(data, { updateMetadata: false })).getPageCount()
+    } catch {
+      throw new Error('암호가 없고 손상되지 않은 PDF 파일을 선택해주세요.')
+    }
+    if (pageCount < 1 || pageCount > 1000) throw new Error('PDF는 1~1,000페이지까지 지원합니다.')
+    const id = randomUUID(),
+      now = new Date().toISOString()
+    const asset = Asset.parse({
+      id,
+      name: path.basename(filename).slice(0, 200),
+      type: 'document',
+      extension: '.pdf',
+      filename: id + '.pdf',
+    })
+    const resource = {
+      id: randomUUID(),
+      kind: 'pdf' as const,
+      name: asset.name,
+      revision: 0,
+      createdAt: now,
+      updatedAt: now,
+      assetId: id,
+      sha256: createHash('sha256').update(data).digest('hex'),
+      pageCount,
+      lastPreparedPage: 1,
+      rotation: 0 as const,
+    }
+    await fs.mkdir(this.mediaDir, { recursive: true })
+    const destination = path.join(this.mediaDir, asset.filename)
+    await fs.writeFile(destination, data, { flag: 'wx', mode: 0o600 })
+    try {
+      await this.transaction((s) => {
+        s.assets.push(asset)
+        s.outputResources.push(resource)
+      })
+    } catch (e) {
+      await fs.rm(destination, { force: true })
+      throw e
+    }
+    return resource
+  }
+  async rememberPDF(id: string, revision: number, page: number, rotation: 0 | 90 | 180 | 270) {
+    await this.transaction((s) => {
+      const r = [...s.outputResources, ...s.cueResources.map((x) => x.resource)].find(
+        (x) => x.id === id,
+      )
+      if (
+        !r ||
+        r.deletedAt ||
+        r.kind !== 'pdf' ||
+        r.revision !== revision ||
+        page < 1 ||
+        page > r.pageCount
+      )
+        throw new Error('PDF 자료가 변경되었습니다. 다시 준비해주세요.')
+      r.lastPreparedPage = page
+      r.rotation = rotation
+    })
+  }
   async cleanup(): Promise<number> {
     const refs = JSON.stringify({
       library: this.state.library,
+      deletedLibrary: this.state.deletedLibrary,
+      deletedMedia: this.state.deletedMedia,
       setlistSongs: this.state.setlistSongs,
       draft: this.state.draft,
       media: this.state.media,
+      outputResources: this.state.outputResources,
+      cuePresentations: this.state.cuePresentations,
+      cueResources: this.state.cueResources,
+      serviceTemplates: this.state.serviceTemplates,
     })
-    const unused = this.state.assets.filter((a) => !refs.includes(`media://asset/${a.id}/`))
+    const unused = this.state.assets.filter(
+      (a) =>
+        !refs.includes(`media://asset/${a.id}/`) &&
+        ![
+          ...this.state.outputResources,
+          ...this.state.cueResources.map((x) => x.resource),
+          ...this.state.serviceTemplates.flatMap((template) => template.resources),
+        ].some((r) => r.kind === 'pdf' && r.assetId === a.id),
+    )
     // Old snapshots may still reference an asset. Keep it until none of the five checkpoints needs it.
     const backups = await Promise.all(
       Array.from({ length: 5 }, (_, n) =>
         fs.readFile(`${this.filename}.bak${n + 1}`, 'utf8').catch(() => ''),
       ),
     )
-    const safe = unused.filter((a) => !backups.some((b) => b.includes(`media://asset/${a.id}/`)))
+    const safe = unused.filter(
+      (a) =>
+        !backups.some(
+          (b) => b.includes(`media://asset/${a.id}/`) || b.includes(`"assetId":"${a.id}"`),
+        ),
+    )
     await this.transaction((s) => {
       s.assets = s.assets.filter((a) => !safe.some((u) => u.id === a.id))
     })
@@ -925,14 +1642,79 @@ export class Repository {
     const previous = await this.read(`${this.filename}.bak1`)
     await this.transaction((s) => Object.assign(s, previous), true)
   }
-  async relink(id: string, filename: string): Promise<void> {
+  async relink(
+    id: string,
+    filename: string,
+    validatePDF?: (data: Buffer) => Promise<number>,
+  ): Promise<void> {
     const asset = this.state.assets.find((a) => a.id === id)
     if (!asset) throw new Error('미디어가 없습니다.')
     const extension = path.extname(filename).toLowerCase()
     if (extension !== asset.extension) throw new Error('기존 파일과 같은 형식으로 선택해주세요.')
     const info = await fs.stat(filename)
-    if (info.size > MAX_FILE_BYTES / 2) throw new Error('파일이 너무 큽니다.')
-    await atomicWrite(path.join(this.mediaDir, asset.filename), await fs.readFile(filename))
+    if (!info.isFile() || info.size > MAX_FILE_BYTES / 2) throw new Error('파일이 너무 큽니다.')
+    const data = await fs.readFile(filename)
+    if (data.length > MAX_FILE_BYTES / 2) throw new Error('파일이 너무 큽니다.')
+    if (asset.type !== 'document') {
+      const referenced = [
+        ...this.state.setlistSongs.map((entry) => entry.presentation),
+        ...this.state.cuePresentations.map((entry) => entry.presentation),
+        ...this.state.serviceTemplates.flatMap((template) => template.presentations),
+      ].some((presentation) =>
+        mediaURLs(presentation).some((url) => new URL(url).pathname.split('/')[1] === id),
+      )
+      if (referenced) {
+        const previous = await fs
+          .readFile(path.join(this.mediaDir, asset.filename))
+          .catch(() => null)
+        if (
+          !previous ||
+          createHash('sha256').update(previous).digest('hex') !==
+            createHash('sha256').update(data).digest('hex')
+        )
+          throw new Error(
+            '예배 사본에서 사용하는 파일입니다. 새 자료로 등록한 뒤 필요한 순서에 연결해주세요.',
+          )
+      }
+      await atomicWrite(path.join(this.mediaDir, asset.filename), data)
+      return
+    }
+    const preserved = [
+      ...this.state.cueResources,
+      ...this.state.serviceTemplates.flatMap((template) =>
+        template.resources.map((resource) => ({ resource })),
+      ),
+    ].filter((x) => x.resource.kind === 'pdf' && x.resource.assetId === id)
+    const hash = createHash('sha256').update(data).digest('hex')
+    if (preserved.some((x) => x.resource.kind === 'pdf' && x.resource.sha256 !== hash))
+      throw new Error(
+        '예배에 보관한 PDF 원본과 다릅니다. 새 PDF로 등록한 뒤 필요한 순서에 연결해주세요.',
+      )
+    if (!data.subarray(0, 1024).includes(Buffer.from('%PDF-')))
+      throw new Error('PDF 파일을 선택해주세요.')
+    const pages = validatePDF
+      ? await validatePDF(data)
+      : (await PDFDocument.load(data)).getPageCount()
+    if (pages < 1 || pages > 1000) throw new Error('PDF는 1~1,000페이지까지 지원합니다.')
+    const destination = path.join(this.mediaDir, asset.filename),
+      previous = await fs.readFile(destination).catch(() => null)
+    await atomicWrite(destination, data)
+    try {
+      await this.transaction((s) => {
+        for (const r of s.outputResources)
+          if (r.kind === 'pdf' && r.assetId === id) {
+            r.sha256 = createHash('sha256').update(data).digest('hex')
+            r.pageCount = pages
+            r.lastPreparedPage = Math.min(r.lastPreparedPage, pages)
+            r.revision++
+            r.updatedAt = new Date().toISOString()
+          }
+      })
+    } catch (e) {
+      if (previous) await atomicWrite(destination, previous)
+      else await fs.rm(destination, { force: true })
+      throw e
+    }
   }
   async setSettings(raw: unknown): Promise<void> {
     const settings = SettingsSchema.parse(raw)

@@ -63,6 +63,27 @@ function Prop({ prop, green }: { prop: PropItem; green: boolean }) {
 export default function CompositeFrame({ state }: { state: OutputState }) {
   const { layers, globalSlideStyle: g, isGreenScreen: green } = state,
     slide = layers.slide
+  if (state.source?.kind === 'pdf')
+    return (
+      <img
+        data-output-source="pdf"
+        src={state.source.frameURL}
+        alt=""
+        className="h-full w-full object-contain bg-black"
+        onError={() => window.ipcRenderer.reportMediaError()}
+      />
+    )
+  if (state.source?.kind === 'web' && state.source.frozenFrame)
+    return (
+      <img
+        data-output-source="web-frozen"
+        src={state.source.frozenFrame}
+        alt=""
+        className="h-full w-full object-contain bg-black"
+      />
+    )
+  if (state.source?.kind === 'web')
+    return <div data-output-source="web" className="h-full w-full bg-black" />
   const dim = slide?.styles?.useCustomStyle
     ? slide.styles.backgroundDim || 0
     : g?.backgroundDim || 0

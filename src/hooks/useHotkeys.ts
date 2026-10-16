@@ -18,7 +18,7 @@ export const useHotkeys = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (hotkeysBlocked(e)) return
+      if (e.defaultPrevented || hotkeysBlocked(e)) return
       // Save (Ctrl/Cmd + S)
       if (e.key.toLowerCase() === 's' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
@@ -53,6 +53,14 @@ export const useHotkeys = () => {
         usePresentationStore.temporal.getState().redo()
         return
       }
+
+      if (
+        [' ', 'ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key) &&
+        (e.target as HTMLElement)?.closest(
+          'button, summary, a[href], [role="button"], [role="menuitem"], [role="tab"], [role="slider"]',
+        )
+      )
+        return
 
       const currentIndex = slides.findIndex((s) => s.id === activeSlideId)
 

@@ -19,6 +19,8 @@ export default function PreviewPanel() {
       isGreenScreen: s.isGreenScreen,
     })),
   )
+  const external = usePresentationStore((s) => s.externalOutput)
+  const browserFrame = usePresentationStore((s) => s.browserFrame)
   const health = usePresentationStore((s) => s.screenHealth.find((h) => h.screen === 'main'))
   const enabled = usePresentationStore((s) => s.isOutputEnabled)
   const label = !enabled
@@ -55,12 +57,41 @@ export default function PreviewPanel() {
         data-output-surface="true"
         className="relative aspect-video w-full overflow-hidden rounded-lg border border-white/10 bg-black shadow-lg"
       >
-        <CompositeFrame state={outputSnapshot(state as Parameters<typeof outputSnapshot>[0])} />
+        {external.source.kind === 'web' ? (
+          browserFrame?.resourceId === external.source.resourceId ? (
+            <img
+              className="h-full w-full object-contain"
+              src={browserFrame.image}
+              alt="웹 송출 미리보기 (지연 가능)"
+            />
+          ) : (
+            <div className="p-4 text-gray-400">웹 미리보기 준비 중</div>
+          )
+        ) : (
+          <CompositeFrame
+            state={{
+              ...outputSnapshot(state as Parameters<typeof outputSnapshot>[0]),
+              source: external.source,
+            }}
+          />
+        )}
       </div>
       <div className="mb-3 mt-2 flex items-center justify-between text-[10px] text-gray-500">
-        <span>{activeIndex < 0 ? '대기 화면' : '현재 슬라이드'}</span>
+        <span>
+          {external.source.kind === 'slides'
+            ? activeIndex < 0
+              ? '대기 화면'
+              : '현재 슬라이드'
+            : external.source.name}
+        </span>
         <span className="tabular-nums">
-          {activeIndex < 0 ? '—' : `${activeIndex + 1} / ${state.slides.length}`}
+          {external.source.kind === 'pdf'
+            ? `${external.source.page} / ${external.source.pageCount}`
+            : external.source.kind === 'web'
+              ? '웹 · 미리보기 지연 가능'
+              : activeIndex < 0
+                ? '—'
+                : `${activeIndex + 1} / ${state.slides.length}`}
         </span>
       </div>
       <OutputClearActions />

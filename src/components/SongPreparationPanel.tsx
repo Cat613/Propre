@@ -28,6 +28,7 @@ const names: Record<SongJob['status'], string> = {
 }
 export default function SongPreparationPanel({ onClose }: { onClose: () => void }) {
   const modal = useRef<HTMLDivElement>(null)
+  const connectionsButton = useRef<HTMLButtonElement>(null)
   const [profiles, setProfiles] = useState<(ConnectionProfile & { configured: boolean })[]>([]),
     [profileId, setProfileId] = useState('')
   const [jobs, setJobs] = useState<SongJob[]>([]),
@@ -48,7 +49,17 @@ export default function SongPreparationPanel({ onClose }: { onClose: () => void 
   const library = store((s) => s.library),
     active = store((s) => s.setlists.find((l) => l.id === s.activeSetlistId))
   const selectedProfile = profiles.find((profile) => profile.id === profileId)
+  const profileChanged =
+    !!job &&
+    !!selectedProfile &&
+    (job.profile.id !== selectedProfile.id ||
+      job.profile.provider !== selectedProfile.provider ||
+      job.profile.model !== selectedProfile.model)
   const processing = !!job && ['analyzing', 'committing'].includes(job.status)
+  const closeConnections = () => {
+    setConnections(false)
+    connectionsButton.current?.focus()
+  }
   const close = () => {
     if (busy) return
     if (
@@ -68,7 +79,7 @@ export default function SongPreparationPanel({ onClose }: { onClose: () => void 
         .finally(() => setBusy(false))
     } else onClose()
   }
-  useModalGuard(true, close)
+  useModalGuard(true, () => (connections ? closeConnections() : close()))
   const loadProfiles = async (preferDefault = false) => {
     const p = await window.ipcRenderer.listAIProfiles()
     setProfiles(p.profiles)
@@ -187,7 +198,7 @@ export default function SongPreparationPanel({ onClose }: { onClose: () => void 
           void selectFiles(Array.from(e.dataTransfer.files))
         }}
       >
-        <div className="flex justify-between items-center">
+        <div className="sticky -top-5 z-10 -mx-5 -mt-5 flex justify-between items-center border-b border-gray-700 bg-gray-900 p-5">
           <div>
             <h2 className="text-lg font-bold">AI로 찬양 준비</h2>
             <p className="text-xs text-gray-400">
@@ -210,6 +221,7 @@ export default function SongPreparationPanel({ onClose }: { onClose: () => void 
             사용할 AI
             <select
               aria-label="사용할 AI"
+              disabled={busy || processing}
               className="block w-full bg-gray-800 p-2"
               value={profileId}
               onChange={(e) => setProfileId(e.target.value)}
@@ -230,11 +242,14 @@ export default function SongPreparationPanel({ onClose }: { onClose: () => void 
           </label>
           <div className="flex items-end">
             <button
+              ref={connectionsButton}
               type="button"
+              aria-expanded={connections}
+              aria-controls="song-ai-connections"
               className="bg-gray-800 rounded p-2 text-sm"
-              onClick={() => setConnections(!connections)}
+              onClick={() => (connections ? closeConnections() : setConnections(true))}
             >
-              AI 연결 추가
+              {connections ? 'AI 연결 추가 닫기' : 'AI 연결 추가'}
             </button>
           </div>
           <p className="col-span-2 -mt-2 text-xs text-gray-400">
@@ -270,7 +285,11 @@ export default function SongPreparationPanel({ onClose }: { onClose: () => void 
             </select>
           </label>
         </div>
-        {connections && <AIProfilesPanel onChanged={() => void loadProfiles(true)} />}
+        {connections && (
+          <div id="song-ai-connections">
+            <AIProfilesPanel onClose={closeConnections} onChanged={() => void loadProfiles(true)} />
+          </div>
+        )}
         <label className="text-sm block">
           송폼과 추가 지시
           <textarea
@@ -324,6 +343,11 @@ export default function SongPreparationPanel({ onClose }: { onClose: () => void 
         )}
         {(error || job?.error) && (
           <p role="alert" className="bg-red-950/50 text-red-200 p-3 text-sm rounded">
+            {!error && job?.error && profileChanged && (
+              <span className="block font-bold">
+                이전 분석 오류 · {job.profile.name} · {job.profile.model}
+              </span>
+            )}
             {error || job?.error}
           </p>
         )}
@@ -384,37 +408,33 @@ export default function SongPreparationPanel({ onClose }: { onClose: () => void 
                   ))}
                 </fieldset>
               )}
+              {!processing && job.status !== 'completed' && selectedProfile && (
+                <p className="text-xs text-blue-200" role="note">
+                  이번 분석에 사용할 AI: {selectedProfile.name} · {selectedProfile.model}
+                  {profileChanged && ' · 실행하면 선택한 AI로 파일을 다시 전송합니다.'}
+                </p>
+              )}
               <div className="flex gap-3">
                 {!processing && job.status !== 'completed' && (
                   <button
                     type="button"
-                    disabled={busy}
+                    disabled={busy || !selectedProfile?.configured || analysisSources.length === 0}
                     className="bg-blue-600 px-3 py-2 rounded text-sm"
                     onClick={() =>
                       void run(async () => {
-                        setJob(await window.ipcRenderer.analyzeSongJob(job.id, analysisSources))
+                        const target = profileChanged
+                          ? await window.ipcRenderer.switchSongAI(job.id, profileId)
+                          : job
+                        if (profileChanged) setJob(target)
+                        setJob(await window.ipcRenderer.analyzeSongJob(target.id, analysisSources))
                       })
                     }
                   >
-                    {job.draft ? '같은 AI로 다시 분석' : '분석 시작'}
-                  </button>
-                )}
-                {!processing && job.status !== 'completed' && profileId !== job.profile.id && (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    className="text-sm text-blue-300"
-                    onClick={() =>
-                      void run(async () => {
-                        const switched = await window.ipcRenderer.switchSongAI(job.id, profileId)
-                        setJob(switched)
-                        setJob(
-                          await window.ipcRenderer.analyzeSongJob(switched.id, analysisSources),
-                        )
-                      })
-                    }
-                  >
-                    선택한 AI로 파일을 다시 전송해 분석
+                    {profileChanged
+                      ? '선택한 AI로 파일을 다시 전송해 분석'
+                      : job.draft
+                        ? '같은 AI로 다시 분석'
+                        : '분석 시작'}
                   </button>
                 )}
                 {job.status === 'analyzing' && (

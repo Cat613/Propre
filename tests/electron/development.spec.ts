@@ -52,6 +52,8 @@ async function launch(nonce = process.env.PROPRE_DEV_CSP_NONCE) {
       PROPRE_TEST_USER_DATA: dir,
     },
   })
+  expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(dir)
+  expect(dir).not.toContain('Application Support')
   return app.firstWindow()
 }
 
@@ -70,7 +72,7 @@ test('development startup renders the control, autosaves, and closes normally un
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v2.json'), 'utf8')).draft?.slides
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft?.slides
           .length,
     )
     .toBe(1)

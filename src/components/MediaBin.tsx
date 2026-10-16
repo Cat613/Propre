@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import DeletedMaterialsDialog from './DeletedMaterialsDialog'
+import OutputResourcesPanel from './OutputResourcesPanel'
 import { Image, Plus } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
@@ -5,6 +8,7 @@ import { usePresentationStore } from '../store'
 import type { MediaItem } from '../types'
 
 const MediaBin: React.FC = () => {
+  const [showTrash, setShowTrash] = useState(false)
   const { mediaBin, addMediaToBin, removeMediaFromBin, triggerBackground } = usePresentationStore(
     useShallow((state) => ({
       mediaBin: state.mediaBin,
@@ -35,11 +39,15 @@ const MediaBin: React.FC = () => {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      {showTrash && <DeletedMaterialsDialog kind="media" onClose={() => setShowTrash(false)} />}
       <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-4 pb-3">
         <div>
-          <h2 className="workbench-heading">미디어 라이브러리</h2>
+          <h2 className="workbench-heading">송출 자료</h2>
           <p className="mt-1 text-[10px] text-gray-500">이미지·영상·오디오 {mediaBin.length}개</p>
         </div>
+        <button className="workbench-button" onClick={() => setShowTrash(true)}>
+          미디어 휴지통
+        </button>
         <button
           type="button"
           onClick={() => void handleImport()}
@@ -49,6 +57,9 @@ const MediaBin: React.FC = () => {
           <Plus size={13} />
           가져오기
         </button>
+      </div>
+      <div className="max-h-[65vh] overflow-y-auto workbench-scroll">
+        <OutputResourcesPanel />
       </div>
       {/* Media Grid */}
       <div className="workbench-scroll min-h-0 flex-1 overflow-y-auto p-4 pt-0">

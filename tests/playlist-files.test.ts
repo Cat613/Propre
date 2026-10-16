@@ -126,7 +126,7 @@ it.each(['orphan', 'extra-song', 'future', 'settings', 'duplicate-item', 'wrong-
     const file = JSON.parse(await exported())
     if (caseName === 'orphan') file.playlist[0].presentationId = 'missing'
     if (caseName === 'extra-song') file.presentations.push(song('hidden'))
-    if (caseName === 'future') file.schemaVersion = 2
+    if (caseName === 'future') file.schemaVersion = 3
     if (caseName === 'settings') file.settings = { stageCurrentFontSize: 80 }
     if (caseName === 'duplicate-item') file.playlist[1].id = file.playlist[0].id
     if (caseName === 'wrong-kind') file.kind = 'presentation'

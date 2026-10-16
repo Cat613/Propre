@@ -1,3 +1,4 @@
+import type { VisualSource } from '../shared/output-resources'
 import type { SongForm } from '../shared/song-preparation'
 export interface SlideStyles {
   fontSize?: string
@@ -269,6 +270,7 @@ export const DEFAULT_SCREEN_LOOK: ScreenLook = {
 
 // Output State Interface (Passed via IPC)
 export interface OutputState {
+  source?: VisualSource
   type: 'state-update'
   layers: LayerState
   globalSlideStyle?: GlobalSlideStyle // New field for standard slide global style
@@ -282,6 +284,7 @@ export interface StageSettings {
 }
 
 export interface StageData {
+  source?: VisualSource
   current: Slide | null
   next: Slide | null
   globalSlideStyle?: GlobalSlideStyle

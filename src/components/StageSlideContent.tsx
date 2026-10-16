@@ -69,6 +69,8 @@ export default function StageSlideContent({
                   lineHeight: local.lineHeight,
                   textShadow: local.textShadow,
                   WebkitTextStroke: local.textOutline ? '1px black' : undefined,
+                  textWrap: 'balance',
+                  wordBreak: 'keep-all',
                 }}
               >
                 {element.text}
@@ -76,7 +78,9 @@ export default function StageSlideContent({
             )
           })
         ) : (
-          <div data-stage-text="true">{slide.content || ''}</div>
+          <div data-stage-text="true" style={{ textWrap: 'balance', wordBreak: 'keep-all' }}>
+            {slide.content || ''}
+          </div>
         )}
       </FittedText>
       {referencePosition.startsWith('bottom') && reference}

@@ -100,6 +100,7 @@ test('playlist buttons save a portable snapshot and import songs/order while ret
   await app.evaluate(({ dialog }, filePath) => {
     dialog.showSaveDialog = async () => ({ canceled: false, filePath })
   }, savePath)
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
   await page.getByRole('button', { name: '파일 저장', exact: true }).click()
   await expect(page.getByText('플레이리스트 파일을 저장했습니다.', { exact: true })).toBeVisible()
   const saved = JSON.parse(await fs.readFile(savePath, 'utf8'))
@@ -118,7 +119,8 @@ test('playlist buttons save a portable snapshot and import songs/order while ret
   await expect(output.getByText('현재 송출 합성 본문', { exact: true })).toBeVisible()
   const before = await state()
   await choose(1)
-  await page.getByRole('button', { name: '파일 불러오기', exact: true }).click()
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
+  await page.getByRole('button', { name: '새 콘티로 불러오기', exact: true }).click()
   await expect(
     page.getByText('3개 순서를 불러왔습니다. 새 곡 2개 · 기존 곡 0개', { exact: true }),
   ).toBeVisible()
@@ -146,7 +148,8 @@ test('playlist buttons save a portable snapshot and import songs/order while ret
       load: typeof window.ipcRenderer.loadPlaylistFile,
     })),
   ).toEqual({ save: 'undefined', load: 'undefined' })
-  await page.getByRole('button', { name: '파일 불러오기', exact: true }).click()
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
+  await page.getByRole('button', { name: '새 콘티로 불러오기', exact: true }).click()
   await expect(
     page.getByText('3개 순서를 불러왔습니다. 새 곡 0개 · 기존 곡 2개', { exact: true }),
   ).toBeVisible()
@@ -165,26 +168,38 @@ test('playlist buttons save a portable snapshot and import songs/order while ret
 test('canceling either dialog leaves the workspace intact and invalid files show a recoverable error', async () => {
   const before = await state()
   await choose(0, true)
-  await page.getByRole('button', { name: '파일 불러오기', exact: true }).click()
-  await expect(page.getByRole('button', { name: '파일 불러오기', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
+  await page.getByRole('button', { name: '새 콘티로 불러오기', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: '새 콘티로 불러오기', exact: true, includeHidden: true }),
+  ).toBeEnabled()
   expect((await state()).playlist).toEqual(before.playlist)
   await choose(0)
-  await page.getByRole('button', { name: '파일 불러오기', exact: true }).click()
-  await expect(page.getByRole('button', { name: '파일 불러오기', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
+  await page.getByRole('button', { name: '새 콘티로 불러오기', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: '새 콘티로 불러오기', exact: true, includeHidden: true }),
+  ).toBeEnabled()
   expect((await state()).library).toEqual(before.library)
   expect((await state()).playlist).toEqual(before.playlist)
   await fs.writeFile(file, '{broken')
   await choose(1)
-  await page.getByRole('button', { name: '파일 불러오기', exact: true }).click()
-  await expect(page.getByRole('button', { name: '파일 불러오기', exact: true })).toBeEnabled()
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
+  await page.getByRole('button', { name: '새 콘티로 불러오기', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: '새 콘티로 불러오기', exact: true, includeHidden: true }),
+  ).toBeEnabled()
   await expect(page.getByText(/파일 형식·포함 미디어·저장 공간/)).toBeVisible()
   expect((await state()).library).toEqual(before.library)
   expect((await state()).playlist).toEqual(before.playlist)
   await app.evaluate(({ dialog }) => {
     dialog.showSaveDialog = async () => ({ canceled: true, filePath: undefined })
   })
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
   await page.getByRole('button', { name: '파일 저장', exact: true }).click()
-  await expect(page.getByRole('button', { name: '파일 저장', exact: true })).toBeEnabled()
+  await expect(
+    page.getByRole('button', { name: '파일 저장', exact: true, includeHidden: true }),
+  ).toBeEnabled()
   expect((await state()).playlist).toEqual(before.playlist)
 })
 test('native confirmation blocks slide hotkeys and duplicate actions until the operator cancels', async () => {
@@ -198,15 +213,22 @@ test('native confirmation blocks slide hotkeys and duplicate actions until the o
   })
   await page.getByTestId('slide-card').first().click()
   const before = await state()
-  await page.getByRole('button', { name: '파일 불러오기', exact: true }).click()
-  await expect(page.getByRole('button', { name: '파일 저장', exact: true })).toBeDisabled()
-  await expect(page.getByRole('button', { name: '파일 불러오기', exact: true })).toBeDisabled()
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
+  await page.getByRole('button', { name: '새 콘티로 불러오기', exact: true }).click()
+  await expect(
+    page.getByRole('button', { name: '파일 저장', exact: true, includeHidden: true }),
+  ).toBeDisabled()
+  await expect(
+    page.getByRole('button', { name: '새 콘티로 불러오기', exact: true, includeHidden: true }),
+  ).toBeDisabled()
   await expect
     .poll(() => app.evaluate(() => typeof (globalThis as any).__finishPlaylistDialog))
     .toBe('function')
   await page.keyboard.press('F2')
   expect((await state()).live).toEqual(before.live)
   await app.evaluate(() => (globalThis as any).__finishPlaylistDialog())
-  await expect(page.getByRole('button', { name: '파일 불러오기', exact: true })).toBeEnabled()
+  await expect(
+    page.getByRole('button', { name: '새 콘티로 불러오기', exact: true, includeHidden: true }),
+  ).toBeEnabled()
   expect((await state()).playlist).toEqual(before.playlist)
 })

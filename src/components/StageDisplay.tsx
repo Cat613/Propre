@@ -1,6 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import type { StageData } from '../types'
 import StageSlideContent from './StageSlideContent'
+import StageMessageBanner from './StageMessageBanner'
+import StageTimerBanner from './StageTimerBanner'
 export default function StageDisplay() {
   const [data, setData] = useState<StageData>({ current: null, next: null }),
     [time, setTime] = useState(''),
@@ -41,6 +43,8 @@ export default function StageDisplay() {
       className="w-screen h-screen flex flex-col bg-black text-white overflow-hidden"
       data-screen="stage"
     >
+      <StageMessageBanner />
+      <StageTimerBanner />
       <div
         className="shrink-0 flex justify-end px-4 pt-2 font-mono opacity-70"
         style={{ fontSize: 'clamp(14px, 3vh, 24px)', lineHeight: 1.2 }}
@@ -53,12 +57,32 @@ export default function StageDisplay() {
         style={{ padding: 'clamp(12px, 3vh, 32px)' }}
         data-stage-section="current"
       >
-        {data.current && (
-          <StageSlideContent
-            slide={data.current}
-            globalStyle={data.globalSlideStyle}
-            fontSize={data.settings?.currentFontSize ?? 80}
-          />
+        {data.source?.kind === 'pdf' ? (
+          <div className="flex h-full flex-col items-center gap-2">
+            <span>
+              {data.source.name} · {data.source.page}/{data.source.pageCount}
+            </span>
+            <img
+              className="min-h-0 flex-1 max-w-full object-contain"
+              src={data.source.frameURL}
+              alt="현재 PDF 페이지"
+            />
+          </div>
+        ) : data.source?.kind === 'web' ? (
+          <div className="flex h-full items-center justify-center text-center text-3xl">
+            웹 송출 중<br />
+            {data.source.name}
+            <br />
+            {data.source.host}
+          </div>
+        ) : (
+          data.current && (
+            <StageSlideContent
+              slide={data.current}
+              globalStyle={data.globalSlideStyle}
+              fontSize={data.settings?.currentFontSize ?? 80}
+            />
+          )
         )}
       </div>
       <div
@@ -74,9 +98,21 @@ export default function StageDisplay() {
             marginBottom: 'clamp(4px, 1vh, 8px)',
           }}
         >
-          다음 슬라이드
+          {data.source?.kind === 'pdf' ? '다음 PDF 페이지' : '다음 슬라이드'}
         </span>
-        {data.next ? (
+        {data.source?.kind === 'pdf' ? (
+          data.source.nextFrameURL ? (
+            <img
+              className="min-h-0 flex-1 max-w-full object-contain"
+              src={data.source.nextFrameURL}
+              alt="다음 PDF 페이지"
+            />
+          ) : (
+            <span>문서 끝</span>
+          )
+        ) : data.source?.kind === 'web' ? (
+          <span>웹페이지는 메인 화면에서 표시됩니다.</span>
+        ) : data.next ? (
           <StageSlideContent
             slide={data.next}
             globalStyle={data.globalSlideStyle}

@@ -154,12 +154,14 @@ test('setlist duplication and editing keep historical songs and originals; expli
     stage.locator('[data-stage-section="current"]').getByText('이번 주 예배 구성', { exact: true }),
   ).toBeVisible()
   await answer(0)
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
   await page.getByRole('button', { name: '찬양 목록 원곡에 반영', exact: true }).click()
   await expect(
-    page.getByRole('button', { name: '찬양 목록 원곡에 반영', exact: true }),
+    page.getByRole('button', { name: '찬양 목록 원곡에 반영', exact: true, includeHidden: true }),
   ).toBeEnabled()
   expect((await state()).library.find((p) => p.id === 'a')?.slides[0].content).toBe('원곡 가사')
   await answer(1)
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
   await page.getByRole('button', { name: '찬양 목록 원곡에 반영', exact: true }).click()
   await expect(
     page.getByText('찬양 목록에 반영했습니다. 다른 콘티는 유지됩니다.', { exact: true }),
@@ -189,20 +191,29 @@ test('setlist duplication and editing keep historical songs and originals; expli
   )
 })
 test('create/rename/date, trash and restore preserve song snapshots and allow retry after a failed save', async () => {
-  let modal = await manager()
-  await modal.getByRole('button', { name: '새 콘티', exact: true }).click()
+  const before = await state()
+  await page.getByRole('button', { name: '새 콘티', exact: true }).click()
+  let modal = page.getByRole('dialog', { name: '새 콘티', exact: true })
+  await expect(modal.getByLabel('콘티 이름', { exact: true })).toBeFocused()
+  await modal.getByRole('button', { name: '취소', exact: true }).click()
+  await expect(modal).toHaveCount(0)
+  expect((await state()).playlist).toEqual(before.playlist)
+  await page.getByRole('button', { name: '새 콘티', exact: true }).click()
+  modal = page.getByRole('dialog', { name: '새 콘티', exact: true })
   await modal.getByLabel('콘티 이름', { exact: true }).fill('빈 수요예배')
-  await modal.getByLabel('현재 순서로 만들기').uncheck()
+  await expect(modal.getByRole('radio', { name: '빈 콘티', exact: true })).toBeChecked()
   await modal.getByRole('button', { name: '콘티 만들기', exact: true }).click()
   await expect(modal).toHaveCount(0)
   expect((await state()).playlist).toHaveLength(0)
-  await expect(page.getByRole('button', { name: '파일 저장', exact: true })).toBeDisabled()
+  await expect(
+    page.getByRole('button', { name: '파일 저장', exact: true, includeHidden: true }),
+  ).toBeDisabled()
   modal = await manager()
   await modal.getByLabel('콘티 검색').fill('빈 수요예배')
   await modal.getByRole('button', { name: '콘티 이름 변경: 빈 수요예배', exact: true }).click()
   await modal.getByLabel('콘티 이름', { exact: true }).fill('수요예배')
   await modal.getByLabel('예배 날짜', { exact: true }).fill('2026-10-14')
-  const filename = path.join(dir, 'workspace-v2.json'),
+  const filename = path.join(dir, 'workspace-v4.json'),
     protectedFile = filename + '.held'
   await fs.rename(filename, protectedFile)
   await fs.mkdir(filename)
@@ -242,6 +253,7 @@ test('an original modified while publish confirmation is pending rejects the wri
           resolve({ response: 1, checkboxChecked: false })
       })
   })
+  await page.getByRole('button', { name: '콘티 더 보기', exact: true }).click()
   await page.getByRole('button', { name: '찬양 목록 원곡에 반영', exact: true }).click()
   await expect
     .poll(() => app.evaluate(() => typeof (globalThis as any).__acceptPublish))
@@ -372,4 +384,100 @@ test('archive discovery previews ordered songs, searches song titles, sorts and 
   await open.click()
   await expect(modal).toHaveCount(0)
   expect((await state()).activeSetlistId).toBe(created)
+})
+
+test('current title edits metadata directly and explicit start choices preserve songs and live output', async () => {
+  await page.getByTestId('playlist-item').first().click()
+  await page.getByTestId('slide-card').first().click()
+  await page.evaluate(() => window.ipcRenderer.toggleOutput())
+  const before = await state()
+  await expect(page.getByText('편집: 지난 주 예배', { exact: true })).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: '찬양 목록 원곡에 반영', exact: true }),
+  ).toBeHidden()
+  await page.getByRole('button', { name: '콘티 이름·날짜 수정', exact: true }).click()
+  let modal = page.getByRole('dialog', { name: '콘티 정보 수정', exact: true })
+  await expect(modal.getByLabel('콘티 이름', { exact: true })).toHaveValue('지난 주 예배')
+  await modal.getByLabel('콘티 이름', { exact: true }).fill('취소할 이름')
+  await modal.getByRole('button', { name: '취소', exact: true }).click()
+  await expect(modal).toHaveCount(0)
+  expect((await state()).setlists.find((x) => x.id === firstId)?.title).toBe('지난 주 예배')
+  await page.getByRole('button', { name: '콘티 이름·날짜 수정', exact: true }).click()
+  modal = page.getByRole('dialog', { name: '콘티 정보 수정', exact: true })
+  await modal.getByLabel('콘티 이름', { exact: true }).fill('이번 주 예배')
+  await modal.getByLabel('예배 날짜', { exact: true }).fill('2026-10-18')
+  await modal.getByRole('button', { name: '변경 저장', exact: true }).click()
+  await expect(modal).toHaveCount(0)
+  await expect(
+    page.getByRole('button', { name: '콘티 이름·날짜 수정', exact: true }),
+  ).toContainText('이번 주 예배')
+  const renamed = await state()
+  expect(renamed.activeSetlistId).toBe(firstId)
+  expect(renamed.playlist).toEqual(before.playlist)
+  expect(renamed.library).toEqual(before.library)
+  expect(renamed.live).toEqual(before.live)
+  await page.getByRole('button', { name: '새 콘티', exact: true }).click()
+  modal = page.getByRole('dialog', { name: '새 콘티', exact: true })
+  await expect(modal.getByRole('radio', { name: '빈 콘티', exact: true })).toBeChecked()
+  await modal.getByRole('radio', { name: '현재 순서 복사', exact: true }).check()
+  await modal.getByLabel('콘티 이름', { exact: true }).fill('명시적으로 복사한 콘티')
+  await modal.getByRole('button', { name: '콘티 만들기', exact: true }).click()
+  await expect(modal).toHaveCount(0)
+  const copied = await state()
+  expect(copied.playlist).toHaveLength(before.playlist.length)
+  expect(copied.playlist[0].presentationId).not.toBe(before.playlist[0].presentationId)
+  expect(copied.playlist[0].presentation.slides).toEqual(before.playlist[0].presentation.slides)
+  expect(copied.library).toEqual(before.library)
+  expect(copied.live).toEqual(before.live)
+  await expect(page.getByText('편집: 이번 주 예배', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '전체 순서', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  )
+  await page.getByRole('button', { name: '곡', exact: true }).click()
+  const item = page.getByTestId('playlist-item').first()
+  const title = await item.locator('p').boundingBox()
+  const count = await item.getByText('1장', { exact: true }).boundingBox()
+  expect(Math.abs(title!.y + title!.height / 2 - (count!.y + count!.height / 2))).toBeLessThan(2)
+  await page.getByRole('button', { name: '콘티 보관함', exact: true }).click()
+  const archive = page.getByRole('dialog', { name: '콘티 보관함', exact: true })
+  await archive.getByRole('button', { name: '새 콘티', exact: true }).click()
+  await expect(archive.getByRole('radio', { name: '빈 콘티', exact: true })).toBeChecked()
+})
+
+test('playlist remove buttons hide after pointer reordering and remain available with keyboard focus', async () => {
+  const items = page.getByTestId('playlist-item')
+  const moved = items.first()
+  const movedId = await moved.getAttribute('data-presentation-id')
+  const before = (await state()).playlist.map((item) => item.id)
+  const from = await moved.boundingBox()
+  const to = await items.nth(1).boundingBox()
+  expect(from).not.toBeNull()
+  expect(to).not.toBeNull()
+  await page.mouse.move(from!.x + from!.width / 2, from!.y + from!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(to!.x + to!.width / 2, to!.y + to!.height / 2, { steps: 12 })
+  await page.mouse.up()
+  await expect
+    .poll(async () => (await state()).playlist.map((item) => item.id))
+    .toEqual([before[1], before[0]])
+  await page.mouse.move(0, 0)
+  const removeButtons = items.getByRole('button', { name: /^순서에서 제거:/ })
+  for (const button of await removeButtons.all()) {
+    await expect(button).toHaveCSS('opacity', '0')
+  }
+  const reordered = items.nth(1)
+  await expect(reordered).toHaveAttribute('data-presentation-id', movedId!)
+  const remove = reordered.getByRole('button', { name: /^순서에서 제거:/ })
+  await reordered.hover()
+  await expect(remove).toHaveCSS('opacity', '1')
+  await page.mouse.move(0, 0)
+  await expect(remove).toHaveCSS('opacity', '0')
+  // Switch to keyboard input before focusing the row and its remove button.
+  await page.keyboard.press('Tab')
+  await reordered.focus()
+  await expect(remove).toHaveCSS('opacity', '1')
+  await page.keyboard.press('Tab')
+  await expect(remove).toBeFocused()
+  await expect(remove).toHaveCSS('opacity', '1')
 })

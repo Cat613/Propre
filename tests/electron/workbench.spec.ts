@@ -166,6 +166,42 @@ test('all three panels render cleanly at desktop and compact widths and keep pri
     ).toBe(true)
     await page.screenshot({ path: test.info().outputPath(`workbench-${width}.png`) })
   }
+  const preview = page.locator(
+    'section[aria-label="메인 송출 미리보기"] > div[data-output-surface]',
+  )
+  const before = await preview.innerText()
+  const more = page.getByRole('button', { name: '콘티 더 보기', exact: true })
+  await more.click()
+  await expect(page.getByRole('button', { name: '파일 저장', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: '파일 저장', exact: true })).toBeHidden()
+  expect(await preview.innerText()).toBe(before)
+  await more.click()
+  await page.locator('h1').click()
+  await expect(page.getByRole('button', { name: '파일 저장', exact: true })).toBeHidden()
+  await page.evaluate(() => {
+    document.querySelector<HTMLElement>('[data-control-root]')!.dataset.theme = 'light'
+  })
+  const header = await page.getByTestId('setlist-header').boundingBox()
+  await page.screenshot({
+    path: 'test-results/simple-setlist-header.png',
+    animations: 'disabled',
+    clip: header!,
+  })
+  const last = await page.getByTestId('playlist-item').last().boundingBox()
+  await page.screenshot({
+    path: 'test-results/refined-setlist-panel.png',
+    animations: 'disabled',
+    clip: {
+      x: header!.x,
+      y: header!.y,
+      width: header!.width,
+      height: last!.y + last!.height - header!.y,
+    },
+  })
+  await page.evaluate(() => {
+    document.querySelector<HTMLElement>('[data-control-root]')!.dataset.theme = 'dark'
+  })
   await page.getByRole('button', { name: '스타일', exact: true }).click()
   await page.screenshot({ path: test.info().outputPath('workbench-style.png') })
 })

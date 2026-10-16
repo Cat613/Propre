@@ -20,6 +20,89 @@ export interface ModelTurn {
   native: unknown
   usage: Record<string, number>
 }
+// Read only structured error fields. Provider messages may echo private input or keys.
+async function providerFailure(response: Response, provider: ConnectionProfile['provider']) {
+  let error: any = {}
+  const reader = response.body?.getReader()
+  if (reader) {
+    try {
+      const chunks: Uint8Array[] = []
+      let size = 0
+      while (true) {
+        const part = await reader.read()
+        if (part.done) break
+        size += part.value.length
+        if (size > 65536) break
+        chunks.push(part.value)
+      }
+      if (size <= 65536) error = JSON.parse(Buffer.concat(chunks).toString('utf8'))?.error || {}
+    } catch {
+      // An empty, non-JSON or unreadable error still has a useful HTTP status.
+    } finally {
+      await reader.cancel().catch(() => {})
+      reader.releaseLock()
+    }
+  }
+  const name = { gemini: 'Gemini', openai: 'OpenAI', claude: 'Claude' }[provider]
+  const prefix = `${name} API (${response.status}): `
+  if (response.status === 402)
+    return (
+      prefix +
+      (provider === 'gemini'
+        ? '결제가 필요한 상태입니다. Google AI Studio에서 키가 속한 프로젝트의 결제 상태와 선불 크레딧 잔액을 확인해주세요. 유료 프로젝트는 잔액이 없어져도 무료 구간으로 자동 전환되지 않습니다. 무료로 사용하려면 Free Tier 프로젝트의 키를 선택해주세요.'
+        : '결제가 필요한 상태입니다. 제공자 계정의 API 결제 상태와 크레딧 잔액을 확인해주세요.')
+    )
+  if (response.status === 429) {
+    if (provider === 'gemini') {
+      const details = Array.isArray(error?.details) ? error.details : []
+      const violations = details.flatMap((d: any) =>
+        Array.isArray(d?.violations) ? d.violations : [],
+      )
+      const quota = violations.map((v: any) => `${v?.quotaId || ''} ${v?.quotaMetric || ''}`)
+      if (violations.some((v: any) => v?.quotaValue === '0' || v?.quotaValue === 0))
+        return (
+          prefix +
+          '이 프로젝트에서 해당 모델의 할당량이 0입니다. Google AI Studio에서 키가 속한 프로젝트의 모델별 한도·결제 상태를 확인해주세요. 기다리거나 같은 프로젝트의 키를 새로 만들어도 해결되지 않을 수 있습니다.'
+        )
+      if (quota.some((q: string) => /PerDay|per_day/i.test(q)))
+        return (
+          prefix +
+          '일일 사용 한도를 초과했습니다. Google AI Studio에서 해당 프로젝트의 한도와 초기화 시점을 확인해주세요.'
+        )
+      if (quota.some((q: string) => /PerMinute|per_minute/i.test(q)))
+        return (
+          prefix +
+          '분당 요청 또는 토큰 한도를 초과했습니다. 잠시 후 다시 시도하거나 파일·곡 수를 줄여주세요. Google AI Studio에서 프로젝트 한도를 확인할 수 있습니다.'
+        )
+      return (
+        prefix +
+        '요청·토큰·일일 할당량 또는 결제 한도에 걸렸습니다. Google AI Studio에서 키가 속한 프로젝트의 사용량·모델별 한도·결제 상태를 확인해주세요. 이 응답만으로 일시 제한인지 확정할 수 없습니다.'
+      )
+    }
+    if (
+      provider === 'openai' &&
+      (error?.type === 'insufficient_quota' ||
+        [
+          'insufficient_quota',
+          'credit_balance_exhausted',
+          'organization_usage_limit_exceeded',
+          'organization_spend_limit_exceeded',
+          'project_spend_limit_exceeded',
+        ].includes(error?.code))
+    )
+      return (
+        prefix +
+        'API 크레딧 또는 사용·지출 한도가 부족합니다. OpenAI Platform에서 키가 속한 조직·프로젝트의 잔액과 한도를 확인해주세요. 기다리는 것만으로는 해결되지 않습니다.'
+      )
+    return (
+      prefix +
+      '요청 또는 사용 한도에 걸렸습니다. 제공자 계정의 잔액·사용 한도를 확인하고, 일시적인 요청 제한이면 잠시 후 다시 시도해주세요.'
+    )
+  }
+  if ([401, 403, 404].includes(response.status))
+    return prefix + 'AI 키와 모델 접근 권한을 확인해주세요.'
+  return prefix + 'AI 분석에 실패했습니다. 파일 크기·형식과 연결을 확인해주세요.'
+}
 export class SongProvider {
   private history: unknown[] = []
   constructor(
@@ -134,14 +217,7 @@ export class SongProvider {
       body: encoded,
       signal: AbortSignal.any([signal, AbortSignal.timeout(120000)]),
     })
-    if (!response.ok)
-      throw new Error(
-        response.status === 429
-          ? 'AI 요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.'
-          : [401, 403, 404].includes(response.status)
-            ? 'AI 키와 모델 접근 권한을 확인해주세요.'
-            : 'AI 분석에 실패했습니다. 파일 크기·형식과 연결을 확인해주세요.',
-      )
+    if (!response.ok) throw new Error(await providerFailure(response, provider))
     const reader = response.body?.getReader()
     if (!reader) throw new Error('AI 응답을 읽지 못했습니다.')
     const chunks: Uint8Array[] = []

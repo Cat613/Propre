@@ -18,6 +18,7 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
   slides: [],
   activeSlideId: null,
   selectedSlideIds: [],
+  preparedSectionSlideId: null,
   copiedSlides: [],
   currentPresentationId: null,
   currentPresentationTitle: null,
@@ -163,12 +164,13 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
     const state = get()
     const { slides, activeSlideId, activeBackground } = state
     if (id === null) {
-      set({ activeSlideId: null })
+      set({ activeSlideId: null, serviceManualOutput: true })
       return
     }
 
     const slide = slides.find((s) => s.id === id)
     if (!slide) return
+    void window.ipcRenderer?.returnToSlides?.().catch(() => {})
     const previous = slides.find((s) => s.id === activeSlideId)
     const preset = defaultPreset(state, slide)
     const applyPreset =
@@ -177,6 +179,9 @@ export const createEditorSlice: StoreSlice<EditorSlice> = (set, get) => ({
     // Apply the content and its style together so every output sees the same frame.
     set({
       activeSlideId: id,
+      preparedSectionSlideId: null,
+      serviceBlackout: false,
+      serviceManualOutput: true,
       activeBackground: slide.backgroundUrl
         ? { type: slide.type === 'video' ? 'video' : 'image', url: slide.backgroundUrl }
         : activeBackground,

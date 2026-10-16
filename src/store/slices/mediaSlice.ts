@@ -3,7 +3,8 @@ import type { MediaItem, ActiveBackground } from '../../types'
 import { mediaKind } from '../../../shared/model'
 import { generateId } from '../../utils/generateId'
 
-export const createMediaSlice: StoreSlice<MediaSlice> = (set) => ({
+let audioRequest = 0
+export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
   mediaBin: [],
   activeBackground: { type: 'none' },
   activeAudio: null,
@@ -38,11 +39,43 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set) => ({
     }))
   },
 
+  pauseAudio: () => {
+    audioRequest++
+    set((s) => ({ activeAudio: s.activeAudio ? { ...s.activeAudio, playing: false } : null }))
+  },
+  playAudio: async (media) => {
+    const token = ++audioRequest
+    if (media) set({ activeAudio: { ...media, playing: false, volume: 1 } })
+    const selected = get().activeAudio
+    if (!selected) return
+    try {
+      const status =
+        get().externalOutput.source.kind === 'web'
+          ? await window.ipcRenderer.getExternalOutput()
+          : get().externalOutput
+      if (token !== audioRequest) return
+      if (status.source.kind === 'web' && status.browser?.live && !status.browser.muted) {
+        const externalOutput = await window.ipcRenderer.browserOutputCommand({
+          action: 'mute',
+          value: true,
+          generation: status.generation,
+        })
+        set((s) =>
+          externalOutput.generation >= s.externalOutput.generation ? { externalOutput } : {},
+        )
+      }
+      if (token === audioRequest && get().activeAudio?.id === selected.id)
+        set((s) => ({ activeAudio: s.activeAudio ? { ...s.activeAudio, playing: true } : null }))
+    } catch {
+      get().addToast('웹 소리를 끄지 못해 오디오 재생을 보류했습니다. 다시 시도해주세요.', 'error')
+    }
+  },
   triggerBackground: (media: MediaItem) => {
     if (media.type === 'audio') {
-      set({ activeAudio: { ...media, playing: true, volume: 1 } })
+      void get().playAudio(media)
       return
     }
+    void window.ipcRenderer?.returnToSlides?.().catch(() => {})
     const newBackground: ActiveBackground = {
       type: media.type,
       url: media.url,
@@ -85,6 +118,7 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set) => ({
   clearLayer: (layer) => {
     switch (layer) {
       case 'audio':
+        audioRequest++
         set({ activeAudio: null })
         break
       case 'background':
@@ -110,7 +144,10 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set) => ({
   },
 
   clearAll: () => {
+    audioRequest++
+    void window.ipcRenderer?.stopExternalOutput?.().catch(() => {})
     set({
+      serviceBlackout: false,
       activeSlideId: null,
       activeBackground: { type: 'none' },
       activeAudio: null,

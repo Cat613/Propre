@@ -19,6 +19,7 @@ export function currentDocument(): Presentation | null {
   const s = store.getState()
   if (!s.currentPresentationId || (!s.slides.length && !s.currentPresentationTitle)) return null
   const old =
+      s.cuePresentations.find((p) => p.presentation.id === s.currentPresentationId)?.presentation ||
       s.setlistSongs.find((p) => p.presentation.id === s.currentPresentationId)?.presentation ||
       s.library.find((p) => p.id === s.currentPresentationId),
     now = new Date().toISOString()
@@ -57,6 +58,7 @@ async function boot(): Promise<() => void> {
       if (
         (document.revision || 0) >
         ((
+          loaded.cuePresentations.find((p) => p.presentation.id === document.id)?.presentation ||
           loaded.setlistSongs.find((p) => p.presentation.id === document.id)?.presentation ||
           loaded.library.find((p) => p.id === document.id)
         )?.revision || 0)
@@ -71,19 +73,27 @@ async function boot(): Promise<() => void> {
   } catch {
     if (recoveryPending.length) {
       const recovered = new Map(
-        [...loaded.library, ...loaded.setlistSongs.map((p) => p.presentation)].map((p) => [
-          p.id,
-          p,
-        ]),
+        [
+          ...loaded.library,
+          ...loaded.setlistSongs.map((p) => p.presentation),
+          ...loaded.cuePresentations.map((p) => p.presentation),
+        ].map((p) => [p.id, p]),
       )
       for (const document of recoveryPending)
         if ((document.revision || 0) > (recovered.get(document.id)?.revision || 0))
           recovered.set(document.id, document)
-      const snapshotIds = new Set(loaded.setlistSongs.map((p) => p.presentation.id))
+      const snapshotIds = new Set([
+        ...loaded.setlistSongs.map((p) => p.presentation.id),
+        ...loaded.cuePresentations.map((p) => p.presentation.id),
+      ])
       loaded.library = [...recovered.values()].filter((p) => !snapshotIds.has(p.id))
       loaded.setlistSongs = loaded.setlistSongs.map((song) => ({
         ...song,
         presentation: recovered.get(song.presentation.id) || song.presentation,
+      }))
+      loaded.cuePresentations = loaded.cuePresentations.map((entry) => ({
+        ...entry,
+        presentation: recovered.get(entry.presentation.id) || entry.presentation,
       }))
       loaded.draft = recoveryPending.at(-1)!
     }
@@ -112,11 +122,19 @@ async function boot(): Promise<() => void> {
     }
   const draft = loaded.draft
   store.setState({
+    cuePresentations: loaded.cuePresentations,
+    cueResources: loaded.cueResources,
+    serviceSession: loaded.serviceSession,
+    serviceTemplates: loaded.serviceTemplates,
+    serviceTimer: loaded.serviceTimer,
+    stageMessage: loaded.stageMessage,
     library: loaded.library,
     playlist: loaded.playlist,
     setlists: loaded.setlists,
     setlistSongs: loaded.setlistSongs,
     activeSetlistId: loaded.activeSetlistId,
+    outputResources: loaded.outputResources,
+    externalOutput: loaded.externalOutput,
     mediaBin: loaded.media,
     ...settings,
     isOutputEnabled: loaded.outputEnabled,
@@ -236,6 +254,15 @@ async function boot(): Promise<() => void> {
         ]
         return {
           library: nextLibrary,
+          cuePresentations: workspace.cuePresentations.map((entry) => {
+            const local = s.cuePresentations.find(
+              (x) => x.presentation.id === entry.presentation.id,
+            )
+            return local && (local.presentation.revision || 0) > (entry.presentation.revision || 0)
+              ? local
+              : entry
+          }),
+          cueResources: workspace.cueResources,
           setlists: workspace.setlists,
           setlistSongs: workspace.setlistSongs.map((song) => {
             const local = s.setlistSongs.find((x) => x.presentation.id === song.presentation.id)
@@ -286,16 +313,22 @@ async function boot(): Promise<() => void> {
       if (next) {
         // Optimistic document content is visible immediately; the save indicator confirms disk persistence.
         store.setState((state) =>
-          state.setlistSongs.some((p) => p.presentation.id === next.id)
+          state.cuePresentations.some((entry) => entry.presentation.id === next.id)
             ? {
-                setlistSongs: state.setlistSongs.map((p) =>
-                  p.presentation.id === next.id ? { ...p, presentation: next } : p,
-                ),
-                playlist: state.playlist.map((p) =>
-                  p.presentationId === next.id ? { ...p, presentation: next } : p,
+                cuePresentations: state.cuePresentations.map((entry) =>
+                  entry.presentation.id === next.id ? { ...entry, presentation: next } : entry,
                 ),
               }
-            : { library: [...state.library.filter((p) => p.id !== next.id), next] },
+            : state.setlistSongs.some((p) => p.presentation.id === next.id)
+              ? {
+                  setlistSongs: state.setlistSongs.map((p) =>
+                    p.presentation.id === next.id ? { ...p, presentation: next } : p,
+                  ),
+                  playlist: state.playlist.map((p) =>
+                    p.presentationId === next.id ? { ...p, presentation: next } : p,
+                  ),
+                }
+              : { library: [...state.library.filter((p) => p.id !== next.id), next] },
         )
         try {
           localStorage.setItem(
@@ -338,6 +371,7 @@ async function boot(): Promise<() => void> {
     if (
       changed ||
       s.activeSlideId !== prev.activeSlideId ||
+      s.serviceBlackout !== prev.serviceBlackout ||
       s.activeAudio !== prev.activeAudio ||
       s.activeBackground !== prev.activeBackground ||
       s.activeAnnouncement !== prev.activeAnnouncement ||
@@ -351,6 +385,93 @@ async function boot(): Promise<() => void> {
       publish()
   })
   const listeners = [
+    window.ipcRenderer.on('service-session-changed', (serviceSession) =>
+      store.setState({ serviceSession }),
+    ),
+    window.ipcRenderer.on('stage-message-status', (stageMessage) =>
+      store.setState((current) =>
+        stageMessage.revision >= current.stageMessage.revision ? { stageMessage } : {},
+      ),
+    ),
+    window.ipcRenderer.on('service-timer-changed', (serviceTimer) =>
+      store.setState({ serviceTimer }),
+    ),
+    window.ipcRenderer.on(
+      'service-cue-applied',
+      (applied: {
+        presentation?: Presentation
+        slideId?: string
+        visual: string
+        audio: string
+        manual?: boolean
+      }) => {
+        const history = store.temporal.getState()
+        history.pause()
+        try {
+          const p = applied.presentation
+          store.setState({
+            ...(p
+              ? {
+                  currentPresentationId: p.id,
+                  currentPresentationTitle: p.title,
+                  slides: p.slides,
+                  globalSlideStyle: p.globalSlideStyle || { ...DEFAULT_STYLE },
+                  activeSlideId: applied.slideId || null,
+                  selectedSlideIds: [],
+                  ...(p.slides.find((slide) => slide.id === applied.slideId)?.backgroundUrl
+                    ? {
+                        activeBackground: {
+                          type:
+                            p.slides.find((slide) => slide.id === applied.slideId)!.type === 'video'
+                              ? ('video' as const)
+                              : ('image' as const),
+                          url: p.slides.find((slide) => slide.id === applied.slideId)!
+                            .backgroundUrl,
+                        },
+                      }
+                    : {}),
+                }
+              : {}),
+            ...(applied.visual === 'black' || applied.visual === 'background-only'
+              ? {
+                  activeSlideId: null,
+                  activeAnnouncement: null,
+                  activeMessage: null,
+                  activeProps: [],
+                  ...(applied.visual === 'black'
+                    ? { activeBackground: { type: 'none' as const } }
+                    : {}),
+                }
+              : {}),
+            ...(applied.audio === 'stop' ? { activeAudio: null } : {}),
+            serviceManualOutput: !!applied.manual,
+            serviceBlackout:
+              applied.visual === 'keep'
+                ? store.getState().serviceBlackout
+                : applied.visual === 'black',
+          })
+          history.clear()
+        } finally {
+          history.resume()
+        }
+      },
+    ),
+    window.ipcRenderer.on('output-resources-changed', (outputResources) =>
+      store.setState({ outputResources }),
+    ),
+    window.ipcRenderer.on('external-output-status', (externalOutput) =>
+      store.setState((previous) => ({
+        externalOutput,
+        serviceManualOutput:
+          previous.serviceManualOutput ||
+          JSON.stringify(previous.externalOutput.source) !== JSON.stringify(externalOutput.source),
+      })),
+    ),
+    window.ipcRenderer.on('browser-output-frame', (browserFrame) => {
+      if (browserFrame.generation === store.getState().externalOutput.generation)
+        store.setState({ browserFrame })
+    }),
+    window.ipcRenderer.on('external-output-stop', () => store.getState().clearAll()),
     installPreparationCommands(),
     installSongAutomation(),
     window.ipcRenderer.on('output-status-changed', (status) =>

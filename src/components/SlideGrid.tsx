@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { usePresentationStore } from '../store'
 import type { Slide } from '../types'
 import EditModal from './EditModal'
+import SectionNavigation from './SectionNavigation'
 import SlideSelectionToolbar from './SlideSelectionToolbar'
 import {
   DndContext,
@@ -30,6 +31,7 @@ const SortableSlideCard: React.FC<{
   index: number
   isActive: boolean
   isSelected: boolean
+  isPrepared: boolean
   isGroupDragging?: boolean
   onSlideClick: (e: React.MouseEvent) => void
   onEditClick: (e: React.MouseEvent) => void
@@ -40,6 +42,7 @@ const SortableSlideCard: React.FC<{
   index,
   isActive,
   isSelected,
+  isPrepared,
   isGroupDragging,
   onSlideClick,
   onEditClick,
@@ -102,6 +105,8 @@ const SortableSlideCard: React.FC<{
     <div
       ref={setNodeRef}
       data-testid="slide-card"
+      data-slide-id={slide.id}
+      data-section-prepared={isPrepared}
       data-live={isActive}
       aria-label={`${index + 1}번 슬라이드${isActive ? ' 송출 중' : ''}`}
       style={style}
@@ -150,6 +155,11 @@ const SortableSlideCard: React.FC<{
           {isActive && (
             <span className="rounded-md bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
               송출 중
+            </span>
+          )}
+          {isPrepared && (
+            <span className="rounded bg-blue-400/10 px-1.5 py-0.5 text-[9px] text-blue-300">
+              구간 준비
             </span>
           )}
           {isSelected && (
@@ -252,6 +262,7 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
     deleteSlide,
     reorderSlides,
     selectedSlideIds,
+    preparedSectionSlideId,
     setSelectedSlideIds,
     toggleSelectSlide,
     reorderMultiSlides,
@@ -267,6 +278,7 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
       deleteSlide: state.deleteSlide,
       reorderSlides: state.reorderSlides,
       selectedSlideIds: state.selectedSlideIds,
+      preparedSectionSlideId: state.preparedSectionSlideId,
       setSelectedSlideIds: state.setSelectedSlideIds,
       toggleSelectSlide: state.toggleSelectSlide,
       reorderMultiSlides: state.reorderMultiSlides,
@@ -389,6 +401,11 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
 
   return (
     <div className="relative h-full flex flex-col overflow-hidden">
+      {!!slides.length && (
+        <div className="max-h-[45%] shrink-0 overflow-auto px-4 pt-3">
+          <SectionNavigation />
+        </div>
+      )}
       <div className="workbench-scroll min-h-0 flex-1 overflow-y-auto p-4 pb-20">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <h2 className="workbench-heading">슬라이드</h2>
@@ -437,6 +454,7 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
                   index={index}
                   isActive={activeSlideId === slide.id}
                   isSelected={Boolean(selectedSlideIds && selectedSlideIds.includes(slide.id))}
+                  isPrepared={preparedSectionSlideId === slide.id}
                   isGroupDragging={Boolean(isMultiDragging && selectedSlideIds?.includes(slide.id))}
                   onSlideClick={(e) => handleSlideClick(e, slide)}
                   onEditClick={(e) => handleEditClick(e, slide)}

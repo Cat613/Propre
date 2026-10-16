@@ -1,3 +1,6 @@
+import type { ServiceSessionView } from '../../shared/service-session'
+import type { SetlistWorkspace } from '../../shared/setlists'
+import type { ExternalOutputStatus, OutputResource } from '../../shared/output-resources'
 import type { Setlist, SetlistSong, SetlistCommand } from '../../shared/setlists'
 import type { FileResult } from '../../shared/contracts'
 // src/store/types.ts
@@ -24,6 +27,7 @@ export interface EditorSlice {
   slides: Slide[]
   activeSlideId: string | null
   selectedSlideIds: string[]
+  preparedSectionSlideId: string | null
   copiedSlides: Slide[]
   currentPresentationId: string | null
   currentPresentationTitle: string | null
@@ -58,6 +62,21 @@ export interface EditorSlice {
 }
 
 export interface LibrarySlice {
+  serviceTemplates: SetlistWorkspace['serviceTemplates']
+  manageServiceTemplate(
+    command: import('../../shared/service-template').TemplateAction,
+  ): Promise<void>
+  templateFile(
+    operation: 'save' | 'load',
+    expected?: { id: string; revision: number },
+  ): Promise<FileResult>
+  cuePresentations: SetlistWorkspace['cuePresentations']
+  cueResources: SetlistWorkspace['cueResources']
+  serviceSession: ServiceSessionView | null
+  serviceTimer: import('../../shared/service-timer').TimerRuntime | null
+  stageMessage: import('../../shared/stage-message').StageMessageStatus
+  serviceBlackout: boolean
+  serviceManualOutput: boolean
   songJobOperation(
     operation: 'apply' | 'undo' | 'rebase',
     id: string,
@@ -69,6 +88,7 @@ export interface LibrarySlice {
   refreshWorkspace: () => Promise<void>
   manageSetlist: (command: SetlistCommand) => Promise<void>
   publishSetlistSong: (id: string) => Promise<FileResult>
+  serviceFile: (operation: 'save' | 'load') => Promise<FileResult>
   playlistFile: (operation: 'save' | 'load', append?: boolean) => Promise<FileResult>
   openPresentation: (presentation: Presentation) => void
   library: Presentation[]
@@ -104,6 +124,8 @@ export interface MediaSlice {
 
   // Legacy generic methods (to be refactored or kept for backward compatibility)
   triggerBackground: (media: MediaItem) => void
+  playAudio: (media?: MediaItem) => Promise<void>
+  pauseAudio: () => void
   clearBackground: () => void
   clearText: () => void
   clearAll: () => void
@@ -165,6 +187,9 @@ export interface ToastSlice {
 }
 
 export interface PersistenceState {
+  outputResources: OutputResource[]
+  externalOutput: ExternalOutputStatus
+  browserFrame: { resourceId: string; generation: number; image: string } | null
   preparationBusy: boolean
   saveState: SaveState
   saveError: string | null

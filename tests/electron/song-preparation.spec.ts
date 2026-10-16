@@ -54,7 +54,8 @@ async function mock(provider: 'gemini' | 'openai' | 'claude', uncertain = false)
           body.contents?.[0]?.parts?.[0]?.text ||
           body.input?.[0]?.content?.[0]?.text ||
           body.messages?.[0]?.content?.[0]?.text
-        const source = JSON.parse(text.match(/현재 파일\(순서 유지\): ([^\n]+)/)![1])[0].sourceId
+        const source = JSON.parse(text.match(/현재 첨부 파일\(첨부 순서\): ([^\n]+)/)![1])[0]
+          .sourceId
         const draft = {
           songs: [
             {
@@ -177,6 +178,127 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await stop()
   await fs.rm(dir, { recursive: true, force: true })
+})
+test('AI connection form closes locally with cancel, its close button and Escape at compact height', async () => {
+  await page.setViewportSize({ width: 1024, height: 768 })
+  const before = await page.evaluate(() => window.ipcRenderer.listAIProfiles())
+  await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
+  const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByLabel('송폼과 추가 지시').fill('기존 준비 지시 유지')
+  const toggle = panel.locator('button[aria-controls="song-ai-connections"]')
+  const form = panel.locator('#song-ai-connections')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await form.getByLabel('AI 제공자').selectOption('openai')
+  await form.getByLabel('AI API 키').fill('synthetic-unsaved-key')
+  await form.getByRole('button', { name: '취소', exact: true }).click()
+  await expect(form).toHaveCount(0)
+  await expect(toggle).toBeFocused()
+  await expect(panel.getByLabel('송폼과 추가 지시')).toHaveValue('기존 준비 지시 유지')
+  expect(await page.evaluate(() => window.ipcRenderer.listAIProfiles())).toEqual(before)
+
+  await toggle.click()
+  await expect(form.getByLabel('AI API 키')).toHaveValue('')
+  await form.getByRole('button', { name: 'AI 연결 추가 닫기', exact: true }).click()
+  await expect(form).toHaveCount(0)
+  await toggle.click()
+  await form.getByLabel('AI API 키').focus()
+  await page.keyboard.press('Escape')
+  await expect(form).toHaveCount(0)
+  await expect(panel).toBeVisible()
+  await expect(toggle).toBeFocused()
+
+  await toggle.click()
+  await form.getByRole('button', { name: '취소', exact: true }).scrollIntoViewIfNeeded()
+  await expect(panel.getByRole('button', { name: 'AI 준비 창 닫기' })).toBeInViewport()
+  await panel.getByRole('button', { name: 'AI 준비 창 닫기' }).click()
+  await expect(panel).toHaveCount(0)
+})
+test('Gemini quota failure explains project limits and preserves the current setlist and draft', async () => {
+  const before = await state()
+  await page.evaluate(() =>
+    window.ipcRenderer.saveAIProfile(
+      { id: 'synthetic-quota', name: '합성 Gemini', provider: 'gemini', model: 'synthetic' },
+      'synthetic-private-key',
+      true,
+    ),
+  )
+  await app.evaluate(({ dialog }, sourcePath) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [sourcePath] })
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = async (input, init) =>
+      String(input).includes('generativelanguage.googleapis.com')
+        ? new Response(
+            JSON.stringify({
+              error: {
+                message: 'synthetic-private-key private source content',
+                details: [{ violations: [{ quotaValue: '0' }] }],
+              },
+            }),
+            { status: 429 },
+          )
+        : originalFetch(input, init)
+  }, pdf)
+  await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
+  const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
+  await panel.getByRole('button', { name: '분석 시작', exact: true }).click()
+  await expect(panel.getByRole('alert')).toContainText('할당량이 0')
+  await expect(panel.getByRole('alert')).toContainText('Google AI Studio')
+  await expect(panel.getByRole('alert')).not.toContainText('synthetic-private-key')
+  await expect(panel.getByRole('alert')).not.toContainText('private source content')
+  const after = await state()
+  expect(after.playlist).toEqual(before.playlist)
+  expect(after.draft).toEqual(before.draft)
+  expect(after.library).toEqual(before.library)
+})
+test('switching the selected AI routes an existing failed OpenAI job to Gemini only', async () => {
+  await page.evaluate(async () => {
+    await window.ipcRenderer.saveAIProfile(
+      { id: 'selection-openai', name: '테스트 OpenAI', provider: 'openai', model: 'synthetic' },
+      'synthetic-test-key',
+      true,
+    )
+    await window.ipcRenderer.saveAIProfile(
+      { id: 'selection-gemini', name: '테스트 Gemini', provider: 'gemini', model: 'synthetic' },
+      'synthetic-test-key',
+      true,
+    )
+  })
+  await app.evaluate(({ dialog }, sourcePath) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [sourcePath] })
+    const originalFetch = globalThis.fetch
+    ;(globalThis as any).selectionRequests = []
+    globalThis.fetch = async (input, init) => {
+      const url = String(input)
+      if (!url.includes('api.openai.com') && !url.includes('generativelanguage.googleapis.com'))
+        return originalFetch(input, init)
+      ;(globalThis as any).selectionRequests.push(
+        url.includes('api.openai.com') ? 'openai' : 'gemini',
+      )
+      return new Response(JSON.stringify({ error: { type: 'insufficient_quota' } }), {
+        status: 429,
+      })
+    }
+  }, pdf)
+  await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
+  const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByLabel('사용할 AI').selectOption('selection-openai')
+  await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
+  await panel.getByRole('button', { name: '분석 시작', exact: true }).click()
+  await expect(panel.getByRole('alert')).toContainText('OpenAI API (429)')
+  await panel.getByLabel('사용할 AI').selectOption('selection-gemini')
+  await expect(panel.getByRole('alert')).toContainText('이전 분석 오류 · 테스트 OpenAI')
+  await expect(panel.getByRole('note')).toContainText('테스트 Gemini')
+  await expect(panel.getByRole('button', { name: '분석 시작', exact: true })).toHaveCount(0)
+  await panel.getByRole('button', { name: '선택한 AI로 파일을 다시 전송해 분석' }).click()
+  await expect(panel.getByRole('alert')).toContainText('Gemini API (429)')
+  expect(await app.evaluate(() => (globalThis as any).selectionRequests)).toEqual([
+    'openai',
+    'gemini',
+  ])
+  const jobs = await page.evaluate(() => window.ipcRenderer.listSongJobs())
+  expect(jobs[0].profile.provider).toBe('gemini')
 })
 test('PDF review, form correction, new-song registration, append, undo and restart keep operator draft and live output', async () => {
   await page.getByTestId('slide-card').first().click()

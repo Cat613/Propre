@@ -11,6 +11,9 @@ import { createToastSlice } from './store/slices/toastSlice'
 export const usePresentationStore = create<StoreState>()(
   temporal(
     (...a) => ({
+      outputResources: [],
+      externalOutput: { source: { kind: 'slides' }, generation: 0 },
+      browserFrame: null,
       preparationBusy: false,
       saveState: 'saved' as const,
       saveError: null,

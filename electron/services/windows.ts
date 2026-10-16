@@ -1,3 +1,4 @@
+import type { VisualSource } from '../../shared/output-resources'
 import {
   app,
   BrowserWindow,
@@ -26,6 +27,17 @@ export class WindowManager {
   >()
   private health = new Map<'main' | 'stage', ScreenHealth>()
   private sequence = 0
+  visualSource: VisualSource = { kind: 'slides' }
+  onEmergencyStop: (() => void) | undefined
+  onStageReady: (() => void) | undefined
+  onStageClosed: (() => void) | undefined
+  onMainCreated: ((win: BrowserWindow) => void) | undefined
+  onMainClosing: ((win: BrowserWindow) => void) | undefined
+  onMainResize: ((win: BrowserWindow) => void) | undefined
+  private appliedWaiters = new Map<
+    number,
+    { resolve: () => void; reject: () => void; timer: ReturnType<typeof setTimeout> }
+  >()
   private changing = new Set<Role>()
   private retries = new Map<Role, number>()
   private controlReady = false
@@ -83,6 +95,9 @@ export class WindowManager {
       ? (this.snapshots.get('main')?.data as OutputState) || null
       : null
   }
+  stageLive(): StageData | null {
+    return (this.snapshots.get('stage')?.data as StageData) || null
+  }
   allHealth(): ScreenHealth[] {
     return (['main', 'stage'] as const).map(
       (screenId) =>
@@ -98,17 +113,77 @@ export class WindowManager {
     const value = typeof raw === 'string' ? boundedJSON(raw) : raw
     const data = parseOutput(value)
     this.repo.assertAssets(data)
-    this.publish('main', data)
+    this.publish('main', { ...data, source: this.visualSource })
   }
   publishStage(raw: unknown): void {
     const value = typeof raw === 'string' ? boundedJSON(raw) : raw
-    this.publish('stage', parseStage(value))
+    this.publish('stage', { ...parseStage(value), source: this.visualSource })
   }
-  private publish(role: 'main' | 'stage', data: OutputState | StageData): void {
+  private publish(role: 'main' | 'stage', data: OutputState | StageData): number {
     const version = ++this.sequence
     this.snapshots.set(role, { version, data })
     this.emitHealth(role, { version, status: this.status(role) ? 'loading' : 'closed' })
     this.deliver(role)
+    return version
+  }
+  outputVersion() {
+    return this.snapshots.get('main')?.version || 0
+  }
+  setVisualSource(source: VisualSource) {
+    this.visualSource = source
+    const output = this.snapshots.get('main')?.data as OutputState | undefined
+    const version = this.publish('main', {
+      ...(output || {
+        type: 'state-update',
+        layers: {
+          audio: null,
+          background: { type: 'none' },
+          slide: null,
+          announcement: null,
+          props: [],
+          message: null,
+        },
+      }),
+      source,
+    })
+    const stage = this.snapshots.get('stage')?.data as StageData | undefined
+    this.publish('stage', { ...(stage || { current: null, next: null }), source })
+    return version
+  }
+  blank() {
+    this.visualSource = { kind: 'slides' }
+    this.publish('main', {
+      type: 'state-update',
+      source: this.visualSource,
+      layers: {
+        audio: null,
+        background: { type: 'none' },
+        slide: null,
+        announcement: null,
+        props: [],
+        message: null,
+      },
+    })
+    this.publish('stage', { current: null, next: null, source: this.visualSource })
+    for (const waiter of this.appliedWaiters.values()) {
+      clearTimeout(waiter.timer)
+      waiter.reject()
+    }
+    this.appliedWaiters.clear()
+  }
+  waitApplied(version: number) {
+    if ((this.health.get('main')?.applied || 0) >= version) return Promise.resolve()
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.appliedWaiters.delete(version)
+        reject(new Error('송출 화면의 표시를 확인하지 못했습니다.'))
+      }, 5000)
+      this.appliedWaiters.set(version, {
+        resolve,
+        reject: () => reject(new Error('송출이 중지되었습니다.')),
+        timer,
+      })
+    })
   }
   private deliver(role: 'main' | 'stage'): void {
     const snapshot = this.snapshots.get(role),
@@ -127,6 +202,7 @@ export class WindowManager {
       return
     }
     this.deliver(role)
+    if (role === 'stage') this.onStageReady?.()
   }
   isControlReady(): boolean {
     return this.controlReady
@@ -134,8 +210,16 @@ export class WindowManager {
   acknowledge(role: Role, version: number): void {
     if (role === 'control') return
     const snapshot = this.snapshots.get(role)
-    if (snapshot && version === snapshot.version)
+    if (snapshot && version === snapshot.version) {
       this.emitHealth(role, { applied: version, status: 'applied' })
+      if (role === 'main')
+        for (const [v, waiter] of this.appliedWaiters)
+          if (v <= version) {
+            clearTimeout(waiter.timer)
+            waiter.resolve()
+            this.appliedWaiters.delete(v)
+          }
+    }
     this.retries.set(role, 0)
   }
   mediaError(role: Role): void {
@@ -145,6 +229,9 @@ export class WindowManager {
         error: '미디어를 재생하지 못했습니다. 등록 파일과 재생 형식을 확인해주세요.',
       })
     else this.notify('operation-warning', '미디어를 재생하지 못했습니다.')
+  }
+  outputBounds() {
+    return this.display('main').bounds
   }
   private display(role: 'main' | 'stage'): Electron.Display {
     const id = role === 'main' ? this.repo.state.outputDisplayId : this.repo.state.stageDisplayId
@@ -182,6 +269,11 @@ export class WindowManager {
         additionalArguments: [`--propre-role=${role}`],
       },
     })
+    if (role === 'main') {
+      win.on('resize', () => this.onMainResize?.(win))
+      win.on('close', () => this.onMainClosing?.(win))
+    }
+    if (role === 'stage') win.on('resize', () => this.onStageReady?.())
     const contentsId = win.webContents.id
     this.windows.set(role, win)
     this.roles.set(contentsId, role)
@@ -200,6 +292,12 @@ export class WindowManager {
       if (!this.allowed(url)) event.preventDefault()
     })
     win.webContents.on('will-attach-webview', (event) => event.preventDefault())
+    win.webContents.on('before-input-event', (event, input) => {
+      if (input.key === 'F2') {
+        event.preventDefault()
+        this.onEmergencyStop?.()
+      }
+    })
     win.once('ready-to-show', () => {
       if (!win.isDestroyed()) {
         win.setTitle(WINDOW_TITLES[role])
@@ -237,6 +335,7 @@ export class WindowManager {
       if (role === 'control') this.controlReady = false
       this.roles.delete(contentsId)
       if (this.windows.get(role) === win) this.windows.delete(role)
+      if (role === 'stage') this.onStageClosed?.()
       if (role !== 'control' && !this.changing.has(role)) {
         this.emitHealth(role, { status: 'closed' })
         this.notify(role === 'main' ? 'output-status-changed' : 'stage-status-changed', false)
@@ -260,6 +359,7 @@ export class WindowManager {
         : `app://propre/index.html#${hash}`,
     )
     if (role !== 'control') this.emitHealth(role, { status: 'loading' })
+    if (role === 'main') this.onMainCreated?.(win)
     return win
   }
   async toggle(role: 'main' | 'stage'): Promise<boolean> {

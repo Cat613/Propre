@@ -13,7 +13,7 @@ const empty: OutputState = {
   },
 }
 export default function OutputDisplay() {
-  const [state, setState] = useState(empty),
+  const [state, setState] = useState<OutputState & { version?: number }>(empty),
     version = useRef(0)
   useEffect(() => {
     const stop = window.ipcRenderer.on('update-screen', (json: string) => {
@@ -21,7 +21,14 @@ export default function OutputDisplay() {
         const data = JSON.parse(json) as OutputState & { version: number }
         if (data.version <= version.current) return
         version.current = data.version
-        setState(data)
+        if (data.source?.kind === 'pdf') {
+          const frame = new Image()
+          frame.onload = () => {
+            if (data.version === version.current) setState(data)
+          }
+          frame.onerror = () => window.ipcRenderer.reportMediaError()
+          frame.src = data.source.frameURL
+        } else setState(data)
       } catch {
         window.ipcRenderer.reportMediaError()
       }
@@ -30,7 +37,7 @@ export default function OutputDisplay() {
     return stop
   }, [])
   useEffect(() => {
-    if (version.current) window.ipcRenderer.acknowledge(version.current)
+    if (state.version) window.ipcRenderer.acknowledge(state.version)
   }, [state])
   return (
     <div className="h-screen w-screen bg-black" data-screen="main">

@@ -4,17 +4,22 @@ export function outputSnapshot(state: StoreState): OutputState {
   const look = state.screenLooks[state.isGreenScreen ? 'chroma' : 'main']
   return {
     type: 'state-update',
-    isGreenScreen: state.isGreenScreen,
+    isGreenScreen: state.serviceBlackout ? false : state.isGreenScreen,
     globalSlideStyle: state.globalSlideStyle,
     layers: {
       audio: look.audio.isVisible ? state.activeAudio : null,
-      background: look.background.isVisible ? state.activeBackground : { type: 'none' },
-      slide: look.slide.isVisible
-        ? state.slides.find((s) => s.id === state.activeSlideId) || null
-        : null,
-      announcement: look.announcement.isVisible ? state.activeAnnouncement : null,
-      props: look.prop.isVisible ? state.activeProps : [],
-      message: look.message.isVisible ? state.activeMessage : null,
+      background:
+        look.background.isVisible && !state.serviceBlackout
+          ? state.activeBackground
+          : { type: 'none' },
+      slide:
+        look.slide.isVisible && !state.serviceBlackout
+          ? state.slides.find((s) => s.id === state.activeSlideId) || null
+          : null,
+      announcement:
+        look.announcement.isVisible && !state.serviceBlackout ? state.activeAnnouncement : null,
+      props: look.prop.isVisible && !state.serviceBlackout ? state.activeProps : [],
+      message: look.message.isVisible && !state.serviceBlackout ? state.activeMessage : null,
     },
   }
 }

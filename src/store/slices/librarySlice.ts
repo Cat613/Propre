@@ -30,6 +30,14 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
       })
     await playlistTail
   },
+  cuePresentations: [],
+  cueResources: [],
+  serviceSession: null,
+  serviceTemplates: [],
+  serviceTimer: null,
+  stageMessage: { revision: 0, message: null, delivery: 'none', stage: null },
+  serviceBlackout: false,
+  serviceManualOutput: false,
   library: [],
   playlist: [],
   setlists: [],
@@ -38,11 +46,19 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
   refreshWorkspace: async () => {
     const loaded = await window.ipcRenderer.bootstrap()
     set({
+      cuePresentations: loaded.cuePresentations,
+      cueResources: loaded.cueResources,
+      serviceSession: loaded.serviceSession,
+      serviceTemplates: loaded.serviceTemplates,
+      serviceTimer: loaded.serviceTimer,
+      stageMessage: loaded.stageMessage,
       library: loaded.library,
       playlist: loaded.playlist,
       setlists: loaded.setlists,
       setlistSongs: loaded.setlistSongs,
       activeSetlistId: loaded.activeSetlistId,
+      outputResources: loaded.outputResources,
+      externalOutput: loaded.externalOutput,
       mediaBin: loaded.media,
     })
   },
@@ -52,7 +68,14 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
       .then(async () => {
         window.dispatchEvent(new Event('propre-flush-edits'))
         await flushPersistence()
-        set(await window.ipcRenderer.manageSetlist(command))
+        const workspace = await window.ipcRenderer.manageSetlist(command)
+        if (command.operation === 'create' && workspace.activeSetlistId)
+          try {
+            localStorage.setItem(`propre-setlist-view-v1:${workspace.activeSetlistId}`, 'all')
+          } catch {
+            /* Optional view preference. */
+          }
+        set(workspace)
       })
     await playlistTail
   },
@@ -65,6 +88,71 @@ export const createLibrarySlice: StoreSlice<LibrarySlice> = (set, get) => ({
         await flushPersistence()
         result = await window.ipcRenderer.publishSetlistSong(id)
         if (result.success) await get().refreshWorkspace()
+      })
+    await playlistTail
+    return result
+  },
+  serviceFile: async (operation) => {
+    let result: import('../../../shared/contracts').FileResult = { success: false }
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        window.dispatchEvent(new Event('propre-flush-edits'))
+        await flushPersistence()
+        await get().refreshWorkspace()
+        const list = get().setlists.find((entry) => entry.id === get().activeSetlistId)
+        if (operation === 'save' && !list) throw new Error('저장할 예배를 먼저 열어주세요.')
+        result =
+          operation === 'save'
+            ? await window.ipcRenderer.saveServiceFile({ id: list!.id, revision: list!.revision })
+            : await window.ipcRenderer.loadServiceFile({
+                activeId: get().activeSetlistId,
+                revision: list?.revision ?? null,
+              })
+        if (result.success && operation === 'load') {
+          const loaded = await window.ipcRenderer.bootstrap()
+          try {
+            localStorage.setItem(`propre-setlist-view-v1:${loaded.activeSetlistId}`, 'all')
+          } catch {
+            /* View preference is optional. */
+          }
+          await get().refreshWorkspace()
+        }
+      })
+    await playlistTail
+    return result
+  },
+  manageServiceTemplate: async (command) => {
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        window.dispatchEvent(new Event('propre-flush-edits'))
+        await flushPersistence()
+        const workspace = await window.ipcRenderer.manageServiceTemplate(command)
+        if (command.action === 'instantiate' && workspace.activeSetlistId) {
+          try {
+            localStorage.setItem(`propre-setlist-view-v1:${workspace.activeSetlistId}`, 'all')
+          } catch {
+            /* Optional preference. */
+          }
+        }
+        set(workspace)
+        await get().refreshWorkspace()
+      })
+    await playlistTail
+  },
+  templateFile: async (operation, expected) => {
+    let result: import('../../../shared/contracts').FileResult = { success: false }
+    playlistTail = playlistTail
+      .catch(() => {})
+      .then(async () => {
+        window.dispatchEvent(new Event('propre-flush-edits'))
+        await flushPersistence()
+        result =
+          operation === 'save'
+            ? await window.ipcRenderer.saveTemplateFile(expected!)
+            : await window.ipcRenderer.loadTemplateFile()
+        if (result.success && operation === 'load') await get().refreshWorkspace()
       })
     await playlistTail
     return result

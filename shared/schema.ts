@@ -1,3 +1,6 @@
+import { ServicePlanSchema, songProjection } from './service-plan'
+import { TemplateItemSchema } from './service-template'
+import { OutputResourcesSchema, VisualSourceSchema } from './output-resources'
 import { z } from 'zod'
 import { SongFormSchema } from './song-preparation'
 import type { Presentation, Slide, OutputState, StageData } from '../src/types'
@@ -149,6 +152,7 @@ export const SetlistSchema = z.object({
   lastOpenedAt: z.string().datetime().optional(),
   revision: z.number().int().nonnegative(),
   items: PlaylistRefsSchema,
+  servicePlan: ServicePlanSchema.optional(),
   deletedAt: z.string().datetime().optional(),
 })
 export const SetlistsSchema = z
@@ -159,6 +163,77 @@ export const SetlistSongsSchema = z
   .array(SetlistSongSchema)
   .max(5000)
   .refine((xs) => new Set(xs.map((x) => x.presentation.id)).size === xs.length)
+export const CuePresentationsSchema = z
+  .array(
+    z.object({
+      ownerSetlistId: Id,
+      presentation: PresentationSchema,
+    }),
+  )
+  .max(10000)
+  .refine((xs) => uniqueIds(xs.map((x) => x.presentation)))
+export const CueResourcesSchema = z
+  .array(
+    z.object({
+      ownerSetlistId: Id,
+      resource: OutputResourcesSchema.element,
+    }),
+  )
+  .max(10000)
+  .refine((xs) => uniqueIds(xs.map((x) => x.resource)))
+export const ServiceTemplateSchema = z
+  .object({
+    id: Id,
+    revision: z.number().int().nonnegative(),
+    name: z.string().trim().min(1).max(100),
+    description: z.string().max(500).default(''),
+    timezone: ServicePlanSchema.shape.timezone,
+    createdAt: z.string().datetime(),
+    updatedAt: z.string().datetime(),
+    deletedAt: z.string().datetime().optional(),
+    lastUsedAt: z.string().datetime().optional(),
+    items: z.array(TemplateItemSchema).max(1000),
+    presentations: LibrarySchema.max(1000),
+    resources: OutputResourcesSchema.max(1000),
+  })
+  .strict()
+  .superRefine((template, context) => {
+    const presentationIds = new Set<string>(),
+      resourceIds = new Set<string>()
+    if (new Set(template.items.map((item) => item.id)).size !== template.items.length)
+      context.addIssue({ code: 'custom', message: '중복 템플릿 순서입니다.' })
+    for (const item of template.items) {
+      const binding = item.binding
+      if (binding?.kind === 'presentation') {
+        const p = template.presentations.find((p) => p.id === binding.presentationId)
+        if (!p?.slides.some((slide) => slide.id === binding.slideId))
+          context.addIssue({ code: 'custom', message: '고정 슬라이드가 없습니다.' })
+        if (item.kind === 'song' && p?.slides[0]?.id !== binding.slideId)
+          context.addIssue({ code: 'custom', message: '고정 찬양은 첫 슬라이드부터 연결해주세요.' })
+        presentationIds.add(binding.presentationId)
+      } else if (binding?.kind === 'resource') {
+        const r = template.resources.find((r) => r.id === binding.resourceId)
+        if (
+          !r ||
+          r.deletedAt ||
+          (r.kind === 'pdf'
+            ? !binding.page || binding.page > r.pageCount
+            : binding.page !== undefined || binding.rotation !== undefined)
+        )
+          context.addIssue({ code: 'custom', message: '고정 외부 자료를 확인해주세요.' })
+        resourceIds.add(binding.resourceId)
+      }
+    }
+    if (
+      presentationIds.size !== template.presentations.length ||
+      resourceIds.size !== template.resources.length
+    )
+      context.addIssue({ code: 'custom', message: '템플릿에 연결하지 않은 자료가 있습니다.' })
+  })
+export const ServiceTemplatesSchema = z
+  .array(ServiceTemplateSchema)
+  .max(200)
+  .refine((items) => uniqueIds(items))
 const override = z.object({ isVisible: z.boolean() })
 export const Look = z.object({
   audio: override,
@@ -210,6 +285,7 @@ export const PropSchema = z.object({
 })
 export const OutputSchema = z.object({
   type: z.literal('state-update'),
+  source: VisualSourceSchema.optional(),
   isGreenScreen: z.boolean().optional(),
   globalSlideStyle: GlobalStyle.optional(),
   layers: z.object({
@@ -229,6 +305,7 @@ export const OutputSchema = z.object({
   }),
 })
 export const StageSchema = z.object({
+  source: VisualSourceSchema.optional(),
   current: SlideSchema.nullable(),
   next: SlideSchema.nullable(),
   globalSlideStyle: GlobalStyle.optional(),
@@ -259,18 +336,44 @@ export function parseStage(value: unknown): StageData {
 export const PortableAsset = z.object({
   id: Id,
   name: z.string().max(500),
-  type: z.enum(['image', 'video', 'audio']),
-  extension: z.string().regex(/^\.(png|jpe?g|webp|gif|mp4|webm|mov|m4v|mp3|wav|ogg|m4a|aac|flac)$/),
+  type: z.enum(['image', 'video', 'audio', 'document']),
+  extension: z
+    .string()
+    .regex(/^\.(png|jpe?g|webp|gif|mp4|webm|mov|m4v|mp3|wav|ogg|m4a|aac|flac|pdf)$/),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   data: z
     .string()
     .max((MAX_FILE_BYTES * 4) / 3)
     .regex(/^[A-Za-z0-9+/]*={0,2}$/),
 })
+export const DeletedLibrarySchema = z
+  .array(
+    z.object({
+      deletedAt: z.string().datetime(),
+      presentation: PresentationSchema,
+    }),
+  )
+  .max(5000)
+  .refine((xs) => uniqueIds(xs.map((x) => x.presentation)))
+export const DeletedMediaSchema = z
+  .array(
+    z.object({
+      deletedAt: z.string().datetime(),
+      media: MediaSchema,
+    }),
+  )
+  .max(10000)
+  .refine((xs) => uniqueIds(xs.map((x) => x.media)))
 export const PortableSchema = z.object({
+  serviceTemplates: ServiceTemplatesSchema.optional(),
   format: z.literal('propre-project'),
-  schemaVersion: z.literal(1),
-  kind: z.enum(['presentation', 'backup', 'playlist']),
+  deletedLibrary: DeletedLibrarySchema.optional(),
+  deletedMedia: DeletedMediaSchema.optional(),
+  schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  cuePresentations: CuePresentationsSchema.optional(),
+  cueResources: CueResourcesSchema.optional(),
+  outputResources: OutputResourcesSchema.optional(),
+  kind: z.enum(['presentation', 'backup', 'playlist', 'service', 'service-template']),
   playlistName: z.string().trim().min(1).max(200).optional(),
   playlistDate: SetlistSchema.shape.date,
   setlists: SetlistsSchema.optional(),
@@ -291,6 +394,173 @@ export function parseProject(data: string): {
   if (!raw || typeof raw !== 'object') throw new Error('프로젝트 형식을 확인해주세요.')
   if ('format' in raw) {
     const portable = PortableSchema.parse(raw)
+    if (
+      portable.schemaVersion >= 2 &&
+      portable.kind !== 'backup' &&
+      !(portable.schemaVersion === 3 && ['service', 'service-template'].includes(portable.kind))
+    )
+      throw new Error('새 외부 자료 형식은 전체 백업에서만 지원합니다.')
+    if (
+      portable.schemaVersion === 1 &&
+      (portable.outputResources || portable.assets.some((a) => a.type === 'document'))
+    )
+      throw new Error('PDF 자료는 새 백업 형식이 필요합니다.')
+    if (
+      portable.schemaVersion < 3 &&
+      (portable.serviceTemplates ||
+        portable.cuePresentations ||
+        portable.cueResources ||
+        portable.setlists?.some((list) => list.servicePlan))
+    )
+      throw new Error('예배 순서는 새 백업 형식이 필요합니다.')
+    if (new Set(portable.assets.map((a) => a.id)).size !== portable.assets.length)
+      throw new Error('중복 에셋입니다.')
+    for (const r of [
+      ...(portable.outputResources || []),
+      ...(portable.cueResources || []).map((x) => x.resource),
+      ...(portable.serviceTemplates || []).flatMap((template) => template.resources),
+    ])
+      if (
+        r.kind === 'pdf' &&
+        !portable.assets.some(
+          (a) =>
+            a.id === r.assetId &&
+            a.type === 'document' &&
+            a.extension === '.pdf' &&
+            a.sha256 === r.sha256,
+        )
+      )
+        throw new Error('PDF 백업 참조가 일치하지 않습니다.')
+    if (portable.kind === 'service') {
+      const list = portable.setlists?.[0]
+      if (
+        portable.schemaVersion !== 3 ||
+        portable.setlists?.length !== 1 ||
+        !list?.servicePlan ||
+        list.deletedAt ||
+        portable.activeSetlistId !== list.id ||
+        portable.presentations.length ||
+        portable.settings ||
+        portable.media ||
+        portable.draft ||
+        portable.deletedLibrary ||
+        portable.deletedMedia ||
+        portable.outputResources ||
+        portable.serviceTemplates
+      )
+        throw new Error('예배 파일에는 한 예배의 순서와 자료만 포함할 수 있습니다.')
+      if (
+        JSON.stringify(portable.playlist) !== JSON.stringify(list.items) ||
+        JSON.stringify(songProjection(list.servicePlan, list.items)) !== JSON.stringify(list.items)
+      )
+        throw new Error('예배 파일의 곡 순서가 일치하지 않습니다.')
+      const songIds = new Set(list.items.map((item) => item.presentationId))
+      const songs = portable.setlistSongs || []
+      if (songs.length !== songIds.size || songs.some((song) => !songIds.has(song.presentation.id)))
+        throw new Error('예배 파일의 찬양 사본을 확인해주세요.')
+      const presentations = portable.cuePresentations || [],
+        resources = portable.cueResources || []
+      const presentationIds = new Set<string>(),
+        resourceIds = new Set<string>()
+      for (const cue of list.servicePlan.items) {
+        if (cue.binding?.kind === 'presentation') {
+          const binding = cue.binding
+          const p = presentations.find(
+            (entry) =>
+              entry.presentation.id === binding.presentationId && entry.ownerSetlistId === list.id,
+          )?.presentation
+          if (!p || !p.slides.some((slide) => slide.id === binding.slideId))
+            throw new Error('예배 파일에 연결한 슬라이드가 없습니다.')
+          presentationIds.add(p.id)
+        } else if (cue.binding?.kind === 'resource') {
+          const binding = cue.binding
+          const r = resources.find(
+            (entry) => entry.resource.id === binding.resourceId && entry.ownerSetlistId === list.id,
+          )?.resource
+          if (
+            !r ||
+            r.deletedAt ||
+            (r.kind === 'pdf'
+              ? !binding.page || binding.page > r.pageCount
+              : binding.page !== undefined || binding.rotation !== undefined)
+          )
+            throw new Error('예배 파일의 외부 자료를 확인해주세요.')
+          resourceIds.add(r.id)
+        }
+      }
+      if (
+        presentations.length !== presentationIds.size ||
+        resources.length !== resourceIds.size ||
+        presentations.some((entry) => !presentationIds.has(entry.presentation.id)) ||
+        resources.some((entry) => !resourceIds.has(entry.resource.id)) ||
+        presentations.some((entry) => songIds.has(entry.presentation.id))
+      )
+        throw new Error('예배에 연결하지 않은 자료가 포함되어 있습니다.')
+      const usedAssets = new Set<string>()
+      const visit = (value: unknown) => {
+        if (!value || typeof value !== 'object') return
+        for (const [key, child] of Object.entries(value)) {
+          if (
+            ['url', 'backgroundUrl', 'thumbnail'].includes(key) &&
+            typeof child === 'string' &&
+            child.startsWith('media://asset/')
+          )
+            usedAssets.add(new URL(child).pathname.split('/')[1])
+          else if (child && typeof child === 'object') visit(child)
+        }
+      }
+      visit(songs)
+      visit(presentations)
+      for (const entry of resources)
+        if (entry.resource.kind === 'pdf') usedAssets.add(entry.resource.assetId)
+      if (
+        portable.assets.length !== usedAssets.size ||
+        portable.assets.some((asset) => !usedAssets.has(asset.id))
+      )
+        throw new Error('예배에 사용하지 않는 파일이 포함되어 있습니다.')
+    }
+    if (portable.kind === 'service-template') {
+      if (
+        portable.schemaVersion !== 3 ||
+        portable.serviceTemplates?.length !== 1 ||
+        portable.serviceTemplates[0].deletedAt ||
+        portable.presentations.length ||
+        portable.setlists ||
+        portable.setlistSongs ||
+        portable.playlist ||
+        portable.activeSetlistId ||
+        portable.settings ||
+        portable.media ||
+        portable.draft ||
+        portable.deletedLibrary ||
+        portable.deletedMedia ||
+        portable.outputResources ||
+        portable.cuePresentations ||
+        portable.cueResources
+      )
+        throw new Error('템플릿 파일에는 한 템플릿의 순서와 자료만 포함할 수 있습니다.')
+      const template = portable.serviceTemplates[0],
+        assetIds = new Set<string>()
+      const visit = (value: unknown) => {
+        if (!value || typeof value !== 'object') return
+        for (const [key, child] of Object.entries(value)) {
+          if (
+            ['url', 'backgroundUrl', 'thumbnail'].includes(key) &&
+            typeof child === 'string' &&
+            child.startsWith('media://asset/')
+          )
+            assetIds.add(new URL(child).pathname.split('/')[1])
+          else if (child && typeof child === 'object') visit(child)
+        }
+      }
+      visit(template.presentations)
+      for (const r of template.resources) if (r.kind === 'pdf') assetIds.add(r.assetId)
+      if (
+        assetIds.size !== portable.assets.length ||
+        portable.assets.some((asset) => !assetIds.has(asset.id))
+      )
+        throw new Error('템플릿 파일의 참조 assets를 확인해주세요.')
+    }
     if (portable.kind === 'playlist') {
       const ids = new Set(portable.presentations.map((p) => p.id))
       if (!portable.playlist || portable.playlist.some((item) => !ids.has(item.presentationId)))

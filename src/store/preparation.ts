@@ -54,6 +54,7 @@ function assertEditable(id: string) {
 function operatorBusy(): boolean {
   const el = document.activeElement as HTMLElement | null
   return (
+    store.getState().preparationBusy ||
     store.getState().isModalOpen ||
     !!document.querySelector('[data-modal="true"]') ||
     (!!el && (['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName) || el.isContentEditable))
@@ -63,6 +64,8 @@ export async function withOperatorLock<T>(
   action: () => Promise<T>,
   ownDialog?: HTMLElement,
 ): Promise<T> {
+  if (store.getState().preparationBusy)
+    throw new PreparationError('OPERATOR_BUSY', '진행 중인 변경을 마친 뒤 다시 시도해주세요.')
   const dialogs = document.querySelectorAll('[data-modal="true"]')
   const own =
     !!ownDialog &&

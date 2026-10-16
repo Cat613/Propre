@@ -360,7 +360,7 @@ test('configured song and scripture presets apply to existing documents and both
   await expect(stylePanel.locator('select').first()).toHaveValue(song.id)
   await expect
     .poll(async () => {
-      const stored = JSON.parse(await fs.readFile(path.join(dir, 'workspace-v2.json'), 'utf8'))
+      const stored = JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8'))
       return [
         stored.settings.defaultSongPresetId,
         stored.settings.defaultBiblePresetId,

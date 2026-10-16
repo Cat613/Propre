@@ -1,3 +1,4 @@
+import { syncSongCues } from './service-plan-storage'
 import { createHash, randomUUID } from 'node:crypto'
 import type { Repository } from './repository'
 import {
@@ -105,9 +106,11 @@ export async function applySongJob(
       })
       ids.set(song.id, id)
     }
+    const priorServicePlan = active?.servicePlan ? structuredClone(active.servicePlan) : undefined
     const priorItems = structuredClone(list.items)
     const next = draft.order.map((id) => ({ id: randomUUID(), presentationId: ids.get(id)! }))
     list.items = job.mode === 'append' ? [...list.items, ...next] : next
+    syncSongCues(s, list)
     list.revision++
     list.updatedAt = now
     s.activeSetlistId = list.id
@@ -120,6 +123,7 @@ export async function applySongJob(
       setlistId: list.id,
       finalRevision: list.revision,
       priorItems,
+      priorServicePlan,
       finalItems: structuredClone(list.items),
       added,
       updated,
@@ -142,6 +146,10 @@ export async function undoSongApply(repo: Repository, requestId: string) {
     )
       throw new Error('적용 후 콘티가 변경되어 자동으로 되돌릴 수 없습니다.')
     list.items = structuredClone(receipt.priorItems)
+    list.servicePlan = receipt.priorServicePlan
+      ? structuredClone(receipt.priorServicePlan)
+      : undefined
+    syncSongCues(s, list)
     list.revision++
     list.updatedAt = new Date().toISOString()
     if (s.activeSetlistId === list.id) s.playlist = structuredClone(list.items)

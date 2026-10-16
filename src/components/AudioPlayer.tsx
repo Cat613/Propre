@@ -62,19 +62,20 @@ export default function AudioPlayer() {
         }
         onError={() => window.ipcRenderer.reportMediaError()}
       />
+      <span className="text-gray-500" aria-live="polite">
+        로컬 오디오 · {audio?.playing ? '재생 중' : '정지'}
+      </span>
       <button onClick={() => void select()} className="text-gray-300">
         {audio?.name || '오디오 선택'}
       </button>
       <button
         aria-label={audio?.playing ? '오디오 일시정지' : '오디오 재생'}
         disabled={!audio}
-        onClick={() =>
-          usePresentationStore.setState((s) => ({
-            activeAudio: s.activeAudio
-              ? { ...s.activeAudio, playing: !s.activeAudio.playing }
-              : null,
-          }))
-        }
+        onClick={() => {
+          const state = usePresentationStore.getState()
+          if (state.activeAudio?.playing) state.pauseAudio()
+          else void state.playAudio()
+        }}
       >
         {audio?.playing ? '일시정지' : '재생'}
       </button>

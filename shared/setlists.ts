@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { Id, SetlistSchema } from './schema'
+import { Id, SetlistSchema, type CuePresentationsSchema, type CueResourcesSchema } from './schema'
 import type { Presentation, PlaylistItem } from '../src/types'
 export type Setlist = z.infer<typeof SetlistSchema>
 export interface SetlistSong {
@@ -8,11 +8,14 @@ export interface SetlistSong {
   sourceRevision?: number
 }
 export interface SetlistWorkspace {
+  serviceTemplates: z.infer<typeof import('./schema').ServiceTemplatesSchema>
   library: Presentation[]
   playlist: PlaylistItem[]
   setlists: Setlist[]
   setlistSongs: SetlistSong[]
   activeSetlistId: string | null
+  cuePresentations: z.infer<typeof CuePresentationsSchema>
+  cueResources: z.infer<typeof CueResourcesSchema>
 }
 const expected = z.number().int().nonnegative()
 const edit = { id: Id, expectedRevision: expected }

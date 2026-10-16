@@ -20,6 +20,8 @@ async function launch() {
       PROPRE_TEST_USER_DATA: dir,
     },
   })
+  expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(dir)
+  expect(dir).not.toContain('Application Support')
   await app.firstWindow()
   await expect
     .poll(() => app.windows().some((window) => window.url().includes('control-panel')))
@@ -28,7 +30,7 @@ async function launch() {
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
 }
 async function workspace() {
-  return JSON.parse(await fs.readFile(path.join(dir, 'workspace-v2.json'), 'utf8'))
+  return JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8'))
 }
 async function draft() {
   return (await workspace()).draft

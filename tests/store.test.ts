@@ -286,3 +286,41 @@ describe('inserting scripture into a song', () => {
     expect(store.temporal.getState().pastStates).toHaveLength(0)
   })
 })
+
+it('a late audio handoff cannot restart sound or restore an external source after full stop', async () => {
+  const status = {
+    source: { kind: 'web', resourceId: 'web', name: 'web', host: 'localhost' },
+    generation: 7,
+    browser: {
+      resourceId: 'web',
+      url: 'http://localhost',
+      loading: false,
+      live: true,
+      muted: false,
+      zoom: 1,
+    },
+  } as const
+  let release!: (value: unknown) => void
+  const mute = vi.fn(
+    () =>
+      new Promise((resolve) => {
+        release = resolve
+      }),
+  )
+  Object.assign(ipc, {
+    getExternalOutput: vi.fn(async () => status),
+    browserOutputCommand: mute,
+    stopExternalOutput: vi.fn(async () => {}),
+  })
+  store.setState({ externalOutput: status })
+  const playing = store
+    .getState()
+    .playAudio({ id: 'audio', type: 'audio', name: 'clip', url: 'media://asset/a/clip.wav' })
+  await vi.waitFor(() => expect(mute).toHaveBeenCalled())
+  store.getState().clearAll()
+  store.setState({ externalOutput: { source: { kind: 'slides' }, generation: 8 } })
+  release({ ...status, browser: { ...status.browser, muted: true } })
+  await playing
+  expect(store.getState().activeAudio).toBeNull()
+  expect(store.getState().externalOutput).toEqual({ source: { kind: 'slides' }, generation: 8 })
+})

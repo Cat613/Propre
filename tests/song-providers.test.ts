@@ -5,6 +5,108 @@ const tools = [
   { name: 'get_song_job', description: 'job', inputSchema: { type: 'object', properties: {} } },
 ]
 describe('AI provider request and response contracts', () => {
+  it('explains Gemini payment-required errors without blaming the file or exposing remote content', async () => {
+    const adapter = new SongProvider(
+      { id: 'p', name: 'test', provider: 'gemini', model: 'synthetic' },
+      'synthetic-private-key',
+      vi
+        .fn<typeof fetch>()
+        .mockResolvedValue(
+          new Response(
+            JSON.stringify({ error: { message: 'synthetic-private-key private source' } }),
+            { status: 402 },
+          ),
+        ),
+    )
+    const failure = await adapter
+      .turn('', files, tools, new AbortController().signal)
+      .catch((e: Error) => e)
+    expect(failure).toBeInstanceOf(Error)
+    expect((failure as Error).message).toContain('Gemini API (402)')
+    expect((failure as Error).message).toContain('선불 크레딧 잔액')
+    expect((failure as Error).message).toContain('Free Tier')
+    expect((failure as Error).message).not.toContain('파일 크기')
+    expect((failure as Error).message).not.toContain('synthetic-private-key')
+    expect((failure as Error).message).not.toContain('private source')
+  })
+  it.each([
+    {
+      provider: 'gemini' as const,
+      error: { details: [{ violations: [{ quotaValue: '0' }] }] },
+      expected: '할당량이 0',
+    },
+    {
+      provider: 'gemini' as const,
+      error: {
+        details: [
+          { violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] },
+        ],
+      },
+      expected: '일일 사용 한도',
+    },
+    {
+      provider: 'gemini' as const,
+      error: {
+        details: [
+          { violations: [{ quotaMetric: 'generate_content_free_tier_input_tokens_per_minute' }] },
+        ],
+      },
+      expected: '분당 요청 또는 토큰',
+    },
+    { provider: 'gemini' as const, error: {}, expected: '일시 제한인지 확정할 수 없습니다' },
+    {
+      provider: 'openai' as const,
+      error: { code: 'credit_balance_exhausted' },
+      expected: '기다리는 것만으로는 해결되지 않습니다',
+    },
+    {
+      provider: 'openai' as const,
+      error: { type: 'insufficient_quota' },
+      expected: '크레딧 또는 사용·지출 한도',
+    },
+    {
+      provider: 'openai' as const,
+      error: { code: 'rate_limit_exceeded' },
+      expected: '일시적인 요청 제한',
+    },
+  ])(
+    'distinguishes $provider quota failures without exposing provider messages ($expected)',
+    async ({ provider, error, expected }) => {
+      const adapter = new SongProvider(
+        { id: 'p', name: 'test', provider, model: 'synthetic' },
+        'synthetic-private-key',
+        vi.fn<typeof fetch>().mockResolvedValue(
+          new Response(
+            JSON.stringify({
+              error: { ...error, message: 'synthetic-private-key private source content' },
+            }),
+            { status: 429 },
+          ),
+        ),
+      )
+      const failure = await adapter
+        .turn('', files, tools, new AbortController().signal)
+        .catch((e: Error) => e)
+      expect(failure).toBeInstanceOf(Error)
+      expect((failure as Error).message).toContain(expected)
+      expect((failure as Error).message).toContain('429')
+      expect((failure as Error).message).not.toContain('synthetic-private-key')
+      expect((failure as Error).message).not.toContain('private source content')
+    },
+  )
+  it.each(['not JSON', 'x'.repeat(65537), 'null', '{"error":{"details":null}}'])(
+    'keeps malformed and oversized provider errors safe',
+    async (body) => {
+      const adapter = new SongProvider(
+        { id: 'p', name: 'test', provider: 'gemini', model: 'synthetic' },
+        'key',
+        vi.fn<typeof fetch>().mockResolvedValue(new Response(body, { status: 429 })),
+      )
+      await expect(adapter.turn('', files, tools, new AbortController().signal)).rejects.toThrow(
+        'Google AI Studio',
+      )
+    },
+  )
   it.each(['gemini', 'openai', 'claude'] as const)(
     '%s preserves native calls, continuations, PDF input, and usage',
     async (provider) => {

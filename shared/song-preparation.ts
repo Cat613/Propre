@@ -1,3 +1,4 @@
+import { ServicePlanSchema } from './service-plan'
 import { z } from 'zod'
 import type { Presentation, GlobalSlideStyle } from '../src/types'
 import { partLabelColor } from '../src/types'
@@ -176,6 +177,7 @@ export const ApplyReceiptSchema = z.object({
   appliedAt: z.string().datetime(),
   setlistId: identifier,
   finalRevision: z.number().int().nonnegative(),
+  priorServicePlan: ServicePlanSchema.optional(),
   priorItems: z.array(z.object({ id: identifier, presentationId: identifier })),
   finalItems: z.array(z.object({ id: identifier, presentationId: identifier })),
   added: z.number().int().nonnegative(),

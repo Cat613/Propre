@@ -1,8 +1,12 @@
+import type { AttachCue, CueRequest, PreparedCue, ServiceSessionView } from './service-session'
+import type { SaveServicePlan } from './service-plan'
+import type { AppUpdateState } from './app-update'
+import type { OutputResource, PreparedOutput, ExternalOutputStatus } from './output-resources'
 import type { ConnectionProfile, SongJob, ApplyReceipt } from './song-preparation'
 import type { SetlistCommand, SetlistWorkspace } from './setlists'
 import type { Presentation, PlaylistItem, MediaItem, OutputState } from '../src/types'
 import type { z } from 'zod'
-import type { SettingsSchema } from './schema'
+import type { SettingsSchema, DeletedLibrarySchema, DeletedMediaSchema } from './schema'
 import type { AIConnectionState, AICommandResult } from './automation'
 export type Settings = z.infer<typeof SettingsSchema>
 export type SaveState = 'saved' | 'pending' | 'saving' | 'error'
@@ -18,6 +22,13 @@ export interface FileResult {
   itemCount?: number
 }
 export interface Bootstrap extends SetlistWorkspace {
+  serviceTimer: import('./service-timer').TimerRuntime | null
+  stageMessage: import('./stage-message').StageMessageStatus
+  serviceSession: ServiceSessionView | null
+  deletedLibrary: z.infer<typeof DeletedLibrarySchema>
+  deletedMedia: z.infer<typeof DeletedMediaSchema>
+  outputResources: OutputResource[]
+  externalOutput: ExternalOutputStatus
   live?: OutputState | null
   library: Presentation[]
   playlist: PlaylistItem[]
@@ -42,6 +53,61 @@ export interface ScreenHealth {
   error?: string
 }
 export interface API {
+  previewCuesheet(
+    request: import('zod').z.infer<typeof import('./cuesheet').CuesheetRequest>,
+  ): Promise<import('./cuesheet').CuesheetJob>
+  getCuesheetStatus(id: string): Promise<import('./cuesheet').CuesheetJob>
+  closeCuesheet(id: string): Promise<void>
+  saveCuesheet(id: string): Promise<FileResult>
+  printCuesheet(id: string): Promise<FileResult>
+  revealCuesheet(id: string): Promise<void>
+  manageServiceTemplate(
+    command: import('./service-template').TemplateAction,
+  ): Promise<SetlistWorkspace>
+  saveTemplateFile(expected: { id: string; revision: number }): Promise<FileResult>
+  loadTemplateFile(): Promise<FileResult>
+  serviceTimer(
+    command: import('./service-timer').TimerAction,
+  ): Promise<import('./service-timer').TimerRuntime | null>
+  takeSection(command: import('./sections').SectionTake): Promise<void>
+  preflight(
+    command: import('./preflight').PreflightAction,
+  ): Promise<import('./preflight').PreflightRun | null>
+  stageMessage(
+    command: import('./stage-message').StageMessageAction,
+  ): Promise<import('./stage-message').StageMessageStatus>
+  acknowledgeStageMessage(id: string, revision: number, fits: boolean): void
+  saveServiceFile(expected: { id: string; revision: number }): Promise<FileResult>
+  loadServiceFile(expected: import('./service-session').ServiceFileTarget): Promise<FileResult>
+  attachServiceCue(command: AttachCue): Promise<SetlistWorkspace>
+  prepareServiceCue(command: CueRequest): Promise<PreparedCue>
+  commitServiceCue(token: string): Promise<ServiceSessionView>
+  finishService(skip?: boolean): Promise<ServiceSessionView | null>
+  getAppUpdate(): Promise<AppUpdateState>
+  checkAppUpdate(): Promise<AppUpdateState>
+  downloadAppUpdate(): Promise<AppUpdateState>
+  pdfOutputThumbnails(request: {
+    id: string
+    revision: number
+    start: number
+    rotation?: 0 | 90 | 180 | 270
+  }): Promise<{ page: number; url: string }[]>
+  pdfOutputReady(): void
+  pdfOutputResult(result: { id: string; png?: string; pages?: number; error?: boolean }): void
+  listOutputResources(): Promise<OutputResource[]>
+  manageOutputResource(command: unknown): Promise<OutputResource[]>
+  selectOutputPDFs(): Promise<{ resources: OutputResource[]; errors: string[] }>
+  prepareOutputResource(request: {
+    resourceId: string
+    revision: number
+    page?: number
+    rotation?: 0 | 90 | 180 | 270
+  }): Promise<PreparedOutput>
+  commitOutputResource(token: string, generation: number): Promise<ExternalOutputStatus>
+  returnToSlides(): Promise<void>
+  stopExternalOutput(): Promise<void>
+  browserOutputCommand(command: unknown): Promise<ExternalOutputStatus>
+  getExternalOutput(): Promise<ExternalOutputStatus>
   listAIProfiles(): Promise<{
     profiles: (ConnectionProfile & { configured: boolean })[]
     defaultId: string | null
@@ -90,7 +156,7 @@ export interface API {
     songId: string,
     index: number,
   ): Promise<{ png: string; slideCount: number }>
-  role: 'control' | 'main' | 'stage' | 'preview'
+  role: 'control' | 'main' | 'stage' | 'preview' | 'pdf-helper'
   send(channel: string, data?: unknown): void
   on(channel: string, callback: (...args: any[]) => void): () => void
   ready(): void
@@ -99,12 +165,14 @@ export interface API {
   bootstrap(): Promise<Bootstrap>
   getLibrary(): Promise<Presentation[]>
   getPlaylist(): Promise<PlaylistItem[]>
+  saveServicePlan(command: SaveServicePlan): Promise<SetlistWorkspace>
   manageSetlist(command: SetlistCommand): Promise<SetlistWorkspace>
   publishSetlistSong(id: string): Promise<FileResult>
   saveToLibrary(p: Presentation): Promise<boolean>
   saveDraft(p: Presentation): Promise<Presentation[]>
   mergeToLibrary(p: Presentation[]): Promise<Presentation[]>
   deleteFromLibrary(id: string): Promise<Presentation[]>
+  restoreDeleted(kind: 'library' | 'media', id: string): Promise<void>
   savePlaylist(p: PlaylistItem[]): Promise<boolean>
   saveSettings(settings: Settings): Promise<void>
   saveMedia(media: MediaItem[]): Promise<void>

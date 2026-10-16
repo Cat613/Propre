@@ -3,6 +3,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 const Control = lazy(() => import('./components/ControlPanel'))
 const Output = lazy(() => import('./components/OutputDisplay'))
 const Stage = lazy(() => import('./components/StageDisplay'))
+const PdfHelper = lazy(() => import('./components/PdfOutputHelper'))
 const Preparation = lazy(() => import('./components/PreparationPreview'))
 function ControlRoot() {
   const [ready, setReady] = useState(false),
@@ -50,7 +51,9 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Suspense fallback={<div className="h-screen bg-black" />}>
-        {role === 'control' ? (
+        {role === 'pdf-helper' ? (
+          <PdfHelper />
+        ) : role === 'control' ? (
           <ControlRoot />
         ) : role === 'preview' ? (
           <Preparation />

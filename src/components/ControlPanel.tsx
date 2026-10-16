@@ -1,8 +1,10 @@
 import { useShallow } from 'zustand/react/shallow'
+import AppUpdatePanel from './AppUpdatePanel'
 import SaveStatus from './SaveStatus'
 import { Image, Layers, Pencil, Settings2, SlidersHorizontal } from 'lucide-react'
 import ToastContainer from './ToastContainer'
 import AudioPlayer from './AudioPlayer'
+import StageMessageStatusBar from './StageMessageStatusBar'
 import { hotkeysBlocked } from '../hooks/useModalGuard'
 import React, { useEffect, useState } from 'react'
 import LeftSidebar from './LeftSidebar'
@@ -126,10 +128,11 @@ const ControlPanel: React.FC = () => {
           role="status"
           className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] rounded-xl border border-blue-400/20 bg-blue-950 px-4 py-3 text-sm text-blue-200"
         >
-          AI 변경 내용을 저장하는 중… · F2로 전체 중단 가능
+          변경 내용을 적용하는 중… · F2로 전체 중단 가능
         </div>
       )}
       <AudioPlayer />
+      <StageMessageStatusBar />
       <ToastContainer />
       <PanelGroup
         direction="horizontal"
@@ -207,6 +210,7 @@ const ControlPanel: React.FC = () => {
           </div>
           <footer className="flex shrink-0 flex-wrap items-center justify-between gap-1 border-t border-white/5 px-4 py-2 text-[10px] text-gray-500">
             <SaveStatus />
+            <AppUpdatePanel />
             <span>← → 이동 · F1 텍스트 · F2 전체 중지</span>
           </footer>
         </Panel>

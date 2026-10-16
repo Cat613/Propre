@@ -24,11 +24,11 @@ import type { Setlist, SetlistCommand } from '../../shared/setlists'
 type Editor = { kind: 'create' } | { kind: 'rename' | 'duplicate'; id: string }
 type Sort = 'updated' | 'date' | 'title'
 const button =
-  'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-40 disabled:cursor-not-allowed'
+  'inline-flex items-center justify-center gap-2 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:opacity-40 disabled:cursor-not-allowed'
 const secondary = `${button} border border-white/10 bg-white/5 text-gray-200 hover:bg-white/10`
 const primary = `${button} bg-blue-600 text-white hover:bg-blue-500`
 const field =
-  'w-full rounded-lg border border-white/10 bg-gray-950/60 px-3 py-2.5 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/15 disabled:opacity-50'
+  'w-full rounded-lg border border-white/10 bg-gray-950/60 px-3 py-2 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/15 disabled:opacity-50'
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
   year: 'numeric',
   month: 'short',
@@ -37,19 +37,35 @@ const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
 const formatDate = (value: string) =>
   dateFormatter.format(new Date(value.length === 10 ? `${value}T12:00:00` : value))
 
-export default function SetlistManager({ onClose }: { onClose: () => void }) {
+export default function SetlistManager({
+  onClose,
+  initialAction,
+  onTemplates,
+}: {
+  onClose: () => void
+  initialAction?: 'create' | 'rename'
+  onTemplates?: (seed: { title: string; date: string }) => void
+}) {
+  const directEditor = initialAction !== undefined
   const setlists = usePresentationStore((s) => s.setlists)
   const songs = usePresentationStore((s) => s.setlistSongs)
   const playlist = usePresentationStore((s) => s.playlist)
   const activeId = usePresentationStore((s) => s.activeSetlistId)
+  const initialSetlist = setlists.find((list) => list.id === activeId && !list.deletedAt)
   const [query, setQuery] = useState('')
   const [trash, setTrash] = useState(false)
   const [sort, setSort] = useState<Sort>('updated')
   const [selectedId, setSelectedId] = useState<string | null>(activeId)
-  const [editor, setEditor] = useState<Editor | null>(null)
-  const [title, setTitle] = useState('')
-  const [date, setDate] = useState('')
-  const [fromCurrent, setFromCurrent] = useState(playlist.length > 0)
+  const [editor, setEditor] = useState<Editor | null>(
+    initialAction === 'create'
+      ? { kind: 'create' }
+      : initialAction === 'rename' && initialSetlist
+        ? { kind: 'rename', id: initialSetlist.id }
+        : null,
+  )
+  const [title, setTitle] = useState(initialAction === 'rename' ? initialSetlist?.title || '' : '')
+  const [date, setDate] = useState(initialAction === 'rename' ? initialSetlist?.date || '' : '')
+  const [fromCurrent, setFromCurrent] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -89,7 +105,7 @@ export default function SetlistManager({ onClose }: { onClose: () => void }) {
   useModalGuard(true, () => {
     if (busy) return
     if (deleteId) setDeleteId(null)
-    else if (editor) setEditor(null)
+    else if (editor && !directEditor) setEditor(null)
     else onClose()
   })
   useEffect(() => {
@@ -109,7 +125,7 @@ export default function SetlistManager({ onClose }: { onClose: () => void }) {
       setEditor({ kind })
       setTitle('')
       setDate('')
-      setFromCurrent(playlist.length > 0)
+      setFromCurrent(false)
     } else if (list) {
       setSelectedId(list.id)
       setEditor({ kind, id: list.id })
@@ -141,30 +157,33 @@ export default function SetlistManager({ onClose }: { onClose: () => void }) {
   }
   const submit = async () => {
     if (!editor || !title.trim()) return
-    const saved = await run(() => {
-      const s = usePresentationStore.getState()
-      if (editor.kind !== 'create') {
-        const list = s.setlists.find((x) => x.id === editor.id)
-        if (!list) throw new Error('콘티를 찾지 못했습니다. 보관함을 다시 열어주세요.')
+    const saved = await run(
+      () => {
+        const s = usePresentationStore.getState()
+        if (editor.kind !== 'create') {
+          const list = s.setlists.find((x) => x.id === editor.id)
+          if (!list) throw new Error('콘티를 찾지 못했습니다. 보관함을 다시 열어주세요.')
+          return {
+            operation: editor.kind === 'duplicate' ? 'duplicate' : 'rename',
+            id: list.id,
+            expectedRevision: list.revision,
+            title: title.trim(),
+            date: date || undefined,
+          }
+        }
+        const active = s.setlists.find((x) => x.id === s.activeSetlistId)
         return {
-          operation: editor.kind === 'duplicate' ? 'duplicate' : 'rename',
-          id: list.id,
-          expectedRevision: list.revision,
+          operation: 'create',
           title: title.trim(),
           date: date || undefined,
+          fromCurrent,
+          expectedActiveId: s.activeSetlistId,
+          expectedRevision: active?.revision ?? null,
         }
-      }
-      const active = s.setlists.find((x) => x.id === s.activeSetlistId)
-      return {
-        operation: 'create',
-        title: title.trim(),
-        date: date || undefined,
-        fromCurrent,
-        expectedActiveId: s.activeSetlistId,
-        expectedRevision: active?.revision ?? null,
-      }
-    }, editor.kind !== 'rename')
-    if (saved && editor.kind === 'rename') {
+      },
+      editor.kind !== 'rename' || directEditor,
+    )
+    if (saved && editor.kind === 'rename' && !directEditor) {
       setSelectedId(editor.id)
       setQuery('')
       setEditor(null)
@@ -204,34 +223,50 @@ export default function SetlistManager({ onClose }: { onClose: () => void }) {
         aria-modal="true"
         aria-labelledby="setlist-manager-title"
         data-modal="true"
-        className="flex h-[min(84vh,760px)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-gray-900 text-gray-100 shadow-2xl"
+        className={`flex w-full flex-col overflow-hidden rounded-2xl border border-white/10 bg-gray-900 text-gray-100 shadow-2xl ${directEditor ? 'max-h-[84vh] max-w-lg' : 'h-[min(84vh,760px)] max-w-5xl'}`}
       >
-        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-6 py-5">
+        <header className="flex shrink-0 items-center justify-between gap-4 border-b border-white/10 px-5 py-3">
           <div className="flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-blue-400/20 bg-blue-500/10 text-blue-400">
               <Archive size={22} strokeWidth={1.7} />
             </div>
             <div>
               <h2 id="setlist-manager-title" className="text-xl font-semibold tracking-tight">
-                콘티 보관함
+                {initialAction === 'create'
+                  ? '새 콘티'
+                  : initialAction === 'rename'
+                    ? '콘티 정보 수정'
+                    : '콘티 보관함'}
               </h2>
-              <p className="mt-0.5 text-xs text-gray-400">
-                지난 예배를 이어서, 다음 예배를 새롭게.
+              <p className={`${directEditor ? 'hidden' : 'mt-0.5 text-xs text-gray-400'}`}>
+                {directEditor
+                  ? initialAction === 'rename'
+                    ? '콘티의 이름과 날짜를 수정하세요.'
+                    : '다음 예배의 이름과 날짜를 정하세요.'
+                  : '지난 예배를 이어서, 다음 예배를 새롭게.'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {!directEditor && (
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => begin('create')}
+                className={primary}
+              >
+                <Plus size={16} />새 콘티
+              </button>
+            )}
             <button
               type="button"
-              disabled={busy}
-              onClick={() => begin('create')}
-              className={primary}
-            >
-              <Plus size={16} />새 콘티
-            </button>
-            <button
-              type="button"
-              aria-label="콘티 보관함 닫기"
+              aria-label={
+                initialAction === 'create'
+                  ? '새 콘티 닫기'
+                  : initialAction === 'rename'
+                    ? '콘티 정보 수정 닫기'
+                    : '콘티 보관함 닫기'
+              }
               disabled={busy}
               onClick={onClose}
               className={`${button} p-2 text-gray-400 hover:bg-white/5 hover:text-white`}
@@ -243,7 +278,7 @@ export default function SetlistManager({ onClose }: { onClose: () => void }) {
         <div className="flex min-h-0 flex-1 flex-col sm:flex-row">
           <aside
             aria-label="콘티 목록"
-            className={`min-h-0 shrink-0 flex-col border-b border-white/10 bg-gray-950/25 sm:w-[260px] md:w-[340px] sm:border-b-0 sm:border-r ${editor ? 'hidden md:flex' : 'flex'}`}
+            className={`min-h-0 shrink-0 flex-col border-b border-white/10 bg-gray-950/25 sm:w-[260px] md:w-[340px] sm:border-b-0 sm:border-r ${directEditor ? 'hidden' : editor ? 'hidden md:flex' : 'flex'}`}
           >
             <div className="space-y-3 p-4">
               <div className="flex gap-1 rounded-lg bg-gray-950/60 p-1">
@@ -422,43 +457,32 @@ export default function SetlistManager({ onClose }: { onClose: () => void }) {
                   void submit()
                 }}
               >
-                <div className="flex-1 setlist-scroll overflow-y-auto p-6 md:p-8">
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      setEditor(null)
-                      setError('')
-                    }}
-                    className={`${button} mb-5 -ml-3 text-xs text-gray-400 hover:text-white`}
-                  >
-                    <ChevronLeft size={14} />
-                    보관함으로
-                  </button>
-                  <div className="mb-7">
-                    <p className="mb-2 text-xs font-medium text-blue-400">
-                      {editor.kind === 'create'
-                        ? '새로운 예배 준비'
-                        : editor.kind === 'duplicate'
-                          ? '지난 콘티에서 시작하기'
-                          : '콘티 정보 수정'}
-                    </p>
-                    <h3 className="text-2xl font-semibold tracking-tight">
+                <div className="min-h-0 flex-1 setlist-scroll overflow-y-auto px-5 py-4">
+                  {!directEditor && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => {
+                        if (directEditor) onClose()
+                        else setEditor(null)
+                        setError('')
+                      }}
+                      className={`${button} mb-5 -ml-3 text-xs text-gray-400 hover:text-white`}
+                    >
+                      <ChevronLeft size={14} />
+                      보관함으로
+                    </button>
+                  )}
+                  {!directEditor && (
+                    <h3 className="mb-4 text-lg font-semibold">
                       {editor.kind === 'create'
                         ? '새 콘티'
                         : editor.kind === 'duplicate'
                           ? '콘티 복제'
                           : '이름·날짜 변경'}
                     </h3>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-400">
-                      {editor.kind === 'duplicate'
-                        ? '곡과 순서를 복사해 다음 예배에 맞게 편집하세요.'
-                        : editor.kind === 'create'
-                          ? '예배를 알아보기 쉬운 이름으로 저장하세요.'
-                          : '보관함에서 찾기 쉽도록 이름과 날짜를 정리하세요.'}
-                    </p>
-                  </div>
-                  <div className="space-y-5">
+                  )}
+                  <div className="space-y-3">
                     <label className="block text-sm font-medium text-gray-300">
                       콘티 이름
                       <input
@@ -473,53 +497,86 @@ export default function SetlistManager({ onClose }: { onClose: () => void }) {
                       />
                     </label>
                     <label className="block text-sm font-medium text-gray-300">
-                      예배 날짜
-                      <input
-                        type="date"
-                        aria-label="예배 날짜"
-                        aria-describedby="setlist-date-hint"
-                        value={date}
-                        disabled={busy}
-                        onChange={(e) => setDate(e.target.value)}
-                        className={`${field} mt-2 [color-scheme:dark]`}
-                      />
-                      <span
-                        id="setlist-date-hint"
-                        className="mt-2 block text-xs font-normal text-gray-500"
-                      >
-                        날짜는 나중에 정해도 괜찮습니다.
-                      </span>
+                      예배 날짜 <span className="text-xs font-normal text-gray-500">(선택)</span>
+                      <div className="relative mt-2">
+                        <input
+                          type="date"
+                          aria-label="예배 날짜"
+                          value={date}
+                          disabled={busy}
+                          onChange={(e) => setDate(e.target.value)}
+                          onClick={(e) => {
+                            if (!busy) e.currentTarget.showPicker?.()
+                          }}
+                          className={`${field} pr-10 [&::-webkit-calendar-picker-indicator]:opacity-0`}
+                        />
+                        <CalendarDays
+                          aria-hidden="true"
+                          size={19}
+                          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                        />
+                      </div>
                     </label>
                     {editor.kind === 'create' && (
-                      <label
-                        className={`flex items-start gap-3 rounded-xl border border-white/10 p-4 ${playlist.length ? 'cursor-pointer hover:bg-white/5' : 'opacity-50'}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={fromCurrent}
-                          disabled={busy || !playlist.length}
-                          onChange={(e) => setFromCurrent(e.target.checked)}
-                          className="mt-1 accent-blue-500"
-                        />
-                        <span>
-                          <span className="block text-sm font-medium">현재 순서로 만들기</span>
-                          <span className="mt-1 block text-xs leading-relaxed text-gray-400">
-                            {playlist.length
-                              ? `현재 콘티의 ${playlist.length}곡을 복사합니다. 선택을 해제하면 빈 콘티를 만듭니다.`
-                              : '현재 콘티에 곡이 없어 빈 콘티로 시작합니다.'}
-                          </span>
-                        </span>
-                      </label>
+                      <fieldset disabled={busy}>
+                        <legend className="mb-2 text-sm font-medium text-gray-300">
+                          시작 방식
+                        </legend>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label
+                            className={`flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm ${!fromCurrent ? 'border-blue-400/50 bg-blue-500/10' : 'border-white/10 hover:bg-white/5'}`}
+                          >
+                            <input
+                              type="radio"
+                              name="setlist-start-mode"
+                              aria-label="빈 콘티"
+                              checked={!fromCurrent}
+                              onChange={() => setFromCurrent(false)}
+                              className="accent-blue-500"
+                            />
+                            빈 콘티
+                          </label>
+                          <label
+                            className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${!playlist.length ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-white/5'} ${fromCurrent ? 'border-blue-400/50 bg-blue-500/10' : 'border-white/10'}`}
+                          >
+                            <input
+                              type="radio"
+                              name="setlist-start-mode"
+                              aria-label="현재 순서 복사"
+                              checked={fromCurrent}
+                              disabled={!playlist.length}
+                              onChange={() => setFromCurrent(true)}
+                              className="accent-blue-500"
+                            />
+                            현재 순서 복사
+                          </label>
+                          {onTemplates && (
+                            <button
+                              type="button"
+                              className={`${secondary} col-span-2`}
+                              onClick={() => onTemplates({ title, date })}
+                            >
+                              템플릿으로 만들기
+                            </button>
+                          )}
+                        </div>
+                        <p className="mt-2 text-xs text-gray-500">
+                          {fromCurrent
+                            ? `${playlist.length}곡을 독립된 사본으로 복사합니다.`
+                            : '곡 없이 새로 시작합니다.'}
+                        </p>
+                      </fieldset>
                     )}
                   </div>
                 </div>
-                <div className="flex shrink-0 justify-end gap-2 border-t border-white/10 px-6 py-4">
+                <div className="flex shrink-0 justify-end gap-2 border-t border-white/10 px-5 py-3">
                   <button
                     type="button"
                     disabled={busy}
                     className={secondary}
                     onClick={() => {
-                      setEditor(null)
+                      if (directEditor) onClose()
+                      else setEditor(null)
                       setError('')
                     }}
                   >
@@ -620,7 +677,7 @@ export default function SetlistManager({ onClose }: { onClose: () => void }) {
                     )}
                   </div>
                 </div>
-                <footer className="shrink-0 border-t border-white/10 px-6 py-4">
+                <footer className="shrink-0 border-t border-white/10 px-5 py-3">
                   {deleting ? (
                     <div className="space-y-3 rounded-xl border border-red-400/20 bg-red-400/5 p-4">
                       <p className="text-sm font-medium text-gray-200">

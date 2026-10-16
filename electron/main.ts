@@ -1,4 +1,23 @@
-import { app, ipcMain, dialog, protocol, session, net, clipboard } from 'electron'
+import { ServiceFileTargetSchema } from '../shared/service-session'
+import { ServiceSessions } from './services/service-session'
+import { StageMessages } from './services/stage-messages'
+import { Preflight } from './services/preflight'
+import { SectionNavigation } from './services/sections'
+import { ServiceTimers } from './services/service-timers'
+import { CuesheetExport } from './services/cuesheet-export'
+import { AppUpdates } from './services/app-update'
+import { OutputSource } from './services/output-source'
+import {
+  app,
+  ipcMain,
+  dialog,
+  protocol,
+  session,
+  net,
+  clipboard,
+  powerMonitor,
+  shell,
+} from 'electron'
 import fs from 'node:fs/promises'
 import { rmSync } from 'node:fs'
 import path from 'node:path'
@@ -38,6 +57,16 @@ app.setPath(
     : path.join(app.getPath('appData'), 'pro-presenter-lite'),
 )
 protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'output',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      stream: true,
+      corsEnabled: true,
+    },
+  },
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } },
   {
     scheme: 'media',
@@ -46,6 +75,8 @@ protocol.registerSchemesAsPrivileged([
 ])
 const lock = app.requestSingleInstanceLock()
 if (!lock) app.quit()
+let updates: AppUpdates | undefined
+let outputSource: OutputSource | undefined
 let windows: WindowManager
 let automation: AutomationService | undefined
 let preparationPreview: PreparationPreview | undefined
@@ -57,11 +88,96 @@ if (lock)
   void app
     .whenReady()
     .then(async () => {
+      if (process.platform === 'darwin' && !app.isPackaged)
+        app.dock?.setIcon(path.join(root, 'build/icon.png'))
       const repo = new Repository(app.getPath('userData'))
       await repo.open()
       const vault = new KeyVault(repo.directory)
       await vault.open()
       windows = new WindowManager(repo, root, devURL)
+      const sources = new OutputSource(repo, windows, root, devURL)
+      const services = new ServiceSessions(repo, windows, sources)
+      await services.open()
+      const stageMessages = new StageMessages(windows)
+      const preflight = new Preflight(repo, windows)
+      const sections = new SectionNavigation(repo, windows, sources, () => services.executing())
+      const timers = new ServiceTimers(repo, windows, services)
+      await timers.open()
+      const cuesheets = new CuesheetExport(repo, windows)
+      await cuesheets.open().catch(() => {
+        /* Optional PDF temp storage must not block app startup. */
+      })
+      app.once('will-quit', () => {
+        cuesheets.disposeOnQuit()
+      })
+      powerMonitor.on('suspend', () => timers.suspend('sleep'))
+      app.once('will-quit', () => timers.dispose())
+      ipcMain.on('stage-message-applied', (event, raw) => {
+        try {
+          windows.authorize(event, ['stage'])
+          const result = z
+            .object({
+              id: z.string().uuid(),
+              revision: z.number().int().nonnegative(),
+              fits: z.boolean(),
+            })
+            .strict()
+            .parse(raw)
+          stageMessages.acknowledge(result.id, result.revision, result.fits)
+        } catch {
+          /* Invalid acknowledgement cannot mutate a message. */
+        }
+      })
+      outputSource = sources
+      let feedURL: string | undefined
+      if (app.isPackaged) {
+        try {
+          const config = JSON.parse(
+            await fs.readFile(path.join(app.getAppPath(), 'package.json'), 'utf8'),
+          )
+          if (typeof config.propreUpdates?.feedURL === 'string')
+            feedURL = config.propreUpdates.feedURL
+        } catch {
+          /* Local packages without distribution config stay offline. */
+        }
+      }
+      updates = new AppUpdates(
+        app.getVersion(),
+        process.platform === 'darwin' && ['arm64', 'x64'].includes(process.arch)
+          ? (`mac-${process.arch}` as 'mac-arm64' | 'mac-x64')
+          : undefined,
+        feedURL,
+        { fetch: (url, init) => net.fetch(url, init), open: (url) => shell.openExternal(url) },
+        (state) => windows.notify('app-update-changed', state),
+      )
+      ipcMain.on('pdf-output-ready', (event) => sources.pdf.onReady(event))
+      ipcMain.on('pdf-output-result', (event, result) => sources.pdf.onResult(event, result))
+      protocol.handle('output', async (request) => {
+        try {
+          const url = new URL(request.url),
+            token = url.pathname.slice(1)
+          if (!/^[a-zA-Z0-9_-]+$/.test(token)) return new Response('', { status: 403 })
+          const bytes =
+            url.hostname === 'frame'
+              ? sources.pdf.frame(request.url)
+              : url.hostname === 'pdf'
+                ? await sources.pdf.document(token)
+                : url.hostname === 'cuesheet'
+                  ? cuesheets.bytes(token)
+                  : undefined
+          return bytes
+            ? new Response(new Uint8Array(bytes), {
+                headers: {
+                  'Content-Type': url.hostname === 'frame' ? 'image/png' : 'application/pdf',
+                  'Cache-Control': 'no-store',
+                  'Access-Control-Allow-Origin': devURL ? new URL(devURL).origin : 'app://propre',
+                },
+              })
+            : new Response('', { status: 404 })
+        } catch {
+          return new Response('', { status: 404 })
+        }
+      })
       const pendingCommands = new Map<
         string,
         { resolve: (result: AICommandResult) => void; timer: ReturnType<typeof setTimeout> }
@@ -167,7 +283,20 @@ if (lock)
           }
         })
       }
+      handle('get-app-update', () => updates!.snapshot())
+      handle('check-app-update', () => updates!.check())
+      handle('download-app-update', () => updates!.download())
+      handle('restore-deleted', (kind, id) =>
+        repo.restoreDeleted(z.enum(['library', 'media']).parse(kind), Id.parse(id)),
+      )
       handle('bootstrap', () => ({
+        serviceTimer: timers.snapshot(),
+        stageMessage: stageMessages.snapshot(),
+        serviceSession: services.snapshot(),
+        deletedLibrary: repo.state.deletedLibrary,
+        deletedMedia: repo.state.deletedMedia,
+        outputResources: repo.state.outputResources,
+        externalOutput: sources.status(),
         live: windows.live(),
         ...repo.workspace(),
         draft: repo.state.draft,
@@ -177,6 +306,52 @@ if (lock)
         outputEnabled: windows.status('main'),
         stageEnabled: windows.status('stage'),
       }))
+      handle('stage-message-command', (command) => stageMessages.command(command))
+      handle('preflight-command', (command) => preflight.command(command))
+      handle('take-section', (request) => sections.take(request))
+      handle('service-timer-command', (command) => timers.command(command))
+      handle('preview-cuesheet', (request) => cuesheets.create(request))
+      handle('get-cuesheet-status', (id) => cuesheets.status(z.string().uuid().parse(id)))
+      handle('close-cuesheet', (id) => cuesheets.close(z.string().uuid().parse(id)))
+      handle('save-cuesheet', (id) => cuesheets.save(z.string().uuid().parse(id)))
+      handle('print-cuesheet', (id) => cuesheets.print(z.string().uuid().parse(id)))
+      handle('reveal-cuesheet', (id) => cuesheets.reveal(z.string().uuid().parse(id)))
+      handle('pdf-output-thumbnails', (raw) => sources.thumbnails(raw))
+      handle('list-output-resources', () => repo.state.outputResources)
+      handle('get-external-output', () => sources.status())
+      handle('manage-output-resource', async (raw) => {
+        if (raw && typeof raw === 'object' && 'id' in raw && typeof raw.id === 'string')
+          sources.assertMutable(raw.id)
+        return repo.manageOutputResource(raw)
+      })
+      handle('prepare-output-resource', (raw) => sources.prepare(raw))
+      handle('commit-output-resource', (token, generation) => sources.commit(token, generation))
+      handle('return-to-slides', () => sources.returnToSlides())
+      handle('stop-external-output', () => {
+        stageMessages.clear()
+        services.interrupt()
+        sources.stop()
+      })
+      handle('browser-output-command', (raw) => sources.command(raw))
+      handle('select-output-pdfs', async () => {
+        const result = await dialog.showOpenDialog(windows.windows.get('control')!, {
+          title: 'PDF 송출 자료 등록',
+          properties: ['openFile', 'multiSelections'],
+          filters: [{ name: 'PDF', extensions: ['pdf'] }],
+        })
+        const errors: string[] = []
+        for (const file of result.filePaths) {
+          try {
+            await repo.registerPDF(file, (data) => sources.pdf.inspect(data))
+          } catch {
+            errors.push(
+              path.basename(file) +
+                ': 암호가 없는 100MiB 이하의 PDF(1~1,000페이지)를 확인해주세요.',
+            )
+          }
+        }
+        return { resources: repo.state.outputResources, errors }
+      })
       handle('list-ai-profiles', () => profiles.list())
       handle('save-ai-profile', (profile, key, defaultConnection) =>
         profiles.save(profile, key, defaultConnection),
@@ -223,6 +398,18 @@ if (lock)
       handle('get-library', () => repo.library())
       handle('get-playlist', () => repo.playlist())
       handle('manage-setlist', (command) => repo.manageSetlist(command))
+      handle('manage-service-template', (command) => repo.manageServiceTemplate(command))
+      handle('save-service-plan', (command) => repo.saveServicePlan(command))
+      handle('attach-service-cue', (command) => repo.attachServiceCue(command))
+      handle('prepare-service-cue', (command) => {
+        if (sections.executing()) throw new Error('구간 송출을 기다려주세요.')
+        return services.prepare(command)
+      })
+      handle('commit-service-cue', (token) => {
+        if (sections.executing()) throw new Error('구간 송출을 기다려주세요.')
+        return services.commit(z.string().uuid().parse(token))
+      })
+      handle('finish-service', (skip = false) => services.finish(z.boolean().parse(skip)))
       handle('publish-setlist-song', async (rawId) => {
         try {
           const id = Id.parse(rawId)
@@ -325,7 +512,10 @@ if (lock)
             filters: [{ name: '기존 형식', extensions: [asset.extension.slice(1)] }],
           })
           if (selected.canceled) break
-          await repo.relink(asset.id, selected.filePaths[0])
+          for (const r of repo.state.outputResources)
+            if (r.kind === 'pdf' && r.assetId === asset.id) sources.assertMutable(r.id)
+          await repo.relink(asset.id, selected.filePaths[0], (data) => sources.pdf.inspect(data))
+          windows.notify('output-resources-changed', repo.state.outputResources)
         }
       })
       async function saveFile(data?: string): Promise<FileResult> {
@@ -364,6 +554,7 @@ if (lock)
               cancelId: 0,
             })
             if (answer.response !== 1) return { success: false, canceled: true }
+            sources.stop(true)
             windows.windows.get('main')?.close()
             windows.windows.get('stage')?.close()
           }
@@ -374,7 +565,19 @@ if (lock)
               success: false,
               error: '플레이리스트 영역의 파일 불러오기 버튼을 사용해주세요.',
             }
+          const portable = parseProject(data).portable
+          for (const asset of portable?.assets || [])
+            if (asset.type === 'document') {
+              const pages = await sources.pdf.inspect(Buffer.from(asset.data, 'base64'))
+              if (
+                portable?.outputResources?.some(
+                  (r) => r.kind === 'pdf' && r.assetId === asset.id && r.pageCount !== pages,
+                )
+              )
+                throw new Error('PDF 페이지 수가 백업과 일치하지 않습니다.')
+            }
           const imported = await repo.importProject(data, restore)
+          windows.notify('output-resources-changed', repo.state.outputResources)
           for (const warning of repo.warnings.slice(warningCount))
             windows.notify('operation-warning', warning)
           return {
@@ -396,8 +599,162 @@ if (lock)
           }
         }
       }
+      handle('save-service-file', async (raw) => {
+        try {
+          const expected = z
+            .object({ id: Id, revision: z.number().int().nonnegative() })
+            .strict()
+            .parse(raw)
+          const list = repo.state.setlists.find(
+            (entry) => entry.id === expected.id && !entry.deletedAt,
+          )
+          if (!list || list.revision !== expected.revision)
+            throw new Error('예배 내용이 변경되었습니다. 다시 시도해주세요.')
+          const selected = await dialog.showSaveDialog(windows.windows.get('control')!, {
+            title: '전체 예배 저장 · 메모와 연결 자료 포함',
+            defaultPath: `${list.title.replace(/[\\/:*?"<>|]/g, '-')}.ppros`,
+            filters: [{ name: 'ProPre 예배', extensions: ['ppros'] }],
+          })
+          if (selected.canceled || !selected.filePath) return { success: false, canceled: true }
+          await atomicWrite(
+            selected.filePath,
+            await repo.exportService(expected.id, expected.revision),
+          )
+          return {
+            success: true,
+            filePath: selected.filePath,
+            itemCount: list.servicePlan?.items.length || 0,
+          }
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : '예배 파일을 저장하지 못했습니다.',
+          }
+        }
+      })
+      handle('save-template-file', async (raw) => {
+        try {
+          const expected = z
+            .object({ id: Id, revision: z.number().int().nonnegative() })
+            .strict()
+            .parse(raw)
+          const template = repo.state.serviceTemplates.find(
+            (entry) => entry.id === expected.id && !entry.deletedAt,
+          )
+          if (!template) throw new Error('템플릿을 선택해주세요.')
+          const choice = await dialog.showSaveDialog(windows.windows.get('control')!, {
+            title: '템플릿 파일 저장 · 포함 메모와 고정 자료 전달',
+            defaultPath: template.name.replace(/[\\/:*?"<>|]/g, '-') + '.ppros',
+            filters: [{ name: 'ProPre 템플릿', extensions: ['ppros'] }],
+          })
+          if (choice.canceled || !choice.filePath) return { success: false, canceled: true }
+          await atomicWrite(
+            choice.filePath,
+            await repo.exportServiceTemplate(expected.id, expected.revision),
+          )
+          return { success: true, filePath: choice.filePath }
+        } catch (failure) {
+          return {
+            success: false,
+            error: failure instanceof Error ? failure.message : '템플릿을 저장하지 못했습니다.',
+          }
+        }
+      })
+      handle('load-template-file', async () => {
+        try {
+          const choice = await dialog.showOpenDialog(windows.windows.get('control')!, {
+            title: '템플릿 파일 불러오기',
+            properties: ['openFile'],
+            filters: [{ name: 'ProPre 템플릿', extensions: ['ppros'] }],
+          })
+          if (choice.canceled || !choice.filePaths[0]) return { success: false, canceled: true }
+          if ((await fs.stat(choice.filePaths[0])).size > MAX_FILE_BYTES)
+            throw new Error('파일이200MB를 초과합니다.')
+          const data = await fs.readFile(choice.filePaths[0], 'utf8'),
+            file = parseProject(data).portable
+          if (file?.kind !== 'service-template') throw new Error('템플릿 파일을 선택해주세요.')
+          const template = file.serviceTemplates![0],
+            confirm = await dialog.showMessageBox(windows.windows.get('control')!, {
+              type: 'question',
+              message: `“${template.name}” 템플릿을 불러올까요?`,
+              detail: `${template.items.length}개 순서와 포함된 메모·고정 자료를 새 사본으로 저장합니다. 현재 예배·편집·송출은 유지됩니다.`,
+              buttons: ['취소', '템플릿 불러오기'],
+              defaultId: 0,
+              cancelId: 0,
+            })
+          if (confirm.response !== 1) return { success: false, canceled: true }
+          await repo.importProject(data, false, undefined, false, undefined, true)
+          return { success: true }
+        } catch (failure) {
+          return {
+            success: false,
+            error: failure instanceof Error ? failure.message : '템플릿을 불러오지 못했습니다.',
+          }
+        }
+      })
+      handle('load-service-file', async (raw) => {
+        try {
+          const expected = ServiceFileTargetSchema.parse(raw)
+          const selected = await dialog.showOpenDialog(windows.windows.get('control')!, {
+            title: '예배 파일 불러오기',
+            properties: ['openFile'],
+            filters: [{ name: 'ProPre 예배', extensions: ['ppros'] }],
+          })
+          if (selected.canceled || !selected.filePaths[0]) return { success: false, canceled: true }
+          const filename = selected.filePaths[0]
+          if ((await fs.stat(filename)).size > MAX_FILE_BYTES)
+            throw new Error('파일이 200MB를 초과합니다.')
+          const data = await fs.readFile(filename, 'utf8')
+          const parsed = parseProject(data).portable
+          if (parsed?.kind !== 'service')
+            throw new Error(
+              '전체 예배 파일을 선택해주세요. 곡 파일은 기존 곡 불러오기를 이용해주세요.',
+            )
+          const list = parsed.setlists![0]
+          const answer = await dialog.showMessageBox(windows.windows.get('control')!, {
+            type: 'question',
+            message: `“${list.title}” 예배를 새 콘티로 불러올까요?`,
+            detail: `${list.servicePlan!.items.length}개 순서와 담당자·메모·연결 자료를 독립 사본으로 만듭니다. 현재 편집과 송출은 유지됩니다.`,
+            buttons: ['취소', '새 예배로 불러오기'],
+            defaultId: 0,
+            cancelId: 0,
+          })
+          if (answer.response !== 1) return { success: false, canceled: true }
+          await repo.importProject(data, false, undefined, false, expected)
+          return { success: true, itemCount: list.servicePlan!.items.length }
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : '예배 파일을 불러오지 못했습니다.',
+          }
+        }
+      })
       handle('save-playlist-file', async (expected) => {
         try {
+          const plan = repo.state.setlists.find(
+            (x) => x.id === repo.state.activeSetlistId,
+          )?.servicePlan
+          if (
+            plan?.items.some(
+              (cue) =>
+                cue.kind !== 'song' ||
+                cue.leader ||
+                cue.operatorNote ||
+                cue.stageNote ||
+                cue.durationSeconds !== undefined,
+            )
+          ) {
+            const answer = await dialog.showMessageBox(windows.windows.get('control')!, {
+              type: 'question',
+              message: '곡만 파일로 저장할까요?',
+              detail:
+                '이 파일에는 곡과 가사 순서만 담깁니다. 기도·말씀·광고 순서와 담당자·메모·진행 시간은 제외됩니다. 전체 예배를 보존하려면 전체 백업을 사용해주세요.',
+              buttons: ['취소', '곡만 저장'],
+              defaultId: 0,
+              cancelId: 0,
+            })
+            if (answer.response !== 1) return { success: false, canceled: true }
+          }
           const data = await repo.exportPlaylist(expected)
           const selected = await dialog.showSaveDialog(windows.windows.get('control')!, {
             title: '플레이리스트 파일 저장',
@@ -584,10 +941,13 @@ if (lock)
           }
         })
       event('route-screen-update', ['control'], (_role, value) => {
+        if (services.executing() || sections.executing()) return
         const v = z.object({ screenId: z.literal('main'), data: z.unknown() }).parse(value)
         windows.publishOutput(v.data)
       })
-      event('update-stage', ['control'], (_role, value) => windows.publishStage(value))
+      event('update-stage', ['control'], (_role, value) => {
+        if (!services.executing() && !sections.executing()) windows.publishStage(value)
+      })
       event('screen-ready', ['control', 'main', 'stage'], (role) => windows.ready(role))
       event('screen-applied', ['main', 'stage'], (role, value) =>
         windows.acknowledge(role, z.number().int().positive().parse(value)),
@@ -642,6 +1002,7 @@ if (lock)
       }
       windows.installMenu()
       await windows.restore()
+      updates.start()
     })
     .catch(() => {
       void dialog.showErrorBox(
@@ -653,6 +1014,7 @@ if (lock)
 app.on('second-instance', () => windows?.create('control'))
 app.on('activate', () => windows?.create('control'))
 app.on('before-quit', (event) => {
+  if (allowClose || !windows?.windows.has('control')) void outputSource?.dispose().catch(() => {})
   if (!allowClose && windows?.windows.has('control')) {
     event.preventDefault()
     quitting = true
@@ -663,7 +1025,9 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 app.on('will-quit', () => {
+  updates?.dispose()
   preparationPreview?.dispose()
+  void outputSource?.dispose().catch(() => {})
   if (automation) {
     try {
       rmSync(automation.connectionFile, { force: true })
