@@ -3,7 +3,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto'
 import { z } from 'zod'
-import { musicURL, type MusicBridgeState } from '../../shared/music'
+import { musicURL, musicTargetMatches, type MusicBridgeState } from '../../shared/music'
 const observation = z
   .object({
     bindingId: z.string().max(300),
@@ -11,6 +11,9 @@ const observation = z
     videoId: z.string().max(160),
     listId: z.string().max(160),
     playing: z.boolean().nullable(),
+    pageVideoId: z.string().max(160).optional(),
+    pageListId: z.string().max(160).optional(),
+    canStart: z.boolean().optional(),
   })
   .strict()
 export class MusicBridge {
@@ -40,6 +43,50 @@ export class MusicBridge {
   private generation = 0
   private timer?: ReturnType<typeof setInterval>
   private unresolved = false
+  private preparation?: {
+    requestId: string
+    url: string
+    bindingId?: string
+    resolve: (state: MusicBridgeState) => void
+    reject: (error: Error) => void
+    timer: ReturnType<typeof setTimeout>
+  }
+  private preparationGeneration = 0
+  private cancelPreparation(message: string) {
+    const pending = this.preparation
+    this.preparation = undefined
+    if (pending) {
+      clearTimeout(pending.timer)
+      pending.reject(new Error(message))
+    }
+  }
+  async prepareChrome(input: string, open: (url: string) => Promise<unknown>) {
+    const url = musicURL(input)
+    ++this.preparationGeneration
+    this.cancelPreparation('새 음악 준비 요청으로 변경되었습니다.')
+    // A silent tab handoff is allowed only after the old source confirms pause.
+    const pause = this.command('pause')
+    const generation = this.preparationGeneration
+    await pause
+    if (generation !== this.preparationGeneration)
+      throw new Error('음악 준비 요청이 변경되었습니다.')
+    const requestId = randomBytes(32).toString('hex')
+    return new Promise<MusicBridgeState>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this.preparation?.requestId === requestId)
+          this.cancelPreparation(
+            'Chrome 자동 연결을 확인하지 못했습니다. ProPre 음악 연결 확장 설치·새로고침과 연결 프로그램 설정을 확인해주세요. 열린 탭에서 수동 연결도 가능합니다.',
+          )
+      }, 30000)
+      this.preparation = { requestId, url, resolve, reject, timer }
+      void open(`${url}#propre-connect=${requestId}`).catch((error) => {
+        if (this.preparation?.requestId === requestId)
+          this.cancelPreparation(
+            error instanceof Error ? error.message : 'Chrome에서 링크를 열지 못했습니다.',
+          )
+      })
+    })
+  }
   constructor(
     private directory: string,
     private notify: (state: MusicBridgeState) => void,
@@ -79,6 +126,48 @@ export class MusicBridge {
               socket.write(JSON.stringify({ type: 'ready', sessionId: this.sessionId }) + '\n')
               continue
             }
+            if (msg.type === 'prepare-failed') {
+              if (this.preparation?.requestId === msg.requestId)
+                this.cancelPreparation(
+                  '탭 자동 연결에 실패했습니다. ' +
+                    (typeof msg.error === 'string'
+                      ? msg.error.slice(0, 300)
+                      : 'Chrome에서 기존 음악의 중단 상태와 확장 연결을 확인해주세요.'),
+                )
+              continue
+            }
+            if (msg.type === 'prepare-tab') {
+              const pending = this.preparation
+              const candidate = observation.parse(msg.state)
+              const target = pending ? new URL(pending.url) : null
+              const matches =
+                target?.pathname === '/playlist'
+                  ? target.searchParams.get('list') === candidate.pageListId
+                  : target?.searchParams.get('v') === candidate.pageVideoId
+              const approved =
+                !!pending &&
+                !pending.bindingId &&
+                msg.requestId === pending.requestId &&
+                matches &&
+                candidate.playing === false &&
+                !this.unresolved
+              if (approved) pending!.bindingId = candidate.bindingId
+              socket.write(
+                JSON.stringify({
+                  type: 'prepare-approved',
+                  requestId: msg.requestId,
+                  approved,
+                  reason: !pending
+                    ? '음악 준비 요청이 종료되었습니다. 앱에서 다시 준비해주세요.'
+                    : msg.requestId !== pending.requestId
+                      ? '다른 준비 요청의 탭입니다. 앱에서 다시 준비해주세요.'
+                      : !matches
+                        ? '열린 탭의 곡·목록을 확인하지 못했습니다. 페이지 로딩 후 다시 준비해주세요.'
+                        : '기존 음악의 중단을 먼저 확인해주세요.',
+                }) + '\n',
+              )
+              continue
+            }
             if (msg.type === 'state') {
               const parsed = observation.parse(msg.state)
               if (
@@ -93,11 +182,30 @@ export class MusicBridge {
               this.observed = performance.now()
               this.unresolved = parsed.playing !== false
               this.notify(this.snapshot())
+              const preparation = this.preparation
+              if (
+                preparation?.bindingId === parsed.bindingId &&
+                parsed.playing === false &&
+                musicTargetMatches(preparation.url, this.snapshot())
+              ) {
+                this.preparation = undefined
+                clearTimeout(preparation.timer)
+                preparation.resolve(this.snapshot())
+              }
               const p = this.pending.get(msg.requestId)
               if (p) {
                 clearTimeout(p.timer)
                 this.pending.delete(msg.requestId)
-                if (msg.error) p.reject(new Error('브라우저에서 명령을 적용하지 못했습니다.'))
+                if (msg.error)
+                  p.reject(
+                    new Error(
+                      msg.error === 'not-loaded' || msg.error === 'start-unavailable'
+                        ? '앨범·재생목록의 재생 버튼을 찾지 못했습니다. Chrome에서 해당 목록을 다시 열거나 직접 재생한 뒤 다시 시도해주세요.'
+                        : msg.error === 'autoplay-blocked'
+                          ? 'Chrome에서 재생이 차단됐습니다. 유튜브 뮤직에서 재생 버튼을 한 번 누른 뒤 다시 시도해주세요.'
+                          : '브라우저에서 명령을 적용하지 못했습니다.',
+                    ),
+                  )
                 else p.resolve(this.snapshot())
               }
             }
@@ -150,6 +258,10 @@ export class MusicBridge {
     action: 'status' | 'pause' | 'play' | 'disconnect',
     url?: string,
   ): Promise<MusicBridgeState> {
+    if (action !== 'status') {
+      this.preparationGeneration++
+      this.cancelPreparation('음악 준비 요청이 취소되었습니다.')
+    }
     if (!this.socket) {
       if (action === 'pause' && !this.unresolved) return this.snapshot()
       if (action === 'status') return this.snapshot()
@@ -174,23 +286,18 @@ export class MusicBridge {
       return this.snapshot()
     }
     if (action === 'play') {
-      const target = new URL(musicURL(url || '')),
-        state = this.snapshot()
-      if (
-        state.stale ||
-        (target.pathname === '/playlist'
-          ? target.searchParams.get('list') !== state.listId
-          : target.searchParams.get('v') !== state.videoId)
-      )
+      const state = this.snapshot()
+      if (state.stale || !musicTargetMatches(url || '', state))
         throw new Error('브라우저에서 선택한 곡·재생목록이 다릅니다. 먼저 준비해주세요.')
     }
     if (action !== 'status') this.generation++
     const requestId = randomUUID(),
-      generation = this.generation
+      generation = this.generation,
+      timeout = action === 'play' ? 12000 : 2000
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId)
-        if (action === 'play') {
+        if (action === 'play' && generation === this.generation) {
           this.generation++
           this.socket?.write(
             JSON.stringify({
@@ -203,7 +310,7 @@ export class MusicBridge {
           )
         }
         reject(new Error('브라우저 응답을 확인하지 못했습니다. 음악이 계속 나올 수 있습니다.'))
-      }, 2000)
+      }, timeout)
       this.pending.set(requestId, {
         resolve: (state) => {
           if (action !== 'status' && generation !== this.generation) {
@@ -211,7 +318,8 @@ export class MusicBridge {
             return
           }
           if (
-            (action === 'play' && state.playing !== true) ||
+            (action === 'play' &&
+              (state.playing !== true || !musicTargetMatches(url || '', state, false))) ||
             (action === 'pause' && state.playing !== false)
           ) {
             reject(new Error('음악 상태가 확인되지 않았습니다.'))
@@ -227,8 +335,9 @@ export class MusicBridge {
           action,
           requestId,
           generation,
-          expiresAt: Date.now() + 2000,
+          expiresAt: Date.now() + timeout,
           bindingId: this.state.bindingId,
+          ...(action === 'play' ? { url: musicURL(url || '') } : {}),
         }) + '\n',
       )
     })
@@ -282,6 +391,7 @@ export class MusicBridge {
     )
   }
   close() {
+    this.cancelPreparation('앱 연결이 종료되었습니다.')
     clearInterval(this.timer)
     this.socket?.destroy()
     this.server?.close()

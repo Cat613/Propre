@@ -99,6 +99,7 @@ const methods: Record<string, string> = {
   saveMusic: 'save-music',
   musicBridge: 'music-bridge',
   openMusicURL: 'open-music-url',
+  prepareMusicURL: 'prepare-music-url',
   showMusicExtension: 'show-music-extension',
   pinMusic: 'pin-music',
   selectMediaFiles: 'dialog:openFile',

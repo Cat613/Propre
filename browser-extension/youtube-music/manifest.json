@@ -1,1 +1,31 @@
-{"manifest_version":3,"name":"ProPre 음악 연결","version":"0.1.0","description":"선택한 유튜브 뮤직 탭의 재생 상태를 ProPre에 연결합니다.","permissions":["nativeMessaging","storage"],"host_permissions":["https://music.youtube.com/*"],"background":{"service_worker":"worker.js"},"action":{"default_popup":"popup.html"},"content_scripts":[{"matches":["https://music.youtube.com/*"],"js":["content.js"],"all_frames":false}]}
+{
+  "manifest_version": 3,
+  "name": "ProPre 음악 연결",
+  "version": "0.1.0",
+  "description": "선택한 유튜브 뮤직 탭의 재생 상태를 ProPre에 연결합니다.",
+  "permissions": [
+    "nativeMessaging",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://music.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "worker.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://music.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": false,
+      "run_at": "document_start"
+    }
+  ]
+}

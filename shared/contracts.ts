@@ -182,6 +182,7 @@ export interface API {
     args?: { url?: string; extensionId?: string; bindingId?: string },
   ): Promise<import('./music').MusicBridgeState>
   openMusicURL(url: string): Promise<void>
+  prepareMusicURL(url: string): Promise<import('./music').MusicBridgeState>
   showMusicExtension(): Promise<void>
   pinMusic(urls: string[]): Promise<void>
   selectMediaFiles(): Promise<string[]>

@@ -1,5 +1,5 @@
 import { MusicBridge } from './services/music-bridge'
-import { musicURL } from '../shared/music'
+import { openMusicInChrome } from './services/music-browser'
 import { ServiceFileTargetSchema } from '../shared/service-session'
 import { ServiceSessions } from './services/service-session'
 import { StageMessages } from './services/stage-messages'
@@ -312,8 +312,9 @@ if (lock)
           : app.getAppPath()
         shell.showItemInFolder(path.join(root, 'browser-extension/youtube-music/manifest.json'))
       })
-      handle('open-music-url', (raw) =>
-        shell.openExternal(musicURL(z.string().max(2048).parse(raw))),
+      handle('open-music-url', (raw) => openMusicInChrome(z.string().max(2048).parse(raw)))
+      handle('prepare-music-url', (raw) =>
+        music.prepareChrome(z.string().max(2048).parse(raw), openMusicInChrome),
       )
       handle('music-bridge', async (raw, args) => {
         const action = z
