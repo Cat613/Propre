@@ -92,7 +92,7 @@ it('exports only one service with notes, independent song copies, owned PDF and 
   const data = await exported(),
     file = JSON.parse(data)
   expect(file.kind).toBe('service')
-  expect(file.schemaVersion).toBe(3)
+  expect(file.schemaVersion).toBe(4)
   expect(file.setlists).toHaveLength(1)
   expect(file.presentations).toEqual([])
   expect(file.setlistSongs).toHaveLength(1)

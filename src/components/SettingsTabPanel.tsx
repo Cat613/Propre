@@ -121,7 +121,7 @@ const SettingsTabPanel: React.FC = () => {
       <div className="text-xs flex flex-col gap-2">
         <h3 className="font-semibold">화면 구성</h3>
         <label className="flex items-center justify-between gap-3 text-gray-300 cursor-pointer">
-          오디오 플레이어 표시
+          대기 중 음악 상태 표시
           <input
             type="checkbox"
             checked={showAudioPlayer}
@@ -130,8 +130,9 @@ const SettingsTabPanel: React.FC = () => {
           />
         </label>
         <p className="text-[10px] text-gray-500 leading-relaxed">
-          상단의 오디오 선택·재생·음량·중지 영역을 표시합니다. 숨겨도 재생 중인 오디오는 유지됩니다.
-          변경한 설정은 자동 저장됩니다.
+          음악을 사용하지 않을 때도 상단 진입 버튼을 표시합니다. 음악 목록·설정은 미디어에 있습니다.
+          재생 중이거나 외부 상태가 미확인이면 중지 도구는 항상 표시합니다. 변경한 설정은 자동
+          저장됩니다.
         </p>
       </div>
       <div className="text-xs flex flex-col gap-2">

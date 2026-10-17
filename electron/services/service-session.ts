@@ -300,6 +300,8 @@ export class ServiceSessions {
       if (this.prepared !== prepared) throw new Error('순서 진행이 중지되었습니다.')
       this.prepared = undefined
       this.windows.notify('service-cue-applied', {
+        musicPreparationId: cue.musicPreparationId,
+        musicSetlistId: list.id,
         presentation: material?.presentation,
         slideId: material?.slideId,
         visual: cue.enter.visual,

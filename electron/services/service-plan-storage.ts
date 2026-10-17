@@ -26,11 +26,17 @@ export function syncSongCues(s: RepositoryState, list: List) {
     throw new Error('새 예배 순서는 1,000개까지 추가할 수 있습니다.')
 }
 export function copyServicePlan(s: RepositoryState, source: List, target: List) {
+  if (source.music)
+    target.music = source.music.map((x) => ({ ...clone(x), id: randomUUID(), revision: 0 }))
   if (!source.servicePlan) return
   const plan = clone(source.servicePlan)
   const rowMapping = new Map(source.items.map((row, index) => [row.id, target.items[index]?.id]))
   for (const cue of plan.items) {
     cue.id = randomUUID()
+    if (cue.musicPreparationId) {
+      const index = source.music?.findIndex((x) => x.id === cue.musicPreparationId) ?? -1
+      cue.musicPreparationId = target.music?.[index]?.id
+    }
     if (cue.kind === 'song') cue.songItemId = rowMapping.get(cue.songItemId!)
     if (cue.binding?.kind === 'presentation') {
       const presentationId = cue.binding.presentationId
@@ -91,6 +97,8 @@ export function validateServicePlans(s: RepositoryState) {
     )
       throw new Error('예배별 자료는 1,000개까지 보관할 수 있습니다.')
     for (const cue of plan.items) {
+      if (cue.musicPreparationId && !list.music?.some((x) => x.id === cue.musicPreparationId))
+        throw new Error('연결한 음악을 확인해주세요.')
       if (cue.binding?.kind === 'presentation') {
         const binding = cue.binding
         const p = s.cuePresentations.find(
@@ -144,10 +152,15 @@ export function importServiceState(s: RepositoryState, portable: z.infer<typeof 
       id: rowIds.get(row.id)!,
       presentationId: songIds.get(row.presentationId)!,
     })),
+    music: source.music?.map((x) => ({ ...clone(x), id: randomUUID(), revision: 0 })),
     servicePlan: clone(source.servicePlan!),
   }
   for (const cue of list.servicePlan!.items) {
     cue.id = randomUUID()
+    if (cue.musicPreparationId) {
+      const index = source.music?.findIndex((x) => x.id === cue.musicPreparationId) ?? -1
+      cue.musicPreparationId = list.music?.[index]?.id
+    }
     if (cue.kind === 'song') cue.songItemId = rowIds.get(cue.songItemId!)!
     if (cue.binding?.kind === 'presentation')
       cue.binding.presentationId = presentationIds.get(cue.binding.presentationId)!

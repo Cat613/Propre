@@ -268,7 +268,8 @@ export default function PreflightDialog({
                       : result.severity === 'warning'
                         ? '권장'
                         : '직접 확인'}{' '}
-                    · {preflightLabels[result.code] || result.code}
+                    · {result.title ? `${result.title} · ` : ''}
+                    {preflightLabels[result.code] || result.code}
                   </p>
                   {result.cueId && (
                     <p className="mt-1 break-words text-gray-500">

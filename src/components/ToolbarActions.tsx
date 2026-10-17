@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow'
 import React from 'react'
-import { BookOpen, ImagePlus, List, Plus, Sparkles, Square, Type, ImageOff } from 'lucide-react'
+import { BookOpen, ImagePlus, List, Plus, Square, Type, ImageOff } from 'lucide-react'
 import { usePresentationStore } from '../store'
 import type { Slide } from '../types'
 import { mediaKind } from '../../shared/model'
@@ -8,14 +8,9 @@ import { mediaKind } from '../../shared/model'
 interface ToolbarActionsProps {
   onOpenBulkEdit: () => void
   onOpenBibleInsert: () => void
-  onOpenSongPreparation: () => void
 }
 
-const ToolbarActions: React.FC<ToolbarActionsProps> = ({
-  onOpenBulkEdit,
-  onOpenBibleInsert,
-  onOpenSongPreparation,
-}) => {
+const ToolbarActions: React.FC<ToolbarActionsProps> = ({ onOpenBulkEdit, onOpenBibleInsert }) => {
   const { addSlide } = usePresentationStore(
     useShallow((state) => ({
       addSlide: state.addSlide,
@@ -98,7 +93,7 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
         title="이미지·영상 슬라이드를 추가합니다"
       >
         <ImagePlus size={14} />
-        미디어
+        이미지·영상
       </button>
       <button
         type="button"
@@ -109,16 +104,6 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
       >
         <List size={14} />
         가사 편집
-      </button>
-      <button
-        type="button"
-        aria-label="AI로 찬양 준비"
-        onClick={onOpenSongPreparation}
-        className="workbench-button workbench-button-primary ml-auto"
-        title="PDF·이미지에서 가사와 송폼을 분석합니다"
-      >
-        <Sparkles size={14} />
-        AI 찬양 준비
       </button>
     </div>
   )

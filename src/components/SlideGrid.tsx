@@ -108,7 +108,7 @@ const SortableSlideCard: React.FC<{
       data-slide-id={slide.id}
       data-section-prepared={isPrepared}
       data-live={isActive}
-      aria-label={`${index + 1}번 슬라이드${isActive ? ' 송출 중' : ''}`}
+      aria-label={`${index + 1}번 슬라이드`}
       style={style}
       className={`
         relative h-36 rounded-xl text-left cursor-grab active:cursor-grabbing overflow-hidden focus:outline-none
@@ -152,11 +152,6 @@ const SortableSlideCard: React.FC<{
           >
             {index + 1}
           </span>
-          {isActive && (
-            <span className="rounded-md bg-amber-400/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
-              송출 중
-            </span>
-          )}
           {isPrepared && (
             <span className="rounded bg-blue-400/10 px-1.5 py-0.5 text-[9px] text-blue-300">
               구간 준비
@@ -402,12 +397,12 @@ const SlideGrid: React.FC<SlideGridProps> = ({ onSlideClick, onEditModalChange }
   return (
     <div className="relative h-full flex flex-col overflow-hidden">
       {!!slides.length && (
-        <div className="max-h-[45%] shrink-0 overflow-auto px-4 pt-3">
+        <div className="max-h-[45%] shrink-0 overflow-auto px-4 pt-2">
           <SectionNavigation />
         </div>
       )}
-      <div className="workbench-scroll min-h-0 flex-1 overflow-y-auto p-4 pb-20">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="workbench-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-2 pb-20">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
           <h2 className="workbench-heading">슬라이드</h2>
           <p className="text-[10px] text-gray-500">Shift / ⌘·Ctrl 다중 선택 · 드래그로 순서 변경</p>
         </div>

@@ -1,3 +1,4 @@
+import { useMusicState } from '../../music/state'
 import { StoreSlice, MediaSlice } from '../types'
 import type { MediaItem, ActiveBackground } from '../../types'
 import { mediaKind } from '../../../shared/model'
@@ -45,10 +46,13 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
   },
   playAudio: async (media) => {
     const token = ++audioRequest
-    if (media) set({ activeAudio: { ...media, playing: false, volume: 1 } })
-    const selected = get().activeAudio
+    const selected = media
+      ? { ...media, playing: false, volume: 'volume' in media ? (media.volume ?? 0.5) : 0.5 }
+      : get().activeAudio
     if (!selected) return
     try {
+      if (window.ipcRenderer?.musicBridge) await window.ipcRenderer.musicBridge('pause')
+      if (token !== audioRequest) return
       const status =
         get().externalOutput.source.kind === 'web'
           ? await window.ipcRenderer.getExternalOutput()
@@ -64,10 +68,12 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
           externalOutput.generation >= s.externalOutput.generation ? { externalOutput } : {},
         )
       }
-      if (token === audioRequest && get().activeAudio?.id === selected.id)
-        set((s) => ({ activeAudio: s.activeAudio ? { ...s.activeAudio, playing: true } : null }))
+      if (token === audioRequest) set({ activeAudio: { ...selected, playing: true } })
     } catch {
-      get().addToast('웹 소리를 끄지 못해 오디오 재생을 보류했습니다. 다시 시도해주세요.', 'error')
+      get().addToast(
+        '기존 소리 중단을 확인하지 못해 재생을 보류했습니다. 브라우저와 웹 소리를 확인해주세요.',
+        'error',
+      )
     }
   },
   triggerBackground: (media: MediaItem) => {
@@ -119,6 +125,17 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
     switch (layer) {
       case 'audio':
         audioRequest++
+        useMusicState.setState((s) => ({
+          request: s.request + 1,
+          preparationRequest: s.preparationRequest + 1,
+          busy: false,
+          phase: 'stopped',
+        }))
+        void window.ipcRenderer?.musicBridge?.('pause').catch(() =>
+          useMusicState.setState({
+            message: '외부 음악 중단을 확인하지 못했습니다. 브라우저에서 확인해주세요.',
+          }),
+        )
         set({ activeAudio: null })
         break
       case 'background':
@@ -145,6 +162,17 @@ export const createMediaSlice: StoreSlice<MediaSlice> = (set, get) => ({
 
   clearAll: () => {
     audioRequest++
+    useMusicState.setState((s) => ({
+      request: s.request + 1,
+      preparationRequest: s.preparationRequest + 1,
+      busy: false,
+      phase: 'stopped',
+    }))
+    void window.ipcRenderer?.musicBridge?.('pause').catch(() =>
+      useMusicState.setState({
+        message: '외부 음악 중단을 확인하지 못했습니다. 브라우저에서 확인해주세요.',
+      }),
+    )
     void window.ipcRenderer?.stopExternalOutput?.().catch(() => {})
     set({
       serviceBlackout: false,

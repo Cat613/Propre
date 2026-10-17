@@ -200,6 +200,11 @@ export interface ActiveBackground {
 export type LayerType = 'audio' | 'background' | 'slide' | 'announcement' | 'prop' | 'message'
 
 export interface AudioItem {
+  startSeconds?: number
+  endSeconds?: number
+  fadeSeconds?: number
+  musicItemId?: string
+  ownerSetlistId?: string
   id: string
   url: string
   name: string

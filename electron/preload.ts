@@ -4,6 +4,7 @@ const control = role === 'control'
 const receiving = control
   ? [
       'app-update-changed',
+      'music-bridge-state',
       'service-session-changed',
       'service-cue-applied',
       'stage-message-status',
@@ -95,6 +96,11 @@ const methods: Record<string, string> = {
   savePlaylist: 'save-playlist',
   saveSettings: 'save-settings',
   saveMedia: 'save-media',
+  saveMusic: 'save-music',
+  musicBridge: 'music-bridge',
+  openMusicURL: 'open-music-url',
+  showMusicExtension: 'show-music-extension',
+  pinMusic: 'pin-music',
   selectMediaFiles: 'dialog:openFile',
   cleanupMedia: 'cleanup-media',
   relinkMedia: 'relink-media',

@@ -1,3 +1,4 @@
+import { prepareMusic, stopMusic } from '../music/actions'
 import { usePresentationStore as store } from '../store'
 import { outputSnapshot, stageSnapshot } from './helpers'
 import {
@@ -404,7 +405,15 @@ async function boot(): Promise<() => void> {
         visual: string
         audio: string
         manual?: boolean
+        musicPreparationId?: string
+        musicSetlistId?: string
       }) => {
+        if (applied.audio === 'stop') stopMusic()
+        if (applied.musicPreparationId) {
+          const list = store.getState().setlists.find((x) => x.id === applied.musicSetlistId),
+            item = list?.music?.find((x) => x.id === applied.musicPreparationId)
+          if (item && list) void prepareMusic(item, list.id)
+        }
         const history = store.temporal.getState()
         history.pause()
         try {

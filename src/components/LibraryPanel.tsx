@@ -137,7 +137,7 @@ const LibraryPanel: React.FC = () => {
           <p className="workbench-muted">
             찬양 목록 <span className="ml-1 text-gray-600">{library.length}</span>
           </p>
-          <div className="flex items-center gap-2 ml-auto">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 ml-auto">
             <button className="workbench-button" onClick={() => setShowTrash(true)}>
               찬양 휴지통
             </button>

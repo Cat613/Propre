@@ -1,23 +1,19 @@
-import React, { useState } from 'react'
+import React, { lazy, Suspense, useState } from 'react'
 import BulkEditModal from './BulkEditModal'
 import ToolbarActions from './ToolbarActions'
-import BibleInsertModal from './BibleInsertModal'
-import SongPreparationPanel from './SongPreparationPanel'
+const BibleInsertModal = lazy(() => import('./BibleInsertModal'))
 
 const ControlToolbar: React.FC = () => {
   const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
   const [isBibleInsertOpen, setIsBibleInsertOpen] = useState(false)
-  const [isSongPreparationOpen, setIsSongPreparationOpen] = useState(false)
 
   const handleOpenBulkEdit = () => setIsBulkEditOpen(true)
 
   return (
-    <div className="shrink-0 border-b border-white/5 px-4 py-3">
-      {/* Left: Toolbar Actions (Clear, Add, AI) */}
+    <div className="shrink-0 px-4 pt-1 pb-2">
       <ToolbarActions
         onOpenBulkEdit={handleOpenBulkEdit}
         onOpenBibleInsert={() => setIsBibleInsertOpen(true)}
-        onOpenSongPreparation={() => setIsSongPreparationOpen(true)}
       />
 
       <BulkEditModal
@@ -26,9 +22,16 @@ const ControlToolbar: React.FC = () => {
           setIsBulkEditOpen(false)
         }}
       />
-      {isBibleInsertOpen && <BibleInsertModal onClose={() => setIsBibleInsertOpen(false)} />}
-      {isSongPreparationOpen && (
-        <SongPreparationPanel onClose={() => setIsSongPreparationOpen(false)} />
+      {isBibleInsertOpen && (
+        <Suspense
+          fallback={
+            <p role="status" className="text-xs">
+              성경 도구 불러오는 중…
+            </p>
+          }
+        >
+          <BibleInsertModal onClose={() => setIsBibleInsertOpen(false)} />
+        </Suspense>
       )}
     </div>
   )

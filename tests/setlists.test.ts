@@ -218,7 +218,7 @@ it('imports the old workspace into v2 with frozen songs, preserves old bytes, ID
   await fs.writeFile(filename, bytes)
   const migrated = new Repository(dir)
   await migrated.open()
-  expect(migrated.state.schemaVersion).toBe(4)
+  expect(migrated.state.schemaVersion).toBe(5)
   expect(migrated.library()[0].id).toBe('a')
   expect(migrated.state.draft).toMatchObject({ id: 'a' })
   expect(migrated.state.settings.stageCurrentFontSize).toBe(95)

@@ -213,7 +213,7 @@ test('create/rename/date, trash and restore preserve song snapshots and allow re
   await modal.getByRole('button', { name: '콘티 이름 변경: 빈 수요예배', exact: true }).click()
   await modal.getByLabel('콘티 이름', { exact: true }).fill('수요예배')
   await modal.getByLabel('예배 날짜', { exact: true }).fill('2026-10-14')
-  const filename = path.join(dir, 'workspace-v4.json'),
+  const filename = path.join(dir, 'workspace-v5.json'),
     protectedFile = filename + '.held'
   await fs.rename(filename, protectedFile)
   await fs.mkdir(filename)

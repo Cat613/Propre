@@ -1,102 +1,264 @@
 import { useEffect, useRef } from 'react'
 import { usePresentationStore } from '../store'
-import { mediaKind } from '../../shared/model'
+import { useMusicState, setMusicBridge } from '../music/state'
+import { stopMusic, toggleMusic } from '../music/actions'
+
+/** Always mounted in Control. Inspector tabs only render controls, never another audio element. */
 export default function AudioPlayer() {
+  const audio = usePresentationStore((s) => s.activeAudio)
+  const prepared = useMusicState((s) => s.prepared),
+    external = useMusicState((s) => s.activeExternal),
+    undoPin = useMusicState((s) => s.undoPin)
+  useEffect(() => {
+    const urls = [
+      audio?.url,
+      undoPin?.source.kind === 'local' ? undoPin.source.local.url : undoPin?.source.fallback?.url,
+      prepared?.item.source.kind === 'local'
+        ? prepared.item.source.local.url
+        : prepared?.item.source.fallback?.url,
+      external?.source.kind === 'youtube-music' ? external.source.fallback?.url : undefined,
+    ].filter((url): url is string => !!url)
+    void window.ipcRenderer.pinMusic(urls).catch(() => {})
+  }, [audio?.url, prepared, external, undoPin])
+  return audio ? (
+    <LocalEngine key={audio.id} />
+  ) : (
+    <>
+      <BridgeObserver />
+      <audio data-music-idle />
+    </>
+  )
+}
+function BridgeObserver() {
+  const visible = usePresentationStore(
+    (s) => s.screenLooks[s.isGreenScreen ? 'chroma' : 'main'].audio.isVisible,
+  )
+  useEffect(() => {
+    if (!visible) {
+      useMusicState.setState((s) => ({ request: s.request + 1 }))
+      void window.ipcRenderer
+        .musicBridge('pause')
+        .catch(() => useMusicState.setState({ message: '외부 음악 중단을 확인해주세요.' }))
+    }
+  }, [visible])
+  useEffect(() => {
+    const apply = (bridge: import('../../shared/music').MusicBridgeState) => {
+      if (!setMusicBridge(bridge)) return
+      if (
+        bridge.playing &&
+        (usePresentationStore.getState().activeAudio?.playing ||
+          !usePresentationStore.getState().screenLooks[
+            usePresentationStore.getState().isGreenScreen ? 'chroma' : 'main'
+          ].audio.isVisible)
+      )
+        void window.ipcRenderer.musicBridge('pause').catch(() =>
+          useMusicState.setState({
+            message: '브라우저에서도 음악이 재생 중일 수 있습니다. 확인해주세요.',
+          }),
+        )
+    }
+    void window.ipcRenderer
+      .musicBridge('status')
+      .then(apply)
+      .catch(() => {})
+    return window.ipcRenderer.on('music-bridge-state', apply)
+  }, [])
+  return null
+}
+function LocalEngine() {
   const audio = usePresentationStore((s) => s.activeAudio),
-    showAudioPlayer = usePresentationStore((s) => s.showAudioPlayer),
     green = usePresentationStore((s) => s.isGreenScreen),
-    looks = usePresentationStore((s) => s.screenLooks),
-    ref = useRef<HTMLAudioElement>(null)
+    looks = usePresentationStore((s) => s.screenLooks)
+  const restart = useMusicState((s) => s.restartRequest),
+    fadeRequest = useMusicState((s) => s.fadeRequest)
+  const ref = useRef<HTMLAudioElement>(null),
+    gain = useRef(1),
+    fadeTimer = useRef<ReturnType<typeof setInterval>>(),
+    initialized = useRef(false),
+    lastFade = useRef(fadeRequest)
   const audible = looks[green ? 'chroma' : 'main'].audio.isVisible
+  useEffect(
+    () => () => {
+      clearInterval(fadeTimer.current)
+    },
+    [],
+  )
   useEffect(() => {
     const el = ref.current
-    if (!el) return
-    el.volume = audio?.volume ?? 1
-    el.loop = !!audio?.loop
-    if (audio?.playing && audible)
-      void el.play().catch(() => {
-        usePresentationStore.setState((s) => ({
-          activeAudio:
-            s.activeAudio?.id === audio.id ? { ...s.activeAudio, playing: false } : s.activeAudio,
-        }))
-        usePresentationStore
-          .getState()
-          .addToast('오디오를 재생하지 못했습니다. 파일 형식을 확인해주세요.', 'error')
-      })
-    else el.pause()
-  }, [audio?.id, audio?.url, audio?.volume, audio?.playing, audio?.loop, audible])
-  const select = async () => {
-    try {
-      const files = await window.ipcRenderer.selectMediaFiles(),
-        url = files.find((f) => mediaKind(f) === 'audio')
-      if (!url) {
-        if (files.length)
-          usePresentationStore.getState().addToast('오디오 파일을 선택해주세요.', 'info')
-        return
-      }
-      usePresentationStore.getState().addMediaToBin(files)
-      usePresentationStore.setState({
-        activeAudio: {
-          id: crypto.randomUUID(),
-          url,
-          name: decodeURIComponent(url.split('/').pop() || '오디오'),
-          playing: false,
-          volume: 1,
-        },
-      })
-    } catch {
-      usePresentationStore.getState().addToast('오디오 등록에 실패했습니다.', 'error')
+    if (!el || !audio) return
+    if (!audio.playing || !audible) {
+      el.pause()
+      if (useMusicState.getState().phase !== 'error') useMusicState.setState({ phase: 'paused' })
+      if (!audible && audio.playing) usePresentationStore.getState().pauseAudio()
+      return
     }
+    el.volume = (audio.volume ?? 0.5) * gain.current
+    useMusicState.setState({ phase: 'starting' })
+    let canceled = false
+    void el
+      .play()
+      .then(() => {
+        if (
+          !usePresentationStore.getState().activeAudio?.playing ||
+          usePresentationStore.getState().activeAudio?.id !== audio.id
+        )
+          el.pause()
+        else if (!canceled) useMusicState.setState({ phase: 'playing' })
+      })
+      .catch(() => {
+        if (!canceled) {
+          usePresentationStore.getState().pauseAudio()
+          useMusicState.setState({
+            phase: 'error',
+            message: '파일을 재생하지 못했습니다. 파일 형식과 구간을 확인해주세요.',
+          })
+        }
+      })
+    return () => {
+      canceled = true
+      el.pause()
+    }
+  }, [audio?.id, audio?.playing, audible])
+  useEffect(() => {
+    if (ref.current) ref.current.volume = (audio?.volume ?? 0.5) * gain.current
+  }, [audio?.volume])
+  useEffect(() => {
+    const el = ref.current
+    if (el && initialized.current) el.currentTime = audio?.startSeconds ?? 0
+  }, [restart, audio?.startSeconds])
+  useEffect(() => {
+    if (fadeRequest === lastFade.current) return
+    lastFade.current = fadeRequest
+    const el = ref.current
+    if (!el || !audio?.playing) return
+    clearInterval(fadeTimer.current)
+    const start = performance.now(),
+      duration = (audio.fadeSeconds ?? 3) * 1000
+    fadeTimer.current = setInterval(() => {
+      gain.current = duration === 0 ? 0 : Math.max(0, 1 - (performance.now() - start) / duration)
+      el.volume = (usePresentationStore.getState().activeAudio?.volume ?? 0.5) * gain.current
+      if (gain.current === 0) {
+        clearInterval(fadeTimer.current)
+        el.pause()
+        gain.current = 1
+        usePresentationStore.getState().pauseAudio()
+      }
+    }, 25)
+    return () => {
+      clearInterval(fadeTimer.current)
+      gain.current = 1
+    }
+  }, [fadeRequest, audio?.id, audio?.playing])
+  function update() {
+    const el = ref.current
+    if (!el || !audio) return
+    const end = audio.endSeconds ?? el.duration
+    if (Number.isFinite(end) && el.currentTime >= end) {
+      if (audio.loop) {
+        el.currentTime = audio.startSeconds ?? 0
+        void el.play().catch(() => usePresentationStore.getState().pauseAudio())
+      } else {
+        el.pause()
+        usePresentationStore.getState().pauseAudio()
+      }
+    }
+    if (
+      Math.abs(useMusicState.getState().position - el.currentTime) < 0.15 &&
+      useMusicState.getState().duration === el.duration
+    )
+      return
+    useMusicState.setState({
+      position: el.currentTime,
+      duration: Number.isFinite(el.duration) ? el.duration : 0,
+    })
   }
+  useEffect(() => {
+    const timer = setInterval(update, 50)
+    return () => clearInterval(timer)
+  })
   return (
-    <div
-      className={`bg-gray-900 border-b border-gray-700 px-3 py-1 ${showAudioPlayer ? 'flex' : 'hidden'} items-center justify-end gap-3 text-xs`}
-    >
+    <>
+      <BridgeObserver />
       <audio
+        data-music-engine
         ref={ref}
         src={audio?.url}
-        onEnded={() =>
-          usePresentationStore.setState((s) => ({
-            activeAudio: s.activeAudio ? { ...s.activeAudio, playing: false } : null,
-          }))
-        }
-        onError={() => window.ipcRenderer.reportMediaError()}
-      />
-      <span className="text-gray-500" aria-live="polite">
-        로컬 오디오 · {audio?.playing ? '재생 중' : '정지'}
-      </span>
-      <button onClick={() => void select()} className="text-gray-300">
-        {audio?.name || '오디오 선택'}
-      </button>
-      <button
-        aria-label={audio?.playing ? '오디오 일시정지' : '오디오 재생'}
-        disabled={!audio}
-        onClick={() => {
-          const state = usePresentationStore.getState()
-          if (state.activeAudio?.playing) state.pauseAudio()
-          else void state.playAudio()
+        preload="metadata"
+        onLoadedMetadata={() => {
+          const el = ref.current
+          if (!el || !audio) return
+          if (
+            !Number.isFinite(el.duration) ||
+            (audio.startSeconds ?? 0) >= el.duration ||
+            (audio.endSeconds ?? el.duration) > el.duration
+          ) {
+            usePresentationStore.getState().pauseAudio()
+            useMusicState.setState({
+              message: '곡 길이와 시작·끝 구간을 확인해주세요.',
+              phase: 'error',
+            })
+            return
+          }
+          initialized.current = true
+          el.currentTime = audio.startSeconds ?? 0
+          useMusicState.setState({ duration: el.duration })
         }}
-      >
-        {audio?.playing ? '일시정지' : '재생'}
-      </button>
-      <input
-        aria-label="오디오 음량"
-        type="range"
-        min="0"
-        max="1"
-        step=".05"
-        value={audio?.volume ?? 1}
-        onChange={(e) =>
-          usePresentationStore.setState((s) => ({
-            activeAudio: s.activeAudio
-              ? { ...s.activeAudio, volume: Number(e.target.value) }
-              : null,
-          }))
-        }
+        onTimeUpdate={update}
+        onEnded={() => {
+          if (audio?.loop) {
+            const el = ref.current
+            if (el) {
+              el.currentTime = audio.startSeconds ?? 0
+              void el.play().catch(() => {})
+            }
+          } else usePresentationStore.getState().pauseAudio()
+        }}
+        onError={() => {
+          usePresentationStore.getState().pauseAudio()
+          useMusicState.setState({
+            phase: 'error',
+            message: '오디오 파일을 읽지 못했습니다. 파일을 다시 연결해주세요.',
+          })
+        }}
       />
-      <button onClick={() => usePresentationStore.getState().clearLayer('audio')}>
-        오디오 중지
+    </>
+  )
+}
+export function AudioStatus({ onOpen }: { onOpen: () => void }) {
+  const audio = usePresentationStore((s) => s.activeAudio),
+    show = usePresentationStore((s) => s.showAudioPlayer)
+  const external = useMusicState((s) => s.activeExternal),
+    bridge = useMusicState((s) => s.bridge),
+    phase = useMusicState((s) => s.phase)
+  if (!audio && !external && !bridge.stale && !bridge.playing && !show) return null
+  return (
+    <div className="music-status" aria-label="음악 상태">
+      <button className="workbench-button" onClick={onOpen}>
+        {audio || external ? '음악' : '음악 열기'}
       </button>
+      <span className="min-w-0 truncate">
+        {external
+          ? `${external.title} · ${bridge.stale ? '외부 상태 미확인' : bridge.playing ? '재생 중' : '일시정지'}`
+          : audio
+            ? `${audio.name} · ${phase === 'playing' ? '재생 중' : phase === 'error' ? '재생 오류' : '일시정지'}`
+            : bridge.playing
+              ? '브라우저 음악 재생 중 · 대상 인수 필요'
+              : '미디어에서 음악을 준비하세요'}
+      </span>
+      {(audio || external || bridge.stale || bridge.playing) && (
+        <>
+          <button
+            className="workbench-button"
+            onClick={() => void toggleMusic()}
+            disabled={bridge.stale || (!audio && !external && bridge.playing !== true)}
+          >
+            {audio?.playing || bridge.playing ? '일시정지' : '이어 재생'}
+          </button>
+          <button className="workbench-button workbench-button-danger" onClick={stopMusic}>
+            음악 중지
+          </button>
+        </>
+      )}
     </div>
   )
 }

@@ -72,7 +72,7 @@ test('development startup renders the control, autosaves, and closes normally un
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft?.slides
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft?.slides
           .length,
     )
     .toBe(1)

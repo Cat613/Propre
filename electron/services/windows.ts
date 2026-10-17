@@ -28,6 +28,7 @@ export class WindowManager {
   private health = new Map<'main' | 'stage', ScreenHealth>()
   private sequence = 0
   visualSource: VisualSource = { kind: 'slides' }
+  onControlCrash: (() => void) | undefined
   onEmergencyStop: (() => void) | undefined
   onStageReady: (() => void) | undefined
   onStageClosed: (() => void) | undefined
@@ -307,7 +308,10 @@ export class WindowManager {
       }
     })
     win.webContents.on('render-process-gone', () => {
-      if (role === 'control') this.controlReady = false
+      if (role === 'control') {
+        this.controlReady = false
+        this.onControlCrash?.()
+      }
       const attempts = (this.retries.get(role) || 0) + 1
       this.retries.set(role, attempts)
       if (role !== 'control')
@@ -332,7 +336,10 @@ export class WindowManager {
     })
     if (role === 'control') win.on('close', (event) => this.onControlClose?.(event))
     win.on('closed', () => {
-      if (role === 'control') this.controlReady = false
+      if (role === 'control') {
+        this.controlReady = false
+        this.onControlCrash?.()
+      }
       this.roles.delete(contentsId)
       if (this.windows.get(role) === win) this.windows.delete(role)
       if (role === 'stage') this.onStageClosed?.()

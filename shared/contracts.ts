@@ -176,6 +176,14 @@ export interface API {
   savePlaylist(p: PlaylistItem[]): Promise<boolean>
   saveSettings(settings: Settings): Promise<void>
   saveMedia(media: MediaItem[]): Promise<void>
+  saveMusic(command: import('./music').SaveMusic): Promise<SetlistWorkspace>
+  musicBridge(
+    action: 'status' | 'pause' | 'play' | 'setup' | 'disconnect' | 'confirm-stop',
+    args?: { url?: string; extensionId?: string; bindingId?: string },
+  ): Promise<import('./music').MusicBridgeState>
+  openMusicURL(url: string): Promise<void>
+  showMusicExtension(): Promise<void>
+  pinMusic(urls: string[]): Promise<void>
   selectMediaFiles(): Promise<string[]>
   cleanupMedia(): Promise<number>
   relinkMedia(): Promise<void>

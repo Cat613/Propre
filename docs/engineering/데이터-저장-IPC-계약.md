@@ -103,3 +103,11 @@ manage-setlist는 명령 및 revision/current ID를 검증한다. publish-setlis
 Control 전용 typed API는 계획·자료 연결·prepare/commit·세션·점검·구간·타이머·템플릿·큐시트 출력을 제공한다. sender role/frame/origin 검사를 공통 handle 경로에 유지하고 strict payload/requestId/revision 및 source generation 검증을 각 서비스에서 수행한다. 예배 진행/중단 상태도 업데이트 설치 guard에 포함한다.
 
 StageMessage/StageTimer는 청중 OutputSchema와 별도인 Main 소유 일시 snapshot이다. 저장 메모와 일시 전송을 구분하고 ack/TTL/F2/restart를 검사한다. 세션/점검/타이머 checkpoint는 workspace와 분리하며 실제 실행을 자동 복원하지 않는다. 인쇄는 고정 revision allowlist DTO·독립 sandbox renderer·불투명 UUID PDF job을 사용하며 전체 원본/경로/실행 상태를 전달하지 않는다. [최종 검증 및 한계](../quality/2026-10-16-큐시트-PDF-인쇄와-최종-회귀.md).
+
+## 음악 병행·workspace-v5 / 휴대용4 (2026-10-17)
+
+현재 개발 작업 트리는 v5/휴대용4다. 이전 v4 원본·백업을 보존해 읽고 새 파일에 기록한다. Setlist.music과 ServiceTemplate.music은 로컬 구간/음량/반복/페이드 또는 안전한 유튜브 뮤직 링크/로컬 대체 파일이다. ServicePlan1의 선택적 musicPreparationId는 같은 예배의 음악을 참조하며 복제·파일 가져오기에 재매핑한다. 과거 v4/휴대용3 절은 도입 시점 기록이고 새 기록의 형식으로 사용하지 않는다.
+
+[현재 구현 계약](../design/music/05-미디어-통합과-송출-미리보기-구현-설계.md)을 따른다. save-music은 예배 revision과 음악 item revision을 검사하는 Control 전용 저장이다. 음악/대체 파일을 예배·템플릿·전체 백업 에셋 수집에 포함한다. 기존 개별100MiB·휴대용200MiB·상태24MiB 한도는 유지한다. 런타임 재생/준비/Undo 파일은 session pin으로 정리에서 보호한다.
+
+music-bridge/open-music-url/show-music-extension/pin-music은 Control 전용이다. 외부 URL은 music.youtube.com의 HTTPS watch/playlist만 허용한다. 브라우저 음악 연결 인증은 사용자 전용 파일 권한으로 보호하며 워크스페이스·내보내기·로그에서 제외한다. 실제 음악은 Control 단일 요소 또는 외부 Chrome 탭에서 재생하고 Output/Stage에는 별도 요소를 생성하지 않는다. 실제 Chrome 설치/계정/DOM·음향 수용은 별도다.

@@ -84,10 +84,7 @@ export default function SectionNavigation() {
     if (immediate) void take(choice)
   }
   return (
-    <details
-      className="mb-3 rounded-lg border border-white/10 px-3 py-2"
-      aria-label="구간 바로가기"
-    >
+    <details className="rounded-lg border border-white/10 px-3 py-2" aria-label="구간 바로가기">
       <summary className="cursor-pointer text-xs text-gray-400">
         구간 {immediate ? '· 즉시 송출' : '· 선택 후 준비'}
       </summary>

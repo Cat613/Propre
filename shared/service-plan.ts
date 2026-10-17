@@ -70,6 +70,7 @@ export const CueItemSchema = z
     operatorNote: z.string().max(2000).optional(),
     stageNote: z.string().max(2000).optional(),
     materialPending: z.boolean().optional(),
+    musicPreparationId: id.optional(),
     songItemId: id.optional(),
     binding: CueBindingSchema.optional(),
     enter: EnterPolicySchema,

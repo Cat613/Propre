@@ -86,7 +86,7 @@ test('Control saves a plan while the current output remains unchanged and stale 
   expect(result.staleRejected).toBe(true)
   expect(result.afterLive).toEqual(result.beforeLive)
   expect(result.sourceAfter).toEqual(result.sourceBefore)
-  const disk = JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8'))
+  const disk = JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8'))
   expect(disk.setlists[0].servicePlan.items[1].operatorNote).toBe('청중 비공개 합성 메모')
 })
 test('Main and Stage cannot invoke the plan mutation API', async () => {

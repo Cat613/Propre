@@ -23,7 +23,8 @@ async function launch() {
   })
   expect(await app.evaluate(({ app }) => app.getPath('userData'))).toBe(dir)
   expect(dir).not.toContain('Application Support')
-  page = await app.firstWindow()
+  await expect.poll(() => app.windows().some((w) => w.url().includes('control-panel'))).toBe(true)
+  page = app.windows().find((w) => w.url().includes('control-panel'))!
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
 }
 test.beforeEach(async () => {
@@ -106,7 +107,7 @@ test('saved notes stay private and explicit Stage send/replace/clear preserves a
   await page.getByRole('button', { name: '무대 안내 지우기', exact: true }).click()
   await expect(stage.locator('[data-stage-message]')).toHaveCount(0)
   await expect(stage.getByText('동시에 유지할 합성 가사', { exact: true })).toBeVisible()
-  const saved = await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')
+  const saved = await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')
   expect(saved).toContain('저장된 무대 초안')
   expect(saved).not.toContain('바뀐 입력은 전송')
 })

@@ -1,3 +1,4 @@
+import { MusicItemsSchema } from './music'
 import { ServicePlanSchema, songProjection } from './service-plan'
 import { TemplateItemSchema } from './service-template'
 import { OutputResourcesSchema, VisualSourceSchema } from './output-resources'
@@ -153,6 +154,7 @@ export const SetlistSchema = z.object({
   revision: z.number().int().nonnegative(),
   items: PlaylistRefsSchema,
   servicePlan: ServicePlanSchema.optional(),
+  music: MusicItemsSchema.optional(),
   deletedAt: z.string().datetime().optional(),
 })
 export const SetlistsSchema = z
@@ -195,6 +197,7 @@ export const ServiceTemplateSchema = z
     items: z.array(TemplateItemSchema).max(1000),
     presentations: LibrarySchema.max(1000),
     resources: OutputResourcesSchema.max(1000),
+    music: MusicItemsSchema.optional(),
   })
   .strict()
   .superRefine((template, context) => {
@@ -369,7 +372,7 @@ export const PortableSchema = z.object({
   format: z.literal('propre-project'),
   deletedLibrary: DeletedLibrarySchema.optional(),
   deletedMedia: DeletedMediaSchema.optional(),
-  schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3)]),
+  schemaVersion: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
   cuePresentations: CuePresentationsSchema.optional(),
   cueResources: CueResourcesSchema.optional(),
   outputResources: OutputResourcesSchema.optional(),
@@ -395,9 +398,15 @@ export function parseProject(data: string): {
   if ('format' in raw) {
     const portable = PortableSchema.parse(raw)
     if (
+      portable.schemaVersion < 4 &&
+      (portable.setlists?.some((x) => x.music?.length) ||
+        portable.serviceTemplates?.some((x) => x.music?.length))
+    )
+      throw new Error('음악이 포함된 파일은 새 형식이 필요합니다.')
+    if (
       portable.schemaVersion >= 2 &&
       portable.kind !== 'backup' &&
-      !(portable.schemaVersion === 3 && ['service', 'service-template'].includes(portable.kind))
+      !(portable.schemaVersion >= 3 && ['service', 'service-template'].includes(portable.kind))
     )
       throw new Error('새 외부 자료 형식은 전체 백업에서만 지원합니다.')
     if (
@@ -434,7 +443,7 @@ export function parseProject(data: string): {
     if (portable.kind === 'service') {
       const list = portable.setlists?.[0]
       if (
-        portable.schemaVersion !== 3 ||
+        portable.schemaVersion < 3 ||
         portable.setlists?.length !== 1 ||
         !list?.servicePlan ||
         list.deletedAt ||
@@ -509,6 +518,7 @@ export function parseProject(data: string): {
           else if (child && typeof child === 'object') visit(child)
         }
       }
+      visit(list.music)
       visit(songs)
       visit(presentations)
       for (const entry of resources)
@@ -521,7 +531,7 @@ export function parseProject(data: string): {
     }
     if (portable.kind === 'service-template') {
       if (
-        portable.schemaVersion !== 3 ||
+        portable.schemaVersion < 3 ||
         portable.serviceTemplates?.length !== 1 ||
         portable.serviceTemplates[0].deletedAt ||
         portable.presentations.length ||
@@ -553,6 +563,7 @@ export function parseProject(data: string): {
           else if (child && typeof child === 'object') visit(child)
         }
       }
+      visit(template.music)
       visit(template.presentations)
       for (const r of template.resources) if (r.kind === 'pdf') assetIds.add(r.assetId)
       if (

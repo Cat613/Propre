@@ -78,11 +78,14 @@
       "dist-electron/**/*",
       "dist/**/*",
       "scripts/propre-mcp.mjs",
+      "scripts/music-native-host.mjs",
+      "browser-extension/**/*",
       "THIRD_PARTY_NOTICES.md",
       "third-party-licenses/**/*"
     ],
     "productName": "ProPre",
     "asar": true,
+    "asarUnpack": ["browser-extension/**/*"],
     "npmRebuild": false
   },
   "engines": {

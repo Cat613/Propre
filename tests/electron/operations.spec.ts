@@ -74,7 +74,7 @@ test('automatic edits survive normal close and relaunch without a save button', 
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft?.slides[0]
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft?.slides[0]
           .content,
     )
     .toBe('저장 버튼 없는 수정')
@@ -102,7 +102,7 @@ test('native windows and Dock entries have distinct titles, restricted APIs, and
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft?.slides[0]
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft?.slides[0]
           ?.content,
     )
     .toBe('')
@@ -141,7 +141,7 @@ test('bulk editing autosaves and modal hotkeys do not operate the live screen', 
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft?.slides
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft?.slides
           .length,
     )
     .toBe(2)
@@ -164,7 +164,7 @@ test('renderer crash recovers an edit still waiting for its disk checkpoint', as
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft?.slides[0]
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft?.slides[0]
           .content,
     )
     .toBe('중단 직전 복구')
@@ -203,11 +203,11 @@ test('save failure remains visible and the unsaved edit survives retry', async (
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).library.length,
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).library.length,
     )
     .toBe(1)
-  await fs.rename(path.join(dir, 'workspace-v4.json'), path.join(dir, 'safe-copy.json'))
-  await fs.mkdir(path.join(dir, 'workspace-v4.json'))
+  await fs.rename(path.join(dir, 'workspace-v5.json'), path.join(dir, 'safe-copy.json'))
+  await fs.mkdir(path.join(dir, 'workspace-v5.json'))
   await page.getByTestId('slide-card').first().dblclick()
   await page.locator('textarea').first().fill('실패 후 재시도')
   await expect(page.getByText('자동 저장 실패', { exact: true })).toBeVisible()
@@ -237,14 +237,14 @@ test('save failure remains visible and the unsaved edit survives retry', async (
     page.getByTestId('slide-card').first().getByText('실패 후 재시도', { exact: true }),
   ).toBeVisible()
   await expect(page.getByText('자동 저장 실패', { exact: true })).toBeVisible()
-  await fs.rm(path.join(dir, 'workspace-v4.json'), { recursive: true })
-  await fs.rename(path.join(dir, 'safe-copy.json'), path.join(dir, 'workspace-v4.json'))
+  await fs.rm(path.join(dir, 'workspace-v5.json'), { recursive: true })
+  await fs.rename(path.join(dir, 'safe-copy.json'), path.join(dir, 'workspace-v5.json'))
   await page.getByRole('button', { name: '재시도', exact: true }).click()
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft?.slides[0]
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft?.slides[0]
           .content,
     )
     .toBe('실패 후 재시도')
@@ -324,7 +324,7 @@ test('canvas text changes persist while its editor is still open', async () => {
     .poll(
       async () =>
         JSON.parse(
-          await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8'),
+          await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8'),
         ).draft?.slides[0]?.elements?.some(
           (e: { text?: string }) => e.text === '캔버스 자동 저장',
         ) || false,
@@ -351,18 +351,18 @@ test('settings autosave shows failures and can retry without editing a slide', a
   await page.getByRole('button', { name: '시스템 환경 설정 열기' }).click()
   const modal = page.getByRole('dialog', { name: '시스템 환경 설정', exact: true })
   await modal.getByRole('button', { name: /무대/ }).click()
-  await fs.rename(path.join(dir, 'workspace-v4.json'), path.join(dir, 'safe-copy.json'))
-  await fs.mkdir(path.join(dir, 'workspace-v4.json'))
+  await fs.rename(path.join(dir, 'workspace-v5.json'), path.join(dir, 'safe-copy.json'))
+  await fs.mkdir(path.join(dir, 'workspace-v5.json'))
   await modal.getByRole('slider').first().focus()
   await page.keyboard.press('End')
   await expect(page.getByText('자동 저장 실패', { exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
-  await fs.rm(path.join(dir, 'workspace-v4.json'), { recursive: true })
-  await fs.rename(path.join(dir, 'safe-copy.json'), path.join(dir, 'workspace-v4.json'))
+  await fs.rm(path.join(dir, 'workspace-v5.json'), { recursive: true })
+  await fs.rename(path.join(dir, 'safe-copy.json'), path.join(dir, 'workspace-v5.json'))
   await page.getByRole('button', { name: '재시도', exact: true }).click()
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
   expect(
-    JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).settings
+    JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).settings
       .stageCurrentFontSize,
   ).toBe(200)
 })
@@ -376,7 +376,7 @@ test('switching back to an existing document restores that document on relaunch'
     await expect
       .poll(
         async () =>
-          JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft
+          JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft
             ?.slides[0]?.content,
       )
       .toBe(text)
@@ -388,7 +388,7 @@ test('switching back to an existing document restores that document on relaunch'
   await expect
     .poll(
       async () =>
-        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft?.slides[0]
+        JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft?.slides[0]
           ?.content,
     )
     .toBe('자료 A 복원')
@@ -455,41 +455,53 @@ test('registered video element decodes through the restricted media protocol', a
     .toEqual({ width: 32, loaded: true, error: null })
 })
 
-test('audio player visibility is saved across restart and can be restored', async () => {
-  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeVisible()
+test('idle music status preference persists while music stays in the media inspector', async () => {
+  await expect(page.getByRole('button', { name: '음악 열기', exact: true })).toBeVisible()
   await page.getByRole('button', { name: '설정', exact: true }).click()
-  let toggle = page.getByRole('checkbox', { name: '오디오 플레이어 표시', exact: true })
-  await expect(toggle).toBeChecked()
-  await toggle.uncheck()
-  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeHidden()
+  await page.getByRole('checkbox', { name: '대기 중 음악 상태 표시', exact: true }).uncheck()
+  await expect(page.getByRole('button', { name: '음악 열기', exact: true })).toBeHidden()
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
   await app.close()
   await launch()
-  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeHidden()
-  await page.getByRole('button', { name: '설정', exact: true }).click()
-  toggle = page.getByRole('checkbox', { name: '오디오 플레이어 표시', exact: true })
-  await expect(toggle).not.toBeChecked()
-  await toggle.check()
+  await expect(page.getByRole('button', { name: '음악 열기', exact: true })).toBeHidden()
+  await page.getByRole('button', { name: '미디어', exact: true }).click()
+  await page.locator('.media-filters').getByRole('button', { name: '음악', exact: true }).click()
   await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeVisible()
 })
 
 test('audio has one owner, survives tab switches, and stops with clear all', async () => {
-  const clip = path.join(dir, 'audio.wav')
-  await fs.copyFile(path.resolve('tests/fixtures/silence.wav'), clip)
-  await page.locator('audio').evaluate((audio: HTMLAudioElement) => {
-    audio.muted = true
+  await page.evaluate(async () => {
+    const b = await window.ipcRenderer.bootstrap()
+    await window.ipcRenderer.manageSetlist({
+      operation: 'create',
+      title: '오디오 시험',
+      fromCurrent: false,
+      expectedActiveId: b.activeSetlistId,
+      expectedRevision: b.setlists.find((x) => x.id === b.activeSetlistId)?.revision ?? null,
+    })
   })
+  await page.reload()
+  await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
+  const clip = path.resolve('tests/fixtures/silence.wav')
   await app.evaluate(({ dialog }, file) => {
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] })
   }, clip)
+  await page.locator('.media-filters').getByRole('button', { name: '음악', exact: true }).click()
   await page.getByRole('button', { name: '오디오 선택', exact: true }).click()
-  await page.getByRole('button', { name: '오디오 재생', exact: true }).click()
+  await page.getByRole('textbox', { name: '음악 이름', exact: true }).fill('시험 음악')
+  await page.getByRole('checkbox', { name: '지정 구간 반복', exact: true }).check()
+  await page.getByRole('button', { name: '음악 저장', exact: true }).click()
+  await page.getByRole('button', { name: '시험 음악 음악 준비', exact: true }).click()
+  await expect(page.getByRole('button', { name: '준비한 음악 재생', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: '준비한 음악 재생', exact: true }).click()
   await expect
-    .poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.paused))
+    .poll(() => page.locator('[data-music-engine]').evaluate((el: HTMLAudioElement) => el.paused))
     .toBe(false)
   await page.getByRole('button', { name: '설정', exact: true }).click()
-  await page.getByRole('checkbox', { name: '오디오 플레이어 표시', exact: true }).uncheck()
-  await expect(page.getByRole('button', { name: '오디오 일시정지', exact: true })).toBeHidden()
+  await page.getByRole('checkbox', { name: '대기 중 음악 상태 표시', exact: true }).uncheck()
+  await expect(
+    page.getByLabel('음악 상태').getByRole('button', { name: '음악 중지', exact: true }),
+  ).toBeVisible()
   await expect
     .poll(() => page.locator('audio').evaluate((audio: HTMLAudioElement) => audio.paused))
     .toBe(false)

@@ -21,6 +21,7 @@ export const TemplateItemSchema = z
     stageNote: CueItemSchema.shape.stageNote,
     enter: EnterPolicySchema,
     timer: TimerPresetSchema.optional(),
+    musicPreparationId: id.optional(),
     materialMode: z.enum(['slot', 'fixed']),
     slotName: z.string().max(100).optional(),
     required: z.boolean(),

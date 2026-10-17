@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { CueItem } from './service-plan'
 import type { Presentation } from '../src/types'
 export interface PreflightResult {
+  title?: string
   checkId: string
   cueId?: string
   severity: 'blocking' | 'warning' | 'manual' | 'info'
@@ -98,6 +99,8 @@ export const preflightLabels: Record<string, string> = {
   'missing-material': '송출 자료 선택 필요',
   'missing-asset': '등록 파일을 찾지 못함 · 새 자료 연결 또는 파일 복원 필요',
   'pdf-page': 'PDF 페이지 확인 필요',
+  'music-file': '음악/대체 파일 읽기 확인',
+  'music-web': '유튜브 뮤직 연결·대상·재생을 직접 확인',
   'web-manual': '웹 접속·로그인·화면을 직접 확인',
   'layout-warning': '본문 또는 요소가 화면을 넘을 수 있음 · 미리보기 확인',
   'layout-manual': '글꼴 또는 본문 측정 불가 · 직접 화면 확인',

@@ -1,10 +1,14 @@
+import { useState } from 'react'
+import { useModalGuard } from '../hooks/useModalGuard'
 import { useShallow } from 'zustand/react/shallow'
 import { Monitor } from 'lucide-react'
 import { usePresentationStore } from '../store'
 import { outputSnapshot } from '../store/helpers'
 import CompositeFrame from './CompositeFrame'
 import { OutputClearActions } from './ToolbarActions'
-export default function PreviewPanel() {
+export default function PreviewPanel({ compact = false }: { compact?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  useModalGuard(expanded, () => setExpanded(false))
   const state = usePresentationStore(
     useShallow((s) => ({
       activeSlideId: s.activeSlideId,
@@ -39,11 +43,24 @@ export default function PreviewPanel() {
         : 'text-amber-300'
   const activeIndex = state.slides.findIndex((slide) => slide.id === state.activeSlideId)
   return (
-    <section aria-label="메인 송출 미리보기" className="shrink-0 border-b border-white/5 p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    <section
+      aria-label="메인 송출 미리보기"
+      data-preview-expanded={expanded}
+      data-modal={expanded ? 'true' : undefined}
+      role={expanded ? 'dialog' : undefined}
+      aria-modal={expanded || undefined}
+      className={
+        expanded
+          ? 'output-preview-expanded'
+          : compact
+            ? 'output-preview-compact'
+            : 'shrink-0 border-b border-white/5 p-4'
+      }
+    >
+      <div className="preview-heading mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="workbench-heading flex items-center gap-2">
           <Monitor size={15} className="text-gray-500" />
-          송출 미리보기
+          현재 송출
         </h2>
         <span
           className={`inline-flex items-center gap-1.5 text-[10px] ${statusColor}`}
@@ -53,6 +70,14 @@ export default function PreviewPanel() {
           {label}
         </span>
       </div>
+      <button
+        type="button"
+        className="workbench-button preview-expand-button"
+        aria-label={expanded ? '송출 미리보기 닫기' : '송출 미리보기 확대'}
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? '닫기' : '확대'}
+      </button>
       <div
         data-output-surface="true"
         className="relative aspect-video w-full overflow-hidden rounded-lg border border-white/10 bg-black shadow-lg"
@@ -76,7 +101,7 @@ export default function PreviewPanel() {
           />
         )}
       </div>
-      <div className="mb-3 mt-2 flex items-center justify-between text-[10px] text-gray-500">
+      <div className="preview-caption mb-3 mt-2 flex items-center justify-between text-[10px] text-gray-500">
         <span>
           {external.source.kind === 'slides'
             ? activeIndex < 0

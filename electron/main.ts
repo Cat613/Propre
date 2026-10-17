@@ -1,3 +1,5 @@
+import { MusicBridge } from './services/music-bridge'
+import { musicURL } from '../shared/music'
 import { ServiceFileTargetSchema } from '../shared/service-session'
 import { ServiceSessions } from './services/service-session'
 import { StageMessages } from './services/stage-messages'
@@ -283,6 +285,62 @@ if (lock)
           }
         })
       }
+      const music = new MusicBridge(repo.directory, (state) =>
+        windows.notify('music-bridge-state', state),
+      )
+      await music
+        .start()
+        .catch(() =>
+          repo.warnings.push(
+            '브라우저 음악 연결 준비에 실패했습니다. 로컬 음악은 사용할 수 있습니다.',
+          ),
+        )
+      app.once('will-quit', () => music.close())
+      windows.onControlCrash = () => {
+        void music.command('pause').catch(() => {})
+      }
+      handle('save-music', (command) => repo.saveMusic(command))
+      handle('pin-music', (raw) => {
+        const urls = z.array(z.string().max(2048)).max(400).parse(raw)
+        repo.assertAssets(urls.map((url) => ({ url })))
+        repo.musicPins.clear()
+        for (const url of urls) repo.musicPins.add(url)
+      })
+      handle('show-music-extension', () => {
+        const root = app.isPackaged
+          ? app.getAppPath().replace(/\.asar$/, '.asar.unpacked')
+          : app.getAppPath()
+        shell.showItemInFolder(path.join(root, 'browser-extension/youtube-music/manifest.json'))
+      })
+      handle('open-music-url', (raw) =>
+        shell.openExternal(musicURL(z.string().max(2048).parse(raw))),
+      )
+      handle('music-bridge', async (raw, args) => {
+        const action = z
+          .enum(['status', 'play', 'pause', 'setup', 'disconnect', 'confirm-stop'])
+          .parse(raw)
+        const options = z
+          .object({
+            url: z.string().max(2048).optional(),
+            extensionId: z.string().max(32).optional(),
+            bindingId: z.string().max(300).optional(),
+          })
+          .strict()
+          .parse(args || {})
+        if (action === 'setup') {
+          if (process.platform !== 'darwin')
+            throw new Error('브라우저 연결은 macOS Chrome에서 지원합니다.')
+          await music.setup(
+            options.extensionId || '',
+            process.execPath,
+            path.join(app.getAppPath(), 'scripts/music-native-host.mjs'),
+            app.getPath('home'),
+          )
+          return music.snapshot()
+        }
+        if (action === 'confirm-stop') return music.confirmStopped(options.bindingId || '')
+        return music.command(action, options.url)
+      })
       handle('get-app-update', () => updates!.snapshot())
       handle('check-app-update', () => updates!.check())
       handle('download-app-update', () => updates!.download())
@@ -332,7 +390,10 @@ if (lock)
         services.interrupt()
         sources.stop()
       })
-      handle('browser-output-command', (raw) => sources.command(raw))
+      handle('browser-output-command', async (raw) => {
+        if (raw?.action === 'mute' && raw.value === false) await music.command('pause')
+        return sources.command(raw)
+      })
       handle('select-output-pdfs', async () => {
         const result = await dialog.showOpenDialog(windows.windows.get('control')!, {
           title: 'PDF 송출 자료 등록',
@@ -981,6 +1042,24 @@ if (lock)
           if (ready)
             try {
               await repo.settled()
+              try {
+                await music.command('pause')
+              } catch {
+                const choice = await dialog.showMessageBox(windows.windows.get('control')!, {
+                  type: 'warning',
+                  message: '외부 음악 중단을 확인하지 못했습니다.',
+                  detail:
+                    '브라우저에서 음악을 확인해주세요. 앱을 종료해도 외부 음악은 계속 나올 수 있습니다.',
+                  buttons: ['창 유지', '확인하고 종료'],
+                  defaultId: 0,
+                  cancelId: 0,
+                })
+                if (choice.response === 0) {
+                  closing = false
+                  quitting = false
+                  return
+                }
+              }
               completed = true
               allowClose = true
               if (quitting) app.quit()

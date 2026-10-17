@@ -124,7 +124,7 @@ export interface MediaSlice {
 
   // Legacy generic methods (to be refactored or kept for backward compatibility)
   triggerBackground: (media: MediaItem) => void
-  playAudio: (media?: MediaItem) => Promise<void>
+  playAudio: (media?: MediaItem | AudioItem) => Promise<void>
   pauseAudio: () => void
   clearBackground: () => void
   clearText: () => void

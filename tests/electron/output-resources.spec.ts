@@ -349,7 +349,7 @@ test('PDF relinking changes revision, page count and rendered cache identity', a
       window.ipcRenderer.prepareOutputResource({ resourceId: r.id, revision: r.revision }),
     r,
   )
-  const workspace = JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8'))
+  const workspace = JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8'))
   const asset = workspace.assets.find((a: { id: string }) => a.id === r.assetId)
   await fs.rm(path.join(dir, 'media', asset.filename))
   const replacement = await PDFDocument.create()

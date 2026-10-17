@@ -1,9 +1,10 @@
 import { useShallow } from 'zustand/react/shallow'
 import AppUpdatePanel from './AppUpdatePanel'
 import SaveStatus from './SaveStatus'
-import { Image, Layers, Pencil, Settings2, SlidersHorizontal } from 'lucide-react'
+import { Image, Layers, Pencil, Sparkles, Settings2, SlidersHorizontal } from 'lucide-react'
 import ToastContainer from './ToastContainer'
-import AudioPlayer from './AudioPlayer'
+import AudioPlayer, { AudioStatus } from './AudioPlayer'
+import './MusicWorkspace.css'
 import StageMessageStatusBar from './StageMessageStatusBar'
 import { hotkeysBlocked } from '../hooks/useModalGuard'
 import React, { useEffect, useState } from 'react'
@@ -14,6 +15,7 @@ import GlobalStylePanel from './GlobalStylePanel'
 import AdvancedLayersPanel from './AdvancedLayersPanel'
 import SettingsTabPanel from './SettingsTabPanel'
 import ControlToolbar from './ControlToolbar'
+import SongPreparationPanel from './SongPreparationPanel'
 import MediaBin from './MediaBin'
 import { usePresentationStore } from '../store'
 import { useHotkeys } from '../hooks/useHotkeys'
@@ -44,6 +46,8 @@ const ControlPanel: React.FC = () => {
     })),
   )
 
+  const [isSongPreparationOpen, setIsSongPreparationOpen] = useState(false)
+  const [musicOpenRequest, setMusicOpenRequest] = useState(0)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editingTitleText, setEditingTitleText] = useState('')
   const [activeRightTab, setActiveRightTab] = useState<'media' | 'styles' | 'layers' | 'settings'>(
@@ -67,6 +71,11 @@ const ControlPanel: React.FC = () => {
   // Number keys for quick slide selection (Specific to ControlPanel)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'F2') {
+        e.preventDefault()
+        clearAll()
+        return
+      }
       // Don't trigger if typing in input/textarea or modal is open
       const target = e.target as HTMLElement
       if (
@@ -132,6 +141,12 @@ const ControlPanel: React.FC = () => {
         </div>
       )}
       <AudioPlayer />
+      <AudioStatus
+        onOpen={() => {
+          setActiveRightTab('media')
+          setMusicOpenRequest((n) => n + 1)
+        }}
+      />
       <StageMessageStatusBar />
       <ToastContainer />
       <PanelGroup
@@ -158,53 +173,75 @@ const ControlPanel: React.FC = () => {
           minSize={30}
           className="workbench-panel flex min-w-0 flex-col"
         >
-          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/5 px-4 py-4">
-            <div className="min-w-0 flex-1">
-              <p className="workbench-muted mb-2">
-                슬라이드 편집 <span className="mx-1 text-gray-600">/</span>{' '}
-                {isSetlistSong ? '콘티 곡' : '찬양 자료'}
-              </p>
-              {isEditingTitle ? (
-                <input
-                  autoFocus
-                  aria-label="프레젠테이션 제목"
-                  className="workbench-field w-full text-base font-semibold"
-                  value={editingTitleText}
-                  onChange={(e) => setEditingTitleText(e.target.value)}
-                  onBlur={handleTitleSave}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') handleTitleSave()
-                    if (e.key === 'Escape') {
-                      setEditingTitleText(currentPresentationTitle ?? '')
-                      setIsEditingTitle(false)
-                    }
-                  }}
-                />
-              ) : (
-                <div className="flex items-center gap-2">
-                  <h1
-                    className="min-w-0 truncate text-lg font-semibold tracking-tight cursor-text"
-                    onDoubleClick={() => setIsEditingTitle(true)}
-                    title="더블클릭하여 제목 수정"
-                  >
-                    {currentPresentationTitle || '새 프레젠테이션'}
-                  </h1>
-                  <button
-                    type="button"
-                    aria-label="제목 수정"
-                    onClick={() => setIsEditingTitle(true)}
-                    className="shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-200"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                </div>
-              )}
+          <div className="editor-command-area">
+            <div className="editor-command-layout">
+              <div className="min-w-0">
+                <header className="flex shrink-0 items-start justify-between gap-3 px-4 pt-3 pb-1">
+                  <div className="min-w-0 flex-1">
+                    <p className="workbench-muted mb-1">
+                      슬라이드 편집 <span className="mx-1 text-gray-600">/</span>{' '}
+                      {isSetlistSong ? '콘티 곡' : '찬양 자료'}
+                    </p>
+                    {isEditingTitle ? (
+                      <input
+                        autoFocus
+                        aria-label="프레젠테이션 제목"
+                        className="workbench-field w-full text-base font-semibold"
+                        value={editingTitleText}
+                        onChange={(e) => setEditingTitleText(e.target.value)}
+                        onBlur={handleTitleSave}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') handleTitleSave()
+                          if (e.key === 'Escape') {
+                            setEditingTitleText(currentPresentationTitle ?? '')
+                            setIsEditingTitle(false)
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <h1
+                          className="min-w-0 truncate text-lg font-semibold tracking-tight cursor-text"
+                          onDoubleClick={() => setIsEditingTitle(true)}
+                          title="더블클릭하여 제목 수정"
+                        >
+                          {currentPresentationTitle || '새 프레젠테이션'}
+                        </h1>
+                        <button
+                          type="button"
+                          aria-label="제목 수정"
+                          onClick={() => setIsEditingTitle(true)}
+                          className="shrink-0 rounded-md p-1.5 text-gray-500 hover:bg-white/5 hover:text-gray-200"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      aria-label="AI로 찬양 준비"
+                      onClick={() => setIsSongPreparationOpen(true)}
+                      className="workbench-button workbench-button-primary whitespace-nowrap"
+                      title="PDF·이미지에서 가사와 송폼을 분석합니다"
+                    >
+                      <Sparkles size={14} />
+                      AI 찬양 준비
+                    </button>
+                    <span className="rounded-md border border-white/5 bg-white/5 px-2 py-1 text-[11px] tabular-nums text-gray-400">
+                      {slides.length} 슬라이드
+                    </span>
+                  </div>
+                </header>
+                <ControlToolbar />
+                {isSongPreparationOpen && (
+                  <SongPreparationPanel onClose={() => setIsSongPreparationOpen(false)} />
+                )}
+              </div>
+              <PreviewPanel compact />
             </div>
-            <span className="mt-7 shrink-0 rounded-md border border-white/5 bg-white/5 px-2 py-1 text-[11px] tabular-nums text-gray-400">
-              {slides.length} 슬라이드
-            </span>
-          </header>
-          <ControlToolbar />
+          </div>
           <div data-workbench-editor="true" className="min-h-0 flex-1 workbench-editor-surface">
             <SlideGrid />
           </div>
@@ -225,7 +262,6 @@ const ControlPanel: React.FC = () => {
           maxSize={42}
           className="workbench-panel flex min-w-0 flex-col"
         >
-          <PreviewPanel />
           <nav aria-label="송출 도구" className="shrink-0 border-b border-white/5 p-3">
             <div className="workbench-tabs">
               {tabs.map(({ id, label, icon: Icon }) => (
@@ -246,7 +282,9 @@ const ControlPanel: React.FC = () => {
             data-workbench-inspector="true"
             className="workbench-inspector workbench-scroll flex min-h-0 flex-1 flex-col overflow-y-auto"
           >
-            {activeRightTab === 'media' && <MediaBin />}
+            <div hidden={activeRightTab !== 'media'} className="min-h-0">
+              <MediaBin musicOpenRequest={musicOpenRequest} />
+            </div>
             {activeRightTab === 'styles' && <GlobalStylePanel />}
             {activeRightTab === 'layers' && <AdvancedLayersPanel />}
             {activeRightTab === 'settings' && <SettingsTabPanel />}

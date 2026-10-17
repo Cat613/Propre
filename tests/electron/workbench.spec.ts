@@ -134,8 +134,8 @@ test('library search, tabs, resize handles and settings stay usable without chan
     before.playlist.map((item) => item.id),
   )
   await page.getByRole('button', { name: '설정', exact: true }).click()
-  await page.getByRole('checkbox', { name: '오디오 플레이어 표시', exact: true }).check()
-  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeVisible()
+  await page.getByRole('checkbox', { name: '대기 중 음악 상태 표시', exact: true }).check()
+  await expect(page.getByRole('button', { name: '음악 열기', exact: true })).toBeVisible()
 })
 
 test('all three panels render cleanly at desktop and compact widths and keep primary actions in view', async () => {

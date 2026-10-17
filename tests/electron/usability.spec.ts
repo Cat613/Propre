@@ -240,7 +240,9 @@ test('media trash restores deleted audio after autosave without restarting playb
   await dialog.getByRole('button', { name: '복원: silence.wav', exact: true }).click()
   await expect(dialog.getByText('삭제한 미디어가 없습니다.', { exact: true })).toBeVisible()
   await dialog.getByRole('button', { name: '휴지통 닫기', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'silence.wav 송출', exact: true })).toBeVisible()
+  await expect(
+    page.getByRole('button', { name: 'silence.wav 음악 준비', exact: true }),
+  ).toBeVisible()
   expect(await page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused)).toBe(true)
 })
 
@@ -264,10 +266,15 @@ test('web and local audio hand off in both directions without changing the web p
       el.muted = true
     })
     await page.getByRole('button', { name: '미디어', exact: true }).click()
-    await page.getByRole('button', { name: 'silence.wav 송출', exact: true }).click()
+    await page.getByRole('button', { name: 'silence.wav 음악 준비', exact: true }).click()
+    await page.getByRole('button', { name: /^(준비한 음악 재생|전환해 재생)$/ }).click()
     await expect
       .poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused))
       .toBe(false)
+    await page
+      .locator('.media-filters')
+      .getByRole('button', { name: '웹·PDF', exact: true })
+      .click()
     await page.getByRole('button', { name: '웹 · 오디오 전환 웹', exact: true }).click()
     await page.getByRole('button', { name: '화면 준비', exact: true }).click()
     await page.getByRole('button', { name: '준비 화면 송출', exact: true }).click()
@@ -275,7 +282,10 @@ test('web and local audio hand off in both directions without changing the web p
     await expect
       .poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused))
       .toBe(true)
-    await page.getByRole('button', { name: '오디오 재생', exact: true }).click()
+    await page
+      .getByLabel('음악 상태')
+      .getByRole('button', { name: '이어 재생', exact: true })
+      .click()
     await expect
       .poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused))
       .toBe(false)
@@ -286,7 +296,9 @@ test('web and local audio hand off in both directions without changing the web p
       )
       .toBe(true)
     await page.getByRole('button', { name: '웹 소리 켜기', exact: true }).click()
-    await page.getByRole('button', { name: 'silence.wav 송출', exact: true }).click()
+    await page.locator('.media-filters').getByRole('button', { name: '음악', exact: true }).click()
+    await page.getByRole('button', { name: 'silence.wav 음악 준비', exact: true }).click()
+    await page.getByRole('button', { name: /^(준비한 음악 재생|전환해 재생)$/ }).click()
     await expect
       .poll(() => page.locator('audio').evaluate((el: HTMLAudioElement) => el.paused))
       .toBe(false)

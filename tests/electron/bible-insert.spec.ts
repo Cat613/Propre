@@ -30,7 +30,7 @@ async function launch() {
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
 }
 async function workspace() {
-  return JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8'))
+  return JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8'))
 }
 async function draft() {
   return (await workspace()).draft
@@ -86,7 +86,8 @@ test('adds selected verses inside a song, keeps live output, supports undo/redo 
   await expect(dialog.getByRole('checkbox', { name: '요 3:18', exact: true })).toBeChecked()
   await dialog.getByRole('checkbox', { name: '요 3:17', exact: true }).uncheck()
   await dialog.getByLabel('추가 위치').selectOption('after:song-first')
-  await page.keyboard.press('F2')
+  // F2 is now an emergency stop even in dialogs; ordinary modal hotkeys remain guarded.
+  await page.keyboard.press('ArrowRight')
   await expect(output.getByText('합성 찬양 첫 부분', { exact: true })).toBeVisible()
   await page.screenshot({ path: test.info().outputPath('bible-insert-dialog.png') })
   await dialog.getByRole('button', { name: '2개 구절 추가', exact: true }).click()

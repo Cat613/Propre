@@ -553,6 +553,7 @@ function CueDialog({
   const [validation, setValidation] = useState('')
   const [conflict, setConflict] = useState(false)
   const library = store((s) => s.library)
+  const musicItems = store((s) => s.setlists.find((x) => x.id === s.activeSetlistId)?.music) || []
   const allResources = store((s) => s.outputResources)
   const resources = allResources.filter((resource) => !resource.deletedAt)
   const ref = useRef<HTMLDivElement>(null)
@@ -950,6 +951,22 @@ function CueDialog({
               </label>
             </div>
           </details>
+          <label className="block space-y-1 text-xs text-gray-400">
+            <span>진행할 때 준비할 음악 · 자동 재생 안 함</span>
+            <select
+              className="workbench-field w-full"
+              aria-label="순서 음악 연결"
+              value={item.musicPreparationId || ''}
+              onChange={(e) => patch({ musicPreparationId: e.target.value || undefined })}
+            >
+              <option value="">음악 연결 없음</option>
+              {musicItems.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.title}
+                </option>
+              ))}
+            </select>
+          </label>
           <details open={!!cue?.timer}>
             <summary className="cursor-pointer py-1 text-xs text-gray-400">
               타이머 설정 · 선택

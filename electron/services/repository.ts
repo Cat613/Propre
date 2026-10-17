@@ -1,3 +1,4 @@
+import { SaveMusicSchema } from '../../shared/music'
 import {
   AttachCueSchema,
   ServiceFileTargetSchema,
@@ -61,7 +62,7 @@ const Asset = z.object({
 })
 export type AssetRecord = z.infer<typeof Asset>
 const State = z.object({
-  schemaVersion: z.literal(4),
+  schemaVersion: z.literal(5),
   serviceTemplates: ServiceTemplatesSchema.default([]),
   cuePresentations: CuePresentationsSchema.default([]),
   cueResources: CueResourcesSchema.default([]),
@@ -85,7 +86,7 @@ const State = z.object({
 })
 export type RepositoryState = z.infer<typeof State>
 const empty = (): RepositoryState => ({
-  schemaVersion: 4,
+  schemaVersion: 5,
   serviceTemplates: [],
   cuePresentations: [],
   cueResources: [],
@@ -256,7 +257,7 @@ export class Repository {
   readonly filename: string
   readonly mediaDir: string
   constructor(readonly directory: string) {
-    this.filename = path.join(directory, 'workspace-v4.json')
+    this.filename = path.join(directory, 'workspace-v5.json')
     this.mediaDir = path.join(directory, 'media')
   }
   async open(): Promise<void> {
@@ -297,7 +298,7 @@ export class Repository {
       }
     }
     let previous = path.join(this.directory, 'workspace-v1.json')
-    for (const version of [3, 2, 1]) {
+    for (const version of [4, 3, 2, 1]) {
       const candidate = path.join(this.directory, `workspace-v${version}.json`)
       if (
         await fs.stat(candidate).then(
@@ -370,13 +371,13 @@ export class Repository {
     const info = await fs.stat(filename)
     if (info.size > MAX_STATE_BYTES) throw new Error('state too large')
     const raw = boundedJSON(await fs.readFile(filename, 'utf8')) as Record<string, unknown>
-    if (typeof raw?.schemaVersion === 'number' && raw.schemaVersion > 4)
+    if (typeof raw?.schemaVersion === 'number' && raw.schemaVersion > 5)
       throw new FutureWorkspaceError()
-    if (![1, 2, 3, 4].includes(raw?.schemaVersion as number))
+    if (![1, 2, 3, 4, 5].includes(raw?.schemaVersion as number))
       throw new Error('unsupported workspace')
-    const parsed = State.parse({ ...raw, schemaVersion: 4 })
+    const parsed = State.parse({ ...raw, schemaVersion: 5 })
     if (raw.schemaVersion === 1) replaceOrder(parsed, parsed.playlist)
-    if (raw.schemaVersion !== 4) migrateServicePlans(parsed)
+    if ((raw.schemaVersion as number) < 4) migrateServicePlans(parsed)
     validateSetlists(parsed)
     validateServicePlans(parsed)
     this.validateResources(parsed)
@@ -491,6 +492,32 @@ export class Repository {
       throw error
     }
   }
+  readonly musicPins = new Set<string>()
+  async saveMusic(raw: unknown): Promise<SetlistWorkspace> {
+    const command = SaveMusicSchema.parse(raw)
+    this.assertAssets(command.items)
+    for (const item of command.items)
+      for (const url of mediaURLs(item)) {
+        const asset = this.state.assets.find((a) => a.id === new URL(url).pathname.split('/')[1])
+        if (asset?.type !== 'audio') throw new Error('오디오 파일을 선택해주세요.')
+      }
+    await this.transaction((s) => {
+      const list = s.setlists.find((x) => x.id === command.setlistId && !x.deletedAt)
+      if (!list || list.revision !== command.expectedRevision)
+        throw new Error('예배가 변경되었습니다. 음악 목록을 다시 확인해주세요.')
+      for (const item of command.items) {
+        const old = list.music?.find((x) => x.id === item.id)
+        if (old && JSON.stringify(old) !== JSON.stringify(item) && item.revision <= old.revision)
+          throw new Error('음악 설정의 버전이 변경되었습니다. 다시 확인해주세요.')
+      }
+      list.music = command.items
+      for (const cue of list.servicePlan?.items || [])
+        if (cue.musicPreparationId && !list.music.some((x) => x.id === cue.musicPreparationId))
+          delete cue.musicPreparationId
+      touch(list)
+    })
+    return this.workspace()
+  }
   async saveServicePlan(raw: unknown): Promise<SetlistWorkspace> {
     const command = SaveServicePlanSchema.parse(raw)
     return this.mutateService(
@@ -556,7 +583,7 @@ export class Repository {
       throw new Error('템플릿이 바뀌었습니다. 다시 저장해주세요.')
     const bundle = clone({
       format: 'propre-project',
-      schemaVersion: 3,
+      schemaVersion: 4,
       kind: 'service-template',
       presentations: [],
       serviceTemplates: [template],
@@ -1052,7 +1079,7 @@ export class Repository {
     )
     const bundle = clone({
       format: 'propre-project',
-      schemaVersion: 3,
+      schemaVersion: 4,
       kind: 'service',
       presentations: [],
       setlists: [list],
@@ -1106,7 +1133,7 @@ export class Repository {
     const presentations = project?.presentations || this.library()
     const bundle = {
       format: 'propre-project',
-      schemaVersion: data ? 1 : 3,
+      schemaVersion: data ? 1 : 4,
       kind: project?.portable?.kind === 'playlist' ? 'playlist' : data ? 'presentation' : 'backup',
       ...(project?.portable?.kind === 'playlist'
         ? {
@@ -1603,6 +1630,8 @@ export class Repository {
       library: this.state.library,
       deletedLibrary: this.state.deletedLibrary,
       deletedMedia: this.state.deletedMedia,
+      setlists: this.state.setlists,
+      musicPins: [...this.musicPins],
       setlistSongs: this.state.setlistSongs,
       draft: this.state.draft,
       media: this.state.media,

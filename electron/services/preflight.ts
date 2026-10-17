@@ -39,7 +39,9 @@ export class Preflight {
     const resources = state.cueResources
       .filter((entry) => entry.ownerSetlistId === id && resourceIds.has(entry.resource.id))
       .map((entry) => entry.resource)
-    const assetIds = new Set(mediaURLs(documents).map((url) => new URL(url).pathname.split('/')[1]))
+    const assetIds = new Set(
+      mediaURLs([documents, list.music]).map((url) => new URL(url).pathname.split('/')[1]),
+    )
     for (const r of resources) if (r.kind === 'pdf') assetIds.add(r.assetId)
     const assets: unknown[] = [],
       ids = [...assetIds]
@@ -269,6 +271,32 @@ export class Preflight {
             run.processed = Math.min(index + 4, cues.length)
             this.notify(run)
             await new Promise<void>((resolve) => setTimeout(resolve, 0))
+          }
+          for (const item of list.music || []) {
+            const urls = mediaURLs(item)
+            let available = true
+            for (const url of urls)
+              try {
+                await this.repo.assetPath(url)
+              } catch {
+                available = false
+              }
+            if (urls.length)
+              add({
+                checkId: `music-${item.id}`,
+                severity: available ? 'info' : 'blocking',
+                status: available ? 'pass' : 'fail',
+                code: 'music-file',
+                title: item.title,
+              })
+            if (item.source.kind === 'youtube-music')
+              add({
+                checkId: `music-web-${item.id}`,
+                severity: 'manual',
+                status: 'unchecked',
+                code: 'music-web',
+                title: item.title,
+              })
           }
           for (const role of ['main', 'stage'] as const) {
             const health = this.windows.allHealth().find((entry) => entry.screen === role)

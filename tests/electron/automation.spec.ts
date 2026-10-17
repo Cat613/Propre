@@ -163,7 +163,7 @@ test('AI preparation, Bible lookup, repeat playlist and PNG preview preserve cur
   )
   expect(dimensions.width).toBeGreaterThanOrEqual(960)
   await expect(output.getByText('운영자가 준비한 합성 본문', { exact: true })).toBeVisible()
-  const disk = JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8'))
+  const disk = JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8'))
   expect(disk.draft.id).toBe(operatorId)
   expect(
     disk.playlist.map(
@@ -266,14 +266,14 @@ test('operator modals and failed background saves return actionable errors witho
   await page.keyboard.press('Escape')
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
   const count = (await call('search_presentations')).data.total
-  await fs.rename(path.join(dir, 'workspace-v4.json'), path.join(dir, 'safe-copy.json'))
-  await fs.mkdir(path.join(dir, 'workspace-v4.json'))
+  await fs.rename(path.join(dir, 'workspace-v5.json'), path.join(dir, 'safe-copy.json'))
+  await fs.mkdir(path.join(dir, 'workspace-v5.json'))
   const args = { requestId: randomUUID(), title: '저장 실패 자료', slides: [{ content: '합성' }] }
   const failed = await call('create_presentation', args)
   expect(failed.data.error.code).toBe('SAVE_FAILED')
   expect((await call('search_presentations')).data.total).toBe(count)
-  await fs.rm(path.join(dir, 'workspace-v4.json'), { recursive: true })
-  await fs.rename(path.join(dir, 'safe-copy.json'), path.join(dir, 'workspace-v4.json'))
+  await fs.rm(path.join(dir, 'workspace-v5.json'), { recursive: true })
+  await fs.rename(path.join(dir, 'safe-copy.json'), path.join(dir, 'workspace-v5.json'))
   expect((await call('create_presentation', args)).data.error.code).toBe('SAVE_FAILED')
   await create('복구 후 새 요청')
 })
@@ -282,8 +282,8 @@ test('failed selected-document saves preserve the applied edit and journal for a
   await connect()
   const id = await operatorDocument()
   const before = (await call('get_presentation', { presentationId: id })).data
-  await fs.rename(path.join(dir, 'workspace-v4.json'), path.join(dir, 'safe-copy.json'))
-  await fs.mkdir(path.join(dir, 'workspace-v4.json'))
+  await fs.rename(path.join(dir, 'workspace-v5.json'), path.join(dir, 'safe-copy.json'))
+  await fs.mkdir(path.join(dir, 'workspace-v5.json'))
   const args = {
     requestId: randomUUID(),
     presentationId: id,
@@ -303,12 +303,12 @@ test('failed selected-document saves preserve the applied edit and journal for a
     code: 'SAVE_FAILED',
     applied: true,
   })
-  await fs.rm(path.join(dir, 'workspace-v4.json'), { recursive: true })
-  await fs.rename(path.join(dir, 'safe-copy.json'), path.join(dir, 'workspace-v4.json'))
+  await fs.rm(path.join(dir, 'workspace-v5.json'), { recursive: true })
+  await fs.rename(path.join(dir, 'safe-copy.json'), path.join(dir, 'workspace-v5.json'))
   await page.getByRole('button', { name: '재시도', exact: true }).click()
   await expect(page.getByText('자동 저장됨', { exact: true })).toBeVisible()
   expect(
-    JSON.parse(await fs.readFile(path.join(dir, 'workspace-v4.json'), 'utf8')).draft.slides[0]
+    JSON.parse(await fs.readFile(path.join(dir, 'workspace-v5.json'), 'utf8')).draft.slides[0]
       .content,
   ).toBe('실패 후 복구할 합성 AI 편집')
 })

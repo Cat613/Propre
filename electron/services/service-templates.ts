@@ -84,6 +84,8 @@ export function copyTemplate(source: ServiceTemplate): ServiceTemplate {
   const copy = clone(source),
     presentationIds = new Map(copy.presentations.map((p) => [p.id, 'template_' + randomUUID()])),
     resourceIds = new Map(copy.resources.map((r) => [r.id, randomUUID()]))
+  const musicIds = new Map(copy.music?.map((x) => [x.id, randomUUID()]) || [])
+  copy.music = copy.music?.map((x) => ({ ...x, id: musicIds.get(x.id)!, revision: 0 }))
   copy.id = randomUUID()
   copy.revision = 0
   delete copy.deletedAt
@@ -97,6 +99,7 @@ export function copyTemplate(source: ServiceTemplate): ServiceTemplate {
   copy.resources = copy.resources.map((r) => ({ ...r, id: resourceIds.get(r.id)!, revision: 0 }))
   for (const item of copy.items) {
     item.id = randomUUID()
+    if (item.musicPreparationId) item.musicPreparationId = musicIds.get(item.musicPreparationId)
     if (item.binding?.kind === 'presentation')
       item.binding.presentationId = presentationIds.get(item.binding.presentationId)!
     else if (item.binding?.kind === 'resource')
@@ -142,6 +145,7 @@ export function mutateTemplate(state: RepositoryState, raw: unknown) {
       items: [],
       presentations: [],
       resources: [],
+      music: list.music ? clone(list.music) : undefined,
     }
     for (const cue of list.servicePlan.items) {
       const fixed = command.fixedCueIds.includes(cue.id)
@@ -152,6 +156,7 @@ export function mutateTemplate(state: RepositoryState, raw: unknown) {
         durationSeconds: cue.durationSeconds,
         enter: clone(cue.enter),
         timer: clone(cue.timer),
+        musicPreparationId: cue.musicPreparationId,
         leader: command.includeLeaders ? cue.leader : undefined,
         operatorNote: command.includeOperatorNotes ? cue.operatorNote : undefined,
         stageNote: command.includeStageNotes ? cue.stageNote : undefined,
@@ -234,6 +239,7 @@ function instantiate(
     updatedAt: now,
     lastOpenedAt: now,
     items: [],
+    music: template.music?.map((x) => ({ ...clone(x), id: randomUUID(), revision: 0 })),
     servicePlan: {
       version: 1,
       timezone: template.timezone,
@@ -252,6 +258,9 @@ function instantiate(
       stageNote: item.stageNote,
       enter: clone(item.enter),
       timer: clone(item.timer),
+      musicPreparationId: item.musicPreparationId
+        ? list.music?.[template.music?.findIndex((x) => x.id === item.musicPreparationId) ?? -1]?.id
+        : undefined,
     }
     const source = command.slots[item.id]
     const binding = item.binding

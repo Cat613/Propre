@@ -61,7 +61,7 @@ it('migrates v3 with snapshots and draft intact, preserving source and all check
   await fs.rm(repo.filename)
   const migrated = new Repository(dir)
   await migrated.open()
-  expect(migrated.state.schemaVersion).toBe(4)
+  expect(migrated.state.schemaVersion).toBe(5)
   expect(migrated.playlist()).toEqual(repo.playlist())
   expect(migrated.state.draft).toEqual(repo.state.draft)
   expect(migrated.state.setlists[0].servicePlan?.items.map((cue) => cue.songItemId)).toEqual([
@@ -169,7 +169,7 @@ it('round trips schema-3 backup with plans and owned documents, including delete
     expectedRevision: active().revision,
   })
   const backup = await repo.exportProject(undefined)
-  expect(JSON.parse(backup).schemaVersion).toBe(3)
+  expect(JSON.parse(backup).schemaVersion).toBe(4)
   const restored = new Repository(path.join(dir, 'target'))
   await restored.open()
   await restored.importProject(backup, true)
@@ -177,7 +177,7 @@ it('round trips schema-3 backup with plans and owned documents, including delete
   expect(restored.state.cuePresentations).toEqual(repo.state.cuePresentations)
 })
 it('blocks a future workspace without falling back to older checkpoints or modifying it', async () => {
-  const bytes = JSON.stringify({ ...repo.state, schemaVersion: 5 })
+  const bytes = JSON.stringify({ ...repo.state, schemaVersion: 6 })
   await fs.writeFile(repo.filename, bytes)
   const reopened = new Repository(dir)
   await reopened.open()
