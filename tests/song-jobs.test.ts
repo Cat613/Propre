@@ -54,6 +54,8 @@ beforeEach(async () => {
   await fs.writeFile(pdf, await document.save())
 })
 afterEach(async () => {
+  vi.useRealTimers()
+  vi.restoreAllMocks()
   vi.unstubAllGlobals()
   await fs.rm(directory, { recursive: true, force: true })
 })
@@ -328,5 +330,143 @@ describe('durable jobs, file grants and actual SDK MCP loop', () => {
     expect(jobs.list()[0].draft!.songs).toHaveLength(2)
     expect(jobs.list()[0].draft!.songs[0].form).toEqual(partial.draft!.songs[0].form)
     expect(repo.state.library).toHaveLength(0)
+  })
+  it('serializes analysis start with retention so neither the analysis state nor keep preference is lost', async () => {
+    const job = await select()
+    const rename = fs.rename.bind(fs)
+    let release!: () => void
+    let entered!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const reached = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    let gated = false
+    vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      if (!gated && String(to).endsWith(`${job.id}/job.json`)) {
+        gated = true
+        entered()
+        await gate
+      }
+      return rename(from, to)
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true })
+          }),
+      ),
+    )
+    const analysis = jobs.analyze(job.id)
+    await reached
+    const retention = jobs.retain(job.id, true)
+    release()
+    await Promise.all([analysis, retention])
+    expect(jobs.list()[0].status).toBe('analyzing')
+    expect(jobs.list()[0].keepSources).toBe(true)
+    await jobs.cancel(job.id)
+    await vi.waitFor(() => expect(jobs.list()[0].status).toBe('canceled'))
+  })
+  it('keeps timed out drafts recoverable after seven days and allows review after explicit cancellation', async () => {
+    const job = await select(true)
+    const song = {
+      ...fixture(job.sources[0].id),
+      originalId: null,
+      originalRevision: null,
+      updateOriginal: false,
+      confirmed: false,
+    }
+    const staged = await jobs.edit(job.id, {
+      expectedDraftRevision: 0,
+      draft: { songs: [song], order: ['s'] },
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url, init) =>
+          new Promise<Response>((_resolve, reject) => {
+            init.signal.addEventListener('abort', () => reject(init.signal.reason), { once: true })
+          }),
+      ),
+    )
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    await jobs.analyze(job.id)
+    await vi.waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalled())
+    await vi.advanceTimersByTimeAsync(600000)
+    await vi.waitFor(() => expect(jobs.list()[0].status).toBe('interrupted'))
+    vi.useRealTimers()
+    const interrupted = jobs.list()[0]
+    expect(interrupted.error).toContain('10분')
+    expect(interrupted.draft).toEqual(staged.draft)
+    interrupted.createdAt = '2025-01-01T00:00:00.000Z'
+    await fs.writeFile(
+      path.join(directory, 'song-jobs', job.id, 'job.json'),
+      JSON.stringify(interrupted),
+    )
+    const reopened = new SongJobs(
+      repo,
+      profiles,
+      () => {},
+      async () => '',
+    )
+    await reopened.open()
+    expect(reopened.list()[0].draft).toEqual(staged.draft)
+    const canceled = await reopened.cancel(job.id)
+    expect(canceled.automatic).toBe(false)
+    canceled.draft!.songs[0].confirmed = true
+    const saved = await reopened.edit(job.id, {
+      expectedDraftRevision: canceled.draftRevision,
+      draft: canceled.draft,
+    })
+    expect(saved.status).toBe('ready')
+    await reopened.apply(job.id, saved.draftRevision)
+    expect(repo.state.playlist).toHaveLength(1)
+  })
+  it('preserves a retention change queued while model usage is being stored', async () => {
+    const job = await select()
+    const rename = fs.rename.bind(fs)
+    let release!: () => void
+    let entered!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const reached = new Promise<void>((resolve) => {
+      entered = resolve
+    })
+    let gated = false
+    vi.spyOn(fs, 'rename').mockImplementation(async (from, to) => {
+      if (!gated && String(to).endsWith(`${job.id}/job.json`)) {
+        const data = JSON.parse(await fs.readFile(from, 'utf8'))
+        if (data.usage?.promptTokenCount === 1) {
+          gated = true
+          entered()
+          await gate
+        }
+      }
+      return rename(from, to)
+    })
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              candidates: [{ content: { role: 'model', parts: [{ text: 'complete' }] } }],
+              usageMetadata: { promptTokenCount: 1 },
+            }),
+          ),
+      ),
+    )
+    await jobs.analyze(job.id)
+    await reached
+    const retention = jobs.retain(job.id, true)
+    release()
+    await retention
+    await vi.waitFor(() => expect(jobs.list()[0].status).toBe('failed'))
+    expect(jobs.list()[0].keepSources).toBe(true)
+    expect(jobs.list()[0].usage?.promptTokenCount).toBe(1)
   })
 })

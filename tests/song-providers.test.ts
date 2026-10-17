@@ -210,6 +210,69 @@ describe('AI provider request and response contracts', () => {
         'key',
         request,
       ).turn('', [], tools, canceled.signal),
-    ).rejects.toThrow('aborted')
+    ).rejects.toThrow('취소')
+  })
+  it.each(['gemini', 'openai', 'claude'] as const)(
+    '%s rejects malformed success responses without exposing private contents',
+    async (provider) => {
+      const bodies = [
+        'private-source-and-synthetic-key invalid JSON',
+        'null',
+        JSON.stringify({
+          candidates: [{ content: { parts: 'private-source' } }],
+          output: 'private-source',
+          content: 'private-source',
+        }),
+        JSON.stringify({
+          candidates: [
+            { content: { parts: [{ functionCall: { name: { private: 'source' }, args: {} } }] } },
+          ],
+          output: [
+            { type: 'function_call', arguments: {}, call_id: 'call', name: 'stage_song_drafts' },
+          ],
+          content: [{ type: 'tool_use', id: 'call', name: 'stage_song_drafts', input: null }],
+        }),
+      ]
+      for (const body of bodies) {
+        const adapter = new SongProvider(
+          { id: 'p', name: 'test', provider, model: 'synthetic' },
+          'synthetic-key',
+          vi.fn<typeof fetch>().mockResolvedValue(new Response(body)),
+        )
+        const failure = await adapter
+          .turn('', files, tools, new AbortController().signal)
+          .catch((error: Error) => error)
+        expect(failure).toBeInstanceOf(Error)
+        expect((failure as Error).message).toContain('응답 형식')
+        expect((failure as Error).message).not.toContain('private-source')
+        expect((failure as Error).message).not.toContain('synthetic-key')
+      }
+    },
+  )
+  it('sanitizes network and stream failures instead of persisting private exception messages', async () => {
+    for (const request of [
+      vi.fn<typeof fetch>().mockRejectedValue(new Error('private-source synthetic-key')),
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error('private-source synthetic-key'))
+            },
+          }),
+        ),
+      ),
+    ]) {
+      const adapter = new SongProvider(
+        { id: 'p', name: 'test', provider: 'openai', model: 'synthetic' },
+        'synthetic-key',
+        request,
+      )
+      const failure = await adapter
+        .turn('', files, tools, new AbortController().signal)
+        .catch((error: Error) => error)
+      expect((failure as Error).message).toContain('인터넷 연결')
+      expect((failure as Error).message).not.toContain('private-source')
+      expect((failure as Error).message).not.toContain('synthetic-key')
+    }
   })
 })

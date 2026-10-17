@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist'
 export default function SongSourcePreview({
   jobId,
   sourceId,
@@ -8,14 +9,19 @@ export default function SongSourcePreview({
   sourceId: string
   page: number
 }) {
-  const canvas = useRef<HTMLCanvasElement>(null),
-    [image, setImage] = useState(''),
-    [error, setError] = useState('')
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const [image, setImage] = useState('')
+  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [retry, setRetry] = useState(0)
   useEffect(() => {
     let disposed = false,
       cleanup: undefined | (() => void)
     setError('')
+    setLoading(true)
     setImage('')
+    setPdf(null)
     void (async () => {
       const source = await window.ipcRenderer.songSource(jobId, sourceId)
       if (disposed) return
@@ -24,6 +30,7 @@ export default function SongSourcePreview({
         return
       }
       const pdfjs = await import('pdfjs-dist')
+      if (disposed) return
       const worker = new Worker(new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url), {
         type: 'module',
       })
@@ -37,45 +44,89 @@ export default function SongSourcePreview({
         useSystemFonts: true,
       })
       cleanup = () => {
-        void task.destroy()
+        void task.destroy().catch(() => {})
         pdfWorker.destroy()
         worker.terminate()
       }
-      if (disposed) {
-        cleanup()
-        return
-      }
-      const pdf = await task.promise,
-        p = await pdf.getPage(Math.min(page, pdf.numPages))
-      if (disposed || !canvas.current) return
-      const viewport = p.getViewport({
-        scale: Math.min(1.4, 900 / p.getViewport({ scale: 1 }).width),
-      })
-      const node = canvas.current
-      node.width = viewport.width
-      node.height = viewport.height
-      const context = node.getContext('2d')
-      if (!context) return
-      await p.render({ canvasContext: context, canvas: node, viewport }).promise
+      const document = await task.promise
+      if (!disposed) setPdf(document)
     })().catch(() => {
-      if (!disposed) setError('원본 미리보기를 읽지 못했습니다. 파일을 확인해주세요.')
+      if (!disposed) {
+        setError('원본 미리보기를 읽지 못했습니다. 파일을 확인해주세요.')
+        setLoading(false)
+      }
     })
     return () => {
       disposed = true
       cleanup?.()
     }
-  }, [jobId, sourceId, page])
+  }, [jobId, sourceId, retry])
+  useEffect(() => {
+    if (!pdf) return
+    let disposed = false
+    let render: RenderTask | undefined
+    setLoading(true)
+    setError('')
+    void (async () => {
+      const documentPage = await pdf.getPage(Math.max(1, Math.min(page, pdf.numPages)))
+      if (disposed || !canvas.current) return
+      const viewport = documentPage.getViewport({
+        scale: Math.min(1.4, 900 / documentPage.getViewport({ scale: 1 }).width),
+      })
+      const node = canvas.current
+      node.width = viewport.width
+      node.height = viewport.height
+      const context = node.getContext('2d')
+      if (!context) throw new Error('Canvas unavailable')
+      render = documentPage.render({ canvasContext: context, canvas: node, viewport })
+      await render.promise
+      if (!disposed) setLoading(false)
+    })().catch(() => {
+      if (!disposed) {
+        setError('이 페이지를 표시하지 못했습니다. 다시 불러오거나 다른 페이지를 확인해주세요.')
+        setLoading(false)
+      }
+    })
+    return () => {
+      disposed = true
+      render?.cancel()
+    }
+  }, [pdf, page])
   return (
-    <div className="bg-white rounded overflow-auto max-h-[45vh]">
+    <div className="song-source-preview rounded overflow-auto max-h-[45vh]" aria-busy={loading}>
       {error ? (
-        <p role="alert" className="text-red-700 p-3">
-          {error}
-        </p>
-      ) : image ? (
-        <img alt="분석 원본" src={image} className="w-full object-contain" />
+        <div className="p-3">
+          <p role="alert">{error}</p>
+          <button
+            type="button"
+            className="mt-2 underline text-sm"
+            onClick={() => setRetry((n) => n + 1)}
+          >
+            원본 다시 불러오기
+          </button>
+        </div>
       ) : (
-        <canvas aria-label={`PDF 원문 ${page}페이지`} ref={canvas} className="max-w-full h-auto" />
+        loading && <p className="p-3 text-sm">원본을 불러오는 중…</p>
       )}
+      {image && (
+        <img
+          alt="분석 원본"
+          src={image}
+          className="w-full object-contain"
+          hidden={loading || !!error}
+          onLoad={() => setLoading(false)}
+          onError={() => {
+            setError('이미지를 표시하지 못했습니다. 파일을 확인해주세요.')
+            setLoading(false)
+          }}
+        />
+      )}
+      <canvas
+        aria-label={`PDF 원문 ${page}페이지`}
+        ref={canvas}
+        className="max-w-full h-auto"
+        hidden={loading || !!error || !!image}
+      />
     </div>
   )
 }

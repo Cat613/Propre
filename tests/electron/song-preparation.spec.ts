@@ -184,6 +184,15 @@ test('AI connection form closes locally with cancel, its close button and Escape
   const before = await page.evaluate(() => window.ipcRenderer.listAIProfiles())
   await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
   const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await expect(panel.getByLabel('플레이리스트 설정')).toBeHidden()
+  await expect(panel.getByRole('button', { name: 'PDF·이미지 파일 선택' })).toBeInViewport()
+  await page.screenshot({ path: 'test-results/ai-preparation-empty.png' })
+  await page
+    .locator('.workbench')
+    .evaluate((element) => element.setAttribute('data-theme', 'light'))
+  await page.screenshot({ path: 'test-results/studio-prepare-light.png' })
+  await page.locator('.workbench').evaluate((element) => element.setAttribute('data-theme', 'dark'))
+
   await panel.getByLabel('송폼과 추가 지시').fill('기존 준비 지시 유지')
   const toggle = panel.locator('button[aria-controls="song-ai-connections"]')
   const form = panel.locator('#song-ai-connections')
@@ -247,6 +256,23 @@ test('Gemini quota failure explains project limits and preserves the current set
   await expect(panel.getByRole('alert')).toContainText('Google AI Studio')
   await expect(panel.getByRole('alert')).not.toContainText('synthetic-private-key')
   await expect(panel.getByRole('alert')).not.toContainText('private source content')
+  await expect(panel.getByLabel('플레이리스트 설정')).toBeHidden()
+  await expect(panel.getByRole('button', { name: '원본·작업본 삭제', exact: true })).toBeHidden()
+  await expect(panel.getByRole('button', { name: '분석 시작', exact: true })).toBeVisible()
+  for (const theme of ['light', 'dark']) {
+    await page
+      .locator('.workbench')
+      .evaluate((element, theme) => element.setAttribute('data-theme', theme), theme)
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await page.screenshot({ path: `test-results/ai-preparation-${theme}.png` })
+  }
+  await page.setViewportSize({ width: 560, height: 800 })
+  expect(
+    await panel
+      .locator('.song-preparation-shell')
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true)
+  await page.screenshot({ path: 'test-results/ai-preparation-compact.png' })
   const after = await state()
   expect(after.playlist).toEqual(before.playlist)
   expect(after.draft).toEqual(before.draft)
@@ -332,13 +358,42 @@ test('PDF review, form correction, new-song registration, append, undo and resta
         .evaluate((node: HTMLCanvasElement) => node.width),
     )
     .toBeGreaterThan(300)
+  await panel.getByRole('tab', { name: 'B', exact: false }).click()
+  await expect(panel.getByLabel('파트 2 가사')).toHaveValue('AI 합성 후렴 가사')
+  await panel.getByLabel('파트 2 가사').fill('파트를 옮겨도 남는 합성 후렴')
+  await panel.getByRole('tab', { name: 'B', exact: false }).focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect(panel.getByRole('tab', { name: 'A', exact: false })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
   await panel.getByLabel('파트 1 가사').fill('사용자가 수정한 합성 가사')
   await panel.getByLabel('순서 2 반복').fill('3')
   await panel.getByLabel('이 곡의 가사와 송폼 확인 완료').check()
   await expect(panel.getByText('슬라이드 미리보기 · 4장', { exact: true })).toBeVisible()
+  await panel.getByText('원본 확인', { exact: true }).click()
+  await panel.locator('.studio-editor').evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await panel.locator('.studio-reference').evaluate((element) => {
+    element.scrollTop = 0
+  })
+  await page.setViewportSize({ width: 1440, height: 960 })
+  await page.screenshot({ path: 'test-results/studio-review-dark.png' })
+  await page
+    .locator('.workbench')
+    .evaluate((element) => element.setAttribute('data-theme', 'light'))
+  await page.screenshot({ path: 'test-results/studio-review-light.png' })
   await panel.screenshot({ path: test.info().outputPath('ai-song-review.png') })
   await panel.getByRole('button', { name: '플레이리스트에 적용', exact: true }).click()
   await expect(panel.getByRole('status')).toHaveText('콘티 준비 완료')
+  await page.screenshot({ path: 'test-results/studio-complete-light.png' })
+  await panel.getByRole('button', { name: '작업 기록', exact: true }).click()
+  await expect(panel.getByRole('region', { name: '준비 작업 기록' })).toBeVisible()
+  await page.screenshot({ path: 'test-results/studio-history-light.png' })
+  await panel.locator('.studio-history-item').first().click()
+  await expect(panel.getByRole('button', { name: '준비한 콘티 보기' })).toBeVisible()
+
   const after = await state()
   expect(after.playlist).toHaveLength(2)
   expect(after.playlist[0].id).toBe(before.playlist[0].id)
@@ -371,6 +426,7 @@ for (const provider of ['openai', 'claude'] as const)
     await mock(provider)
     await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
     const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+    await panel.getByText('적용 설정', { exact: false }).click()
     await panel.getByLabel('플레이리스트 설정').selectOption('replace')
     await panel.getByLabel('AI 적용 방식').selectOption('automatic')
     await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
@@ -399,6 +455,7 @@ test('uncertain form pauses automatic replace and invalid edits remain reviewabl
   await mock('gemini', true)
   await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
   const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByText('적용 설정', { exact: false }).click()
   await panel.getByLabel('AI 적용 방식').selectOption('automatic')
   await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
   await panel.getByRole('button', { name: '분석 시작', exact: true }).click()
@@ -440,6 +497,8 @@ test('image import uses a real decoded source, review edits persist when closing
   await expect(panel.getByRole('status')).toHaveText('가사와 송폼 확인 필요')
   await panel.getByText('원본 확인', { exact: true }).click()
   await expect(panel.getByRole('img', { name: '분석 원본' })).toBeVisible()
+  await panel.getByRole('button', { name: '분석 및 작업 관리' }).click()
+  await panel.getByText('작업 정보 및 보관', { exact: true }).click()
   await panel.getByLabel('원본과 작업본 계속 보관').check()
   await panel.getByLabel('파트 1 가사').fill('닫기 전에 수정한 합성 가사')
   await panel.getByRole('button', { name: 'AI 준비 창 닫기' }).click()
@@ -447,8 +506,273 @@ test('image import uses a real decoded source, review edits persist when closing
   await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
   panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
   await expect(panel.getByLabel('파트 1 가사')).toHaveValue('닫기 전에 수정한 합성 가사')
+  await panel.getByRole('button', { name: '분석 및 작업 관리' }).click()
+  await panel.getByText('작업 정보 및 보관', { exact: true }).click()
   await expect(panel.getByLabel('원본과 작업본 계속 보관')).toBeChecked()
   const jobs = await page.evaluate(() => window.ipcRenderer.listSongJobs())
   expect(jobs[0].sources[0].mime).toBe('image/png')
   expect((await state()).library).toHaveLength(1)
+})
+
+test('drafts survive new files, history changes and rebase; invalid changes block navigation and saves lock editing', async () => {
+  await page.evaluate(() =>
+    window.ipcRenderer.saveAIProfile(
+      { id: 'review-flow', name: '검토용 AI', provider: 'gemini', model: 'synthetic' },
+      'synthetic-test-key',
+      true,
+    ),
+  )
+  await mock('gemini')
+  await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
+  const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
+  await panel.getByRole('button', { name: '분석 시작', exact: true }).click()
+  await expect(panel.getByLabel('파트 1 가사')).toBeEditable()
+  const original = (await page.evaluate(() => window.ipcRenderer.listSongJobs()))[0]
+  await panel.getByLabel('파트 1 가사').fill('새 파일을 열어도 보존할 수정 가사')
+  await panel.getByText('다른 파일로 새로 준비', { exact: true }).click()
+  await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
+  await expect(panel.getByRole('status')).toHaveText('분석 대기')
+  await expect(panel.getByLabel('파트 1 가사')).toHaveCount(0)
+  const next = (await page.evaluate(() => window.ipcRenderer.listSongJobs()))[0]
+  expect(next.id).not.toBe(original.id)
+  let saved = (await page.evaluate(() => window.ipcRenderer.listSongJobs())).find(
+    (job) => job.id === original.id,
+  )!
+  expect(saved.draft!.songs[0].form.parts[0].pages).toEqual(['새 파일을 열어도 보존할 수정 가사'])
+  await panel.getByLabel('최근 준비 작업').selectOption(original.id)
+  await expect(panel.getByLabel('파트 1 가사')).toHaveValue('새 파일을 열어도 보존할 수정 가사')
+  await panel.getByLabel('순서 2 반복').fill('0')
+  await expect(panel.locator('.song-preparation-validation')).toContainText('반복 횟수는 1~20회')
+  await panel
+    .getByLabel('곡 제목', { exact: true })
+    .fill('은혜 가운데 함께 부르는 아주 긴 찬양 제목 '.repeat(8))
+  await page.setViewportSize({ width: 560, height: 800 })
+  await panel.locator('.song-preparation-validation').scrollIntoViewIfNeeded()
+  const overflow = await panel.locator('.song-preparation-shell').evaluate((shell) => {
+    const edge = shell.getBoundingClientRect().right
+    return Array.from(shell.querySelectorAll('*'))
+      .filter((element) => element.getBoundingClientRect().right > edge)
+      .slice(0, 8)
+      .map((element) => ({
+        tag: element.tagName,
+        className: element.className,
+        width: element.getBoundingClientRect().width,
+      }))
+  })
+  await page.screenshot({ path: 'test-results/ai-preparation-review-compact.png' })
+  expect(
+    await panel
+      .locator('.song-preparation-shell')
+      .evaluate((element) => element.scrollWidth <= element.clientWidth),
+    JSON.stringify(overflow),
+  ).toBe(true)
+  await page.setViewportSize({ width: 1280, height: 900 })
+  await panel.getByLabel('최근 준비 작업').selectOption(next.id)
+  await expect(panel.getByLabel('최근 준비 작업')).toHaveValue(original.id)
+  await expect(panel.getByLabel('순서 2 반복')).toHaveValue('0')
+  await panel.getByRole('button', { name: '수정 취소', exact: true }).click()
+  await expect(panel.getByRole('group', { name: '초안 수정 취소 확인' })).toBeVisible()
+  await panel.getByRole('button', { name: '계속 수정', exact: true }).click()
+  await expect(panel.getByLabel('순서 2 반복')).toHaveValue('0')
+  await panel.getByRole('button', { name: '수정 취소', exact: true }).click()
+  await panel.getByRole('button', { name: '저장된 초안 복원', exact: true }).click()
+  await expect(panel.getByLabel('순서 2 반복')).toHaveValue('2')
+  await panel.getByLabel('순서 2 반복').fill('3')
+  await panel.getByLabel('파트 1 가사').fill('콘티 재확인 전에도 보존할 가사')
+  await panel.getByRole('button', { name: '최신 콘티에 맞춰 다시 확인' }).click()
+  await expect(panel.getByLabel('파트 1 가사')).toBeEditable()
+  await expect(panel.getByLabel('파트 1 가사')).toHaveValue('콘티 재확인 전에도 보존할 가사')
+  saved = (await page.evaluate(() => window.ipcRenderer.listSongJobs())).find(
+    (job) => job.id === original.id,
+  )!
+  expect(saved.draft!.songs[0].form.sequence[1].repeat).toBe(3)
+  // Status-only events must not reset a locally edited draft.
+  await panel.getByLabel('파트 1 가사').fill('상태 갱신 중에도 유지할 가사')
+  await page.evaluate((id) => window.ipcRenderer.retainSongSources(id, true), original.id)
+  await expect(panel.getByLabel('파트 1 가사')).toHaveValue('상태 갱신 중에도 유지할 가사')
+  await app.evaluate(({ ipcMain }) => {
+    const handler = (ipcMain as any)._invokeHandlers.get('edit-song-job')
+    ipcMain.removeHandler('edit-song-job')
+    ipcMain.handle('edit-song-job', async (...args) => {
+      if (!(globalThis as any).saveWaiting) {
+        ;(globalThis as any).saveWaiting = true
+        await new Promise<void>((resolve) => {
+          ;(globalThis as any).releaseDraftSave = resolve
+        })
+      }
+      return handler(...args)
+    })
+  })
+  await panel.getByRole('button', { name: '검토 내용 저장', exact: true }).click()
+  await expect.poll(() => app.evaluate(() => (globalThis as any).saveWaiting)).toBe(true)
+  await expect(panel.getByLabel('파트 1 가사')).toBeDisabled()
+  await expect(panel.getByLabel('최근 준비 작업')).toBeDisabled()
+  await expect(panel.getByRole('button', { name: 'AI 준비 창 닫기' })).toBeDisabled()
+  await app.evaluate(() => (globalThis as any).releaseDraftSave())
+  await expect(panel.getByLabel('파트 1 가사')).toBeEditable()
+  await panel.getByLabel('최근 준비 작업').selectOption(next.id)
+  await expect(panel.getByLabel('최근 준비 작업')).toHaveValue(next.id)
+  await panel.getByLabel('최근 준비 작업').selectOption(original.id)
+  await expect(panel.getByLabel('파트 1 가사')).toHaveValue('상태 갱신 중에도 유지할 가사')
+  await panel.getByLabel('파트 1 가사').fill('재분석 직전 저장할 가사')
+  await panel.getByRole('button', { name: '분석 및 작업 관리' }).click()
+  await panel.getByRole('button', { name: '같은 AI로 다시 분석', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('분석 중 문제 발생')
+  await expect(panel.getByLabel('파트 1 가사')).toHaveValue('재분석 직전 저장할 가사')
+  expect(
+    (await page.evaluate(() => window.ipcRenderer.listSongJobs())).find(
+      (job) => job.id === original.id,
+    )!.draft!.songs[0].form.parts[0].pages,
+  ).toEqual(['재분석 직전 저장할 가사'])
+  await page.evaluate((id) => window.ipcRenderer.cancelSongJob(id), original.id)
+  await expect(panel.getByRole('status')).toHaveText('취소됨')
+  await panel.getByLabel('파트 1 가사').fill('취소한 분석의 초안도 수정해서 적용')
+  await panel.getByLabel('이 곡의 가사와 송폼 확인 완료').check()
+  await panel.getByRole('button', { name: '플레이리스트에 적용', exact: true }).click()
+  await expect(panel.getByRole('status')).toHaveText('콘티 준비 완료')
+})
+
+test('source evidence opens the original, errors can retry, and PDF page changes reuse the loaded document', async () => {
+  const document = await PDFDocument.create()
+  for (let index = 0; index < 3; index++)
+    document.addPage([300, 400]).drawText(`Source page ${index + 1}`)
+  await fs.writeFile(pdf, await document.save())
+  const longSource = path.join(dir, '긴한글제목의찬양악보'.repeat(5) + '.pdf')
+  await fs.rename(pdf, longSource)
+  pdf = longSource
+  await page.evaluate(() =>
+    window.ipcRenderer.saveAIProfile(
+      { id: 'source-review', name: '원본 검토용 AI', provider: 'gemini', model: 'synthetic' },
+      'synthetic-test-key',
+      true,
+    ),
+  )
+  await mock('gemini')
+  await app.evaluate(({ ipcMain }) => {
+    const handler = (ipcMain as any)._invokeHandlers.get('song-source')
+    ;(globalThis as any).sourceReads = 0
+    ipcMain.removeHandler('song-source')
+    ipcMain.handle('song-source', (...args) => {
+      if (++(globalThis as any).sourceReads === 1) throw new Error('Synthetic source read failure')
+      return handler(...args)
+    })
+  })
+  await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
+  const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
+  await panel.getByRole('button', { name: '분석 시작', exact: true }).click()
+  await expect(panel.getByLabel('파트 1 가사')).toBeEditable()
+  await panel.getByRole('button', { name: '근거:', exact: false }).first().click()
+  await expect(panel.getByRole('alert')).toContainText('원본 미리보기를 읽지 못했습니다')
+  await panel.getByRole('button', { name: '원본 다시 불러오기' }).click()
+  await expect(panel.locator('canvas[aria-label="PDF 원문 1페이지"]')).toBeVisible()
+  await panel.getByLabel('원본 페이지', { exact: true }).fill('2')
+  await expect(panel.locator('.song-source-preview')).toHaveAttribute('aria-busy', 'false')
+  await panel.getByLabel('원본 페이지', { exact: true }).fill('3')
+  await expect(panel.locator('canvas[aria-label="PDF 원문 3페이지"]')).toBeVisible()
+  expect(await app.evaluate(() => (globalThis as any).sourceReads)).toBe(2)
+})
+
+test('late apply receipts never appear in another job and source deletion requires an inline confirmation', async () => {
+  await page.evaluate(() =>
+    window.ipcRenderer.saveAIProfile(
+      { id: 'receipt-review', name: '기록 검토용 AI', provider: 'gemini', model: 'synthetic' },
+      'synthetic-test-key',
+      true,
+    ),
+  )
+  await mock('gemini')
+  await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
+  let panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
+  await panel.getByRole('button', { name: '분석 시작', exact: true }).click()
+  await panel.getByLabel('이 곡의 가사와 송폼 확인 완료').check()
+  await panel.getByRole('button', { name: '플레이리스트에 적용', exact: true }).click()
+  await expect(panel.getByRole('button', { name: '이번 순서 적용 되돌리기' })).toBeVisible()
+  const completed = (await page.evaluate(() => window.ipcRenderer.listSongJobs()))[0]
+  await panel.getByText('다른 파일로 새로 준비', { exact: true }).click()
+  await panel.getByRole('button', { name: 'PDF·이미지 파일 선택' }).click()
+  await expect(panel.getByRole('button', { name: '이번 순서 적용 되돌리기' })).toHaveCount(0)
+  await expect(panel.getByRole('status')).toHaveText('분석 대기')
+  const queued = (await page.evaluate(() => window.ipcRenderer.listSongJobs()))[0]
+  await panel.getByRole('button', { name: 'AI 준비 창 닫기' }).click()
+  await app.evaluate(({ ipcMain }, completedId) => {
+    const handler = (ipcMain as any)._invokeHandlers.get('song-receipt')
+    ipcMain.removeHandler('song-receipt')
+    ipcMain.handle('song-receipt', async (...args) => {
+      if (args[1] === completedId) {
+        ;(globalThis as any).receiptWaiting = true
+        await new Promise<void>((resolve) => {
+          ;(globalThis as any).releaseReceipt = resolve
+        })
+      }
+      const result = await handler(...args)
+      if (args[1] === completedId) (globalThis as any).receiptDelivered = true
+      return result
+    })
+  }, completed.id)
+  await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
+  panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByLabel('최근 준비 작업').selectOption(completed.id)
+  await expect.poll(() => app.evaluate(() => (globalThis as any).receiptWaiting)).toBe(true)
+  await panel.getByLabel('최근 준비 작업').selectOption(queued.id)
+  await expect(panel.getByLabel('최근 준비 작업')).toHaveValue(queued.id)
+  await app.evaluate(() => (globalThis as any).releaseReceipt())
+  await expect.poll(() => app.evaluate(() => (globalThis as any).receiptDelivered)).toBe(true)
+  await expect(panel.getByRole('button', { name: '이번 순서 적용 되돌리기' })).toHaveCount(0)
+  const before = await state()
+  await panel.getByText('작업 정보 및 보관', { exact: true }).click()
+  await panel.getByRole('button', { name: '원본·작업본 삭제', exact: true }).click()
+  await expect(panel.getByRole('group', { name: '준비 작업 삭제 확인' })).toBeVisible()
+  expect(
+    (await page.evaluate(() => window.ipcRenderer.listSongJobs())).some(
+      (job) => job.id === queued.id,
+    ),
+  ).toBe(true)
+  await panel.getByRole('button', { name: '삭제 취소', exact: true }).click()
+  await expect(panel.getByRole('group', { name: '준비 작업 삭제 확인' })).toHaveCount(0)
+  await panel.getByRole('button', { name: '원본·작업본 삭제', exact: true }).click()
+  await panel.getByRole('button', { name: '원본·작업본 삭제 확인', exact: true }).click()
+  await expect(panel.getByLabel('최근 준비 작업')).toHaveValue('')
+  await expect
+    .poll(async () =>
+      (await page.evaluate(() => window.ipcRenderer.listSongJobs())).some(
+        (job) => job.id === queued.id,
+      ),
+    )
+    .toBe(false)
+  expect((await state()).library).toEqual(before.library)
+  expect((await state()).playlist).toEqual(before.playlist)
+})
+
+test('AI connection saving locks input and closing, then reports saved configuration without claiming a network check', async () => {
+  await app.evaluate(({ ipcMain }) => {
+    const handler = (ipcMain as any)._invokeHandlers.get('save-ai-profile')
+    ipcMain.removeHandler('save-ai-profile')
+    ipcMain.handle('save-ai-profile', async (...args) => {
+      ;(globalThis as any).profileWaiting = true
+      await new Promise<void>((resolve) => {
+        ;(globalThis as any).releaseProfile = resolve
+      })
+      return handler(...args)
+    })
+  })
+  await page.getByRole('button', { name: 'AI로 찬양 준비', exact: true }).click()
+  const panel = page.getByRole('dialog', { name: 'AI로 찬양 준비' })
+  await panel.getByRole('button', { name: 'AI 연결 추가', exact: true }).click()
+  const form = panel.locator('#song-ai-connections')
+  await form.getByLabel('AI 제공자', { exact: true }).selectOption('openai')
+  await form.getByLabel('AI API 키').fill('synthetic-test-key')
+  await form.getByRole('button', { name: '연결 저장 · 기본으로 사용', exact: true }).click()
+  await expect.poll(() => app.evaluate(() => (globalThis as any).profileWaiting)).toBe(true)
+  await expect(form.getByLabel('AI 제공자', { exact: true })).toBeDisabled()
+  await expect(form.getByLabel('AI API 키')).toBeDisabled()
+  await expect(panel.getByRole('button', { name: 'AI 준비 창 닫기' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  await expect(form).toBeVisible()
+  await app.evaluate(() => (globalThis as any).releaseProfile())
+  await expect(form.getByRole('status')).toContainText('실제 모델 연결은 분석할 때 확인')
+  await form.getByRole('button', { name: '취소', exact: true }).click()
+  await expect(panel.getByRole('button', { name: 'PDF·이미지 파일 선택' })).toBeEnabled()
 })

@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import type { ConnectionProfile } from '../../shared/song-preparation'
 export interface ProviderFile {
   id: string
@@ -103,6 +104,87 @@ async function providerFailure(response: Response, provider: ConnectionProfile['
     return prefix + 'AI 키와 모델 접근 권한을 확인해주세요.'
   return prefix + 'AI 분석에 실패했습니다. 파일 크기·형식과 연결을 확인해주세요.'
 }
+const record = z.record(z.string(), z.unknown())
+const callName = z.string().min(1).max(160)
+const geminiEnvelope = z
+  .object({
+    candidates: z
+      .array(
+        z
+          .object({
+            content: z
+              .object({
+                parts: z.array(
+                  z
+                    .object({
+                      functionCall: z
+                        .object({ name: callName, args: record, id: z.string().optional() })
+                        .optional(),
+                    })
+                    .passthrough(),
+                ),
+              })
+              .passthrough(),
+          })
+          .passthrough(),
+      )
+      .min(1),
+  })
+  .passthrough()
+const openaiEnvelope = z
+  .object({
+    output: z.array(
+      z
+        .object({ type: z.string() })
+        .passthrough()
+        .superRefine((value, ctx) => {
+          if (
+            value.type === 'function_call' &&
+            !z
+              .object({
+                call_id: z.string().min(1),
+                name: callName,
+                arguments: z.string(),
+              })
+              .safeParse(value).success
+          )
+            ctx.addIssue({ code: 'custom', message: 'Invalid tool call' })
+        }),
+    ),
+  })
+  .passthrough()
+const claudeEnvelope = z
+  .object({
+    content: z.array(
+      z
+        .object({ type: z.string() })
+        .passthrough()
+        .superRefine((value, ctx) => {
+          if (
+            value.type === 'tool_use' &&
+            !z
+              .object({
+                id: z.string().min(1),
+                name: callName,
+                input: record,
+              })
+              .safeParse(value).success
+          )
+            ctx.addIssue({ code: 'custom', message: 'Invalid tool call' })
+        }),
+    ),
+  })
+  .passthrough()
+function transportFailure(signal: AbortSignal) {
+  if (signal.aborted && signal.reason?.name === 'TimeoutError')
+    return new Error(
+      'AI 응답 대기 시간(2분)이 지났습니다. 확보된 초안을 확인하거나 파일을 나누어 다시 분석해주세요.',
+    )
+  if (signal.aborted) return new DOMException('분석이 취소되었습니다.', 'AbortError')
+  return new Error('AI에 연결하지 못했습니다. 인터넷 연결을 확인한 뒤 다시 분석해주세요.')
+}
+const malformedResponse = () =>
+  new Error('AI 응답 형식을 읽지 못했습니다. 확보된 초안을 확인하거나 다시 분석해주세요.')
 export class SongProvider {
   private history: unknown[] = []
   constructor(
@@ -211,12 +293,18 @@ export class SongProvider {
         : provider === 'openai'
           ? { Authorization: `Bearer ${this.key}` }
           : { 'x-api-key': this.key, 'anthropic-version': '2023-06-01' }
-    const response = await this.request(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...headers },
-      body: encoded,
-      signal: AbortSignal.any([signal, AbortSignal.timeout(120000)]),
-    })
+    const requestSignal = AbortSignal.any([signal, AbortSignal.timeout(120000)])
+    let response: Response
+    try {
+      response = await this.request(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: encoded,
+        signal: requestSignal,
+      })
+    } catch {
+      throw transportFailure(requestSignal)
+    }
     if (!response.ok) throw new Error(await providerFailure(response, provider))
     const reader = response.body?.getReader()
     if (!reader) throw new Error('AI 응답을 읽지 못했습니다.')
@@ -233,11 +321,27 @@ export class SongProvider {
         }
         chunks.push(part.value)
       }
+    } catch {
+      if (length > 4 * 1024 * 1024) throw new Error('AI 응답이 너무 큽니다. 곡 수를 줄여주세요.')
+      throw transportFailure(requestSignal)
     } finally {
+      await reader.cancel().catch(() => {})
       reader.releaseLock()
     }
     // Native envelopes are kept only in memory, including Gemini thought signatures.
-    const result = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    let result: any
+    try {
+      result = JSON.parse(Buffer.concat(chunks).toString('utf8'))
+    } catch {
+      throw malformedResponse()
+    }
+    const schema =
+      provider === 'gemini'
+        ? geminiEnvelope
+        : provider === 'openai'
+          ? openaiEnvelope
+          : claudeEnvelope
+    if (!schema.safeParse(result).success) throw malformedResponse()
     let calls: ModelCall[]
     if (provider === 'gemini') {
       const native = result.candidates?.[0]?.content
@@ -252,7 +356,7 @@ export class SongProvider {
           arguments: p.functionCall.args,
         }))
     } else if (provider === 'openai') {
-      if (result.status === 'incomplete')
+      if (['incomplete', 'failed', 'cancelled', 'canceled'].includes(result.status))
         throw new Error('AI 출력이 불완전합니다. 곡 수를 줄여주세요.')
       this.history.push(...(result.output || []))
       calls = (result.output || [])
@@ -268,7 +372,7 @@ export class SongProvider {
     }
     const usage = Object.fromEntries(
       Object.entries(result.usage || result.usageMetadata || {}).filter(
-        ([, v]) => typeof v === 'number',
+        ([, v]) => typeof v === 'number' && Number.isFinite(v) && v >= 0,
       ),
     ) as Record<string, number>
     return { calls, native: result, usage }

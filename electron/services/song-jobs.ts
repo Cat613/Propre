@@ -236,7 +236,7 @@ export class SongJobs {
     return this.serial(async () => {
       const job = structuredClone(this.get(id)),
         args = StageSchema.parse(raw)
-      if (processing.has(job.status) || ['completed', 'canceled'].includes(job.status))
+      if (processing.has(job.status) || job.status === 'completed')
         throw new Error('현재 작업 상태에서는 수정할 수 없습니다.')
       if (job.draftRevision !== args.expectedDraftRevision)
         throw new Error('다른 수정본이 있습니다. 다시 열어주세요.')
@@ -287,7 +287,11 @@ export class SongJobs {
             song.updateOriginal = false
           }
         }
-      job.status = job.draft?.songs.every((s) => s.confirmed) ? 'ready' : 'needs_review'
+      job.status = !job.draft
+        ? 'queued'
+        : job.draft.songs.every((s) => s.confirmed)
+          ? 'ready'
+          : 'needs_review'
       delete job.error
       return this.store(job)
     })
@@ -299,6 +303,7 @@ export class SongJobs {
       if (job.status === 'committing' || this.repo.state.songReceipts.some((r) => r.jobId === id))
         return job
       job.status = 'canceled'
+      job.automatic = false
       return this.store(job)
     })
   }
@@ -461,6 +466,7 @@ export class SongJobs {
           if (
             !job.draft ||
             job.status !== 'analyzing' ||
+            this.controllers.get(id)?.signal.aborted ||
             job.draftRevision !== args.expectedDraftRevision
           )
             throw new Error('현재 초안 버전을 확인해주세요.')
@@ -555,35 +561,40 @@ export class SongJobs {
     })
   }
   async analyze(id: string, rawSources?: unknown) {
-    if (this.controllers.size)
-      throw new Error('다른 분석이 진행 중입니다. 완료하거나 취소해주세요.')
-    const job = structuredClone(this.get(id))
-    if (['completed', 'committing'].includes(job.status))
-      throw new Error('이 작업은 다시 분석할 수 없습니다.')
-    const selected =
-      z.array(Id).min(1).max(20).optional().parse(rawSources) ||
-      job.sources.map((source) => source.id)
-    if (selected.some((id) => !job.sources.some((source) => source.id === id)))
-      throw new Error('분석할 파일을 다시 선택해주세요.')
-    job.analysisSources = [...new Set(selected)]
-    const key = this.profiles.key(job.profile.id, job.profile.provider),
-      controller = new AbortController()
-    this.controllers.set(id, controller)
-    job.status = 'analyzing'
-    delete job.error
-    try {
-      await this.store(job)
-    } catch (e) {
-      this.controllers.delete(id)
-      throw e
-    }
-    void this.run(id, key, controller)
-      .catch(() => {})
-      .finally(() => this.controllers.delete(id))
-    return this.get(id)
+    return this.serial(async () => {
+      if (this.controllers.size)
+        throw new Error('다른 분석이 진행 중입니다. 완료하거나 취소해주세요.')
+      const job = structuredClone(this.get(id))
+      if (['completed', 'committing'].includes(job.status))
+        throw new Error('이 작업은 다시 분석할 수 없습니다.')
+      const selected =
+        z.array(Id).min(1).max(20).optional().parse(rawSources) ||
+        job.sources.map((source) => source.id)
+      if (selected.some((id) => !job.sources.some((source) => source.id === id)))
+        throw new Error('분석할 파일을 다시 선택해주세요.')
+      job.analysisSources = [...new Set(selected)]
+      const key = this.profiles.key(job.profile.id, job.profile.provider),
+        controller = new AbortController()
+      this.controllers.set(id, controller)
+      job.status = 'analyzing'
+      delete job.error
+      try {
+        await this.store(job)
+      } catch (e) {
+        this.controllers.delete(id)
+        throw e
+      }
+      void this.run(id, key, controller)
+        .catch(() => {})
+        .finally(() => this.controllers.delete(id))
+      return this.get(id)
+    })
   }
   private async run(id: string, key: string, controller: AbortController) {
-    const timer = setTimeout(() => controller.abort(), 600000)
+    const timer = setTimeout(
+      () => controller.abort(new DOMException('Analysis timed out', 'TimeoutError')),
+      600000,
+    )
     let bridge: Awaited<ReturnType<SongJobs['bridge']>> | undefined
     try {
       bridge = await this.bridge(id)
@@ -629,13 +640,15 @@ export class SongJobs {
             SONG_PREPARATION_RULES,
           )
           if (controller.signal.aborted) throw new Error('분석이 취소되었습니다.')
-          if (turn.usage) {
-            const current = structuredClone(this.get(id))
-            current.usage = { ...current.usage }
-            for (const [k, v] of Object.entries(turn.usage))
-              current.usage[k] = (current.usage[k] || 0) + v
-            await this.store(current)
-          }
+          if (turn.usage)
+            await this.serial(async () => {
+              const current = structuredClone(this.get(id))
+              if (controller.signal.aborted || current.status !== 'analyzing') return
+              current.usage = { ...current.usage }
+              for (const [k, v] of Object.entries(turn.usage))
+                current.usage[k] = (current.usage[k] || 0) + v
+              await this.store(current)
+            })
           if (!turn.calls.length) break
           const results = []
           for (const call of turn.calls) {
@@ -669,16 +682,22 @@ export class SongJobs {
       }
       await this.serial(async () => {
         const j = structuredClone(this.get(id))
-        if (controller.signal.aborted || j.status === 'canceled') return j
+        if (controller.signal.aborted || j.status !== 'analyzing') return j
         j.status = j.draft?.songs.every((s) => s.confirmed) ? 'ready' : 'needs_review'
         return this.store(j)
       })
     } catch (e) {
       await this.serial(async () => {
         const j = structuredClone(this.get(id))
-        if (j.status === 'canceled') return
-        j.status = controller.signal.aborted ? 'canceled' : 'failed'
-        j.error = e instanceof Error ? e.message : 'AI 분석에 실패했습니다.'
+        if (j.status !== 'analyzing') return
+        const timedOut =
+          controller.signal.aborted && controller.signal.reason?.name === 'TimeoutError'
+        j.status = timedOut ? 'interrupted' : controller.signal.aborted ? 'canceled' : 'failed'
+        j.error = timedOut
+          ? '분석 제한 시간(10분)이 지났습니다. 확보된 초안을 확인하거나 파일을 나누어 다시 분석해주세요.'
+          : e instanceof Error
+            ? e.message
+            : 'AI 분석에 실패했습니다.'
         await this.store(j)
       })
     } finally {

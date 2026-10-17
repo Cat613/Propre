@@ -15,21 +15,24 @@ export function useModalGuard(open: boolean, onClose?: () => void) {
       modal
         ? Array.from(
             modal.querySelectorAll<HTMLElement>(
-              'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex="0"]',
+              'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), summary, [tabindex="0"]',
             ),
           ).filter((node) => node.getClientRects().length > 0)
         : []
     if (modal) {
       modal.tabIndex = -1
       queueMicrotask(() => {
-        if (modal.isConnected)
-          (
-            modal.querySelector<HTMLElement>(
-              'textarea, input:not([type="checkbox"]):not([type="range"])',
+        if (modal.isConnected) {
+          const nodes = focusable()
+          ;(
+            nodes.find((node) => node.dataset.autofocus === 'true') ||
+            nodes.find((node) =>
+              node.matches('textarea, input:not([type="checkbox"]):not([type="range"])'),
             ) ||
-            focusable()[0] ||
+            nodes[0] ||
             modal
           ).focus()
+        }
       })
     }
     const handleKey = (event: KeyboardEvent) => {
