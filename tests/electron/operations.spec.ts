@@ -466,6 +466,7 @@ test('idle music status preference persists while music stays in the media inspe
   await expect(page.getByRole('button', { name: '음악 열기', exact: true })).toBeHidden()
   await page.getByRole('button', { name: '미디어', exact: true }).click()
   await page.locator('.media-filters').getByRole('button', { name: '음악', exact: true }).click()
+  await page.getByLabel('음악 추가', { exact: true }).click()
   await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeVisible()
 })
 
@@ -487,6 +488,7 @@ test('audio has one owner, survives tab switches, and stops with clear all', asy
     dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [file] })
   }, clip)
   await page.locator('.media-filters').getByRole('button', { name: '음악', exact: true }).click()
+  await page.getByLabel('음악 추가', { exact: true }).click()
   await page.getByRole('button', { name: '오디오 선택', exact: true }).click()
   await page.getByRole('textbox', { name: '음악 이름', exact: true }).fill('시험 음악')
   await page.getByRole('checkbox', { name: '지정 구간 반복', exact: true }).check()
