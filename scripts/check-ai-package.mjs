@@ -12,7 +12,8 @@ if (process.platform !== 'darwin') {
   console.log('Packaged MCP adapter check applies to the supported macOS package.')
   process.exit(0)
 }
-const contents = path.resolve(`release/0.1.0/mac-${process.arch}/ProPre.app/Contents`)
+const pkg = JSON.parse(await fs.readFile(new URL('../package.json', import.meta.url), 'utf8'))
+const contents = path.resolve(`release/${pkg.version}/mac-${process.arch}/ProPre.app/Contents`)
 const executable = path.join(contents, 'MacOS', 'ProPre')
 const bridge = path.join(contents, 'Resources', 'app.asar', 'scripts', 'propre-mcp.mjs')
 await fs.access(executable)
