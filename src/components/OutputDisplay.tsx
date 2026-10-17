@@ -1,265 +1,47 @@
 import { useEffect, useState, useRef } from 'react'
-import ScaledSlide from './ScaledSlide'
-import { OutputState, LayerState } from '../types'
-
-const OutputDisplay: React.FC = () => {
-    // Default empty layers state
-    const [layers, setLayers] = useState<LayerState>({
-        audio: null,
-        background: { type: 'none' },
-        slide: null,
-        announcement: null,
-        props: [],
-        message: null
-    })
-    const [globalSlideStyle, setGlobalSlideStyle] = useState<OutputState['globalSlideStyle']>()
-    const [isGreenScreen, setIsGreenScreen] = useState(false)
-    const [screenId, setScreenId] = useState<string>('main')
-    const [canvasScale, setCanvasScale] = useState(1)
-    const containerRef = useRef<HTMLDivElement>(null)
-
-    // Audio ref for controlling playback
-    const audioRef = useRef<HTMLAudioElement>(null)
-
-    useEffect(() => {
-        // Extract screenId from URL parameters
-        // The URL is typically something like "http://localhost:5173/#output-display?screenId=chroma"
-        const hashParams = new URLSearchParams(window.location.hash.split('?')[1] || '')
-        const id = hashParams.get('screenId') || 'main'
-        setScreenId(id)
-
-        // Listen for targeted updates from main process router
-        const removeListener = window.ipcRenderer.on('update-screen', (data: any) => {
-            try {
-                // Handle legacy string commands
-                if (data === '__BLACK__') {
-                    setLayers({
-                        audio: null,
-                        background: { type: 'none' },
-                        slide: null,
-                        announcement: null,
-                        props: [],
-                        message: null
-                    })
-                    return
-                }
-
-                const parsed = typeof data === 'string' ? JSON.parse(data) : data
-
-                // Check if it's the new structured object
-                if (parsed.type === 'state-update') {
-                    const state = parsed as OutputState
-
-                    if (state.layers) {
-                        setLayers(state.layers)
-                    } else {
-                        // Support backward compatibility during transition
-                        setLayers(prev => ({
-                            ...prev,
-                            slide: (state as any).slide || null,
-                            background: (state as any).background || { type: 'none' }
-                        }))
-                    }
-
-                    if (state.globalSlideStyle) {
-                        setGlobalSlideStyle(state.globalSlideStyle)
-                    }
-                    if (state.isGreenScreen !== undefined) {
-                        setIsGreenScreen(state.isGreenScreen)
-                    }
-                } else {
-                    // Fallback for simple string content (if any legacy code remains)
-                    // Assuming it's just slide content
-                    // ...
-                }
-            } catch (e) {
-                console.error('Failed to parse output data:', e)
-            }
-        })
-
-        return () => {
-            removeListener()
-        }
-    }, [])
-
-    useEffect(() => {
-        const updateScale = () => {
-            if (containerRef.current) {
-                setCanvasScale(containerRef.current.clientWidth / 1920)
-            }
-        }
-        updateScale()
-        window.addEventListener('resize', updateScale)
-        return () => window.removeEventListener('resize', updateScale)
-    }, [])
-
-    // Control audio playback via ref
-    useEffect(() => {
-        if (audioRef.current) {
-            if (layers.audio && layers.audio.url) {
-                // If the url changed or it was paused, play it
-                if (audioRef.current.src !== layers.audio.url) {
-                    audioRef.current.src = layers.audio.url
-                }
-                audioRef.current.loop = layers.audio.loop ?? false
-                audioRef.current.volume = layers.audio.volume ?? 1.0
-
-                audioRef.current.play().catch(e => console.error("Audio play failed:", e))
-            } else {
-                audioRef.current.pause()
-                audioRef.current.currentTime = 0
-            }
-        }
-    }, [layers.audio])
-
-    return (
-        <div ref={containerRef} className="w-screen h-screen bg-black overflow-hidden relative" data-screen-id={screenId}>
-
-            {/* Layer 0: Audio (Hidden) */}
-            <audio ref={audioRef} className="hidden" />
-
-            {/* Layer 1: Background (Z-index 0) */}
-            <div
-                className="absolute inset-0 z-0 transition-opacity duration-500 ease-in-out"
-                style={{
-                    backgroundColor: isGreenScreen ? '#00B140' : '#000000'
-                }}
-            >
-                {!isGreenScreen && layers.background.type === 'image' && layers.background.url && (
-                    <img
-                        src={layers.background.url}
-                        className="w-full h-full object-cover transition-opacity duration-1000"
-                        alt="Background"
-                    />
-                )}
-                {!isGreenScreen && layers.background.type === 'video' && layers.background.url && (
-                    <video
-                        key={layers.background.url} // Re-mount if URL changes to ensure autoplay
-                        src={layers.background.url}
-                        className="w-full h-full object-cover transition-opacity duration-1000"
-                        autoPlay
-                        loop
-                        muted
-                    />
-                )}
-
-                {/* Full-screen Background Dimmer Layer (Applied if slide demands it) */}
-                {!isGreenScreen && (() => {
-                    if (!layers.slide) return null;
-                    const useCustomStyle = layers.slide.styles?.useCustomStyle === true;
-                    const dimValue = (useCustomStyle && layers.slide.styles?.backgroundDim !== undefined)
-                        ? layers.slide.styles.backgroundDim
-                        : globalSlideStyle?.backgroundDim || 0;
-
-                    if (dimValue > 0) {
-                        return (
-                            <div
-                                className="absolute inset-0 w-full h-full pointer-events-none transition-opacity duration-500"
-                                style={{ backgroundColor: `rgba(0, 0, 0, ${dimValue})` }}
-                            />
-                        );
-                    }
-                    return null;
-                })()}
-            </div>
-
-            {/* Layer 2: Main Slide Content (Z-index 10) */}
-            <div className={`absolute inset-0 z-10 transition-opacity duration-300 ${layers.slide ? 'opacity-100' : 'opacity-0'}`}>
-                {layers.slide && (
-                    <ScaledSlide
-                        slide={layers.slide}
-                        overrideStyle={{ backgroundColor: 'transparent', backgroundImage: 'none' }}
-                        globalStyleOverride={globalSlideStyle}
-                        disableDimOverlay={true}
-                        isGreenScreen={isGreenScreen}
-                    />
-                )}
-            </div>
-
-            {/* Layer 3: Announcement (Z-index 20) */}
-            {/* Planned for future implementation */}
-            <div className={`absolute inset-0 z-20 pointer-events-none transition-opacity duration-300 ${layers.announcement ? 'opacity-100' : 'opacity-0'}`}>
-                {layers.announcement && (
-                    <ScaledSlide
-                        slide={layers.announcement}
-                        overrideStyle={{ backgroundColor: 'transparent', backgroundImage: 'none' }}
-                        globalStyleOverride={globalSlideStyle}
-                        disableDimOverlay={true}
-                        isGreenScreen={isGreenScreen}
-                    />
-                )}
-            </div>
-
-            {/* Layer 4: Props/Logos (Z-index 30) */}
-            <div className="absolute inset-0 z-30 pointer-events-none overflow-hidden flex items-center justify-center">
-                <div style={{ width: 1920, height: 1080, transform: `scale(${canvasScale})`, position: 'relative', flexShrink: 0 }}>
-                    {layers.props && layers.props.map(prop => {
-                        const scale = prop.scale ?? 1.0;
-                        let style: React.CSSProperties = {};
-                        
-                        if (prop.position === 'custom') {
-                            style = {
-                                left: `${prop.customX ?? 50}%`,
-                                top: `${prop.customY ?? 50}%`,
-                                transform: `translate(-50%, -50%) scale(${scale})`
-                            };
-                        } else if (prop.position === 'center') {
-                            style = {
-                                left: '50%',
-                                top: '50%',
-                                transform: `translate(-50%, -50%) scale(${scale})`
-                            };
-                        } else {
-                            style = { transform: `scale(${scale})` };
-                            if (prop.position.includes('top')) style.top = '2rem';
-                            if (prop.position.includes('bottom')) style.bottom = '2rem';
-                            if (prop.position.includes('left')) style.left = '2rem';
-                            if (prop.position.includes('right')) style.right = '2rem';
-                            
-                            if (prop.position === 'top-left') style.transformOrigin = 'top left';
-                            if (prop.position === 'top-right') style.transformOrigin = 'top right';
-                            if (prop.position === 'bottom-left') style.transformOrigin = 'bottom left';
-                            if (prop.position === 'bottom-right') style.transformOrigin = 'bottom right';
-                        }
-
-                        return (
-                            <div
-                                key={prop.id}
-                                className="absolute flex items-center justify-center drop-shadow-lg"
-                                style={style}
-                            >
-                                {(prop.type === 'logo' || prop.type === 'image') && prop.url && (
-                                    <img src={prop.url} alt="Prop" className="max-w-none" />
-                                )}
-                                {prop.type === 'text' && prop.content && (
-                                    <div className="text-white font-bold whitespace-pre text-center leading-tight" style={{ fontSize: '76px', WebkitTextStroke: isGreenScreen ? '2px black' : 'none', textShadow: isGreenScreen ? 'none' : '4px 4px 8px rgba(0,0,0,0.8)' }}>
-                                        {prop.content}
-                                    </div>
-                                )}
-                            </div>
-                        );
-                    })}
-                </div>
-            </div>
-
-            {/* Layer 5: Message Ticker (Z-index 40) */}
-            <div className="absolute inset-x-0 bottom-0 z-40 pointer-events-none transition-transform duration-500">
-                {layers.message && (
-                    <div className="bg-black/70 py-4 border-t border-gray-800 backdrop-blur-sm overflow-hidden whitespace-nowrap">
-                        <div
-                            className="text-yellow-400 font-bold text-4xl px-8 inline-block drop-shadow-md"
-                            style={{
-                                WebkitTextStroke: isGreenScreen ? '2px black' : 'none',
-                                animation: layers.message.isScrolling ? `marquee ${layers.message.speed || 15}s linear infinite` : 'none'
-                            }}
-                        >
-                            {layers.message.content}
-                        </div>
-                    </div>
-                )}
-            </div>
-        </div>
-    )
+import type { OutputState } from '../types'
+import CompositeFrame from './CompositeFrame'
+const empty: OutputState = {
+  type: 'state-update',
+  layers: {
+    audio: null,
+    background: { type: 'none' },
+    slide: null,
+    announcement: null,
+    props: [],
+    message: null,
+  },
 }
-
-export default OutputDisplay
+export default function OutputDisplay() {
+  const [state, setState] = useState<OutputState & { version?: number }>(empty),
+    version = useRef(0)
+  useEffect(() => {
+    const stop = window.ipcRenderer.on('update-screen', (json: string) => {
+      try {
+        const data = JSON.parse(json) as OutputState & { version: number }
+        if (data.version <= version.current) return
+        version.current = data.version
+        if (data.source?.kind === 'pdf') {
+          const frame = new Image()
+          frame.onload = () => {
+            if (data.version === version.current) setState(data)
+          }
+          frame.onerror = () => window.ipcRenderer.reportMediaError()
+          frame.src = data.source.frameURL
+        } else setState(data)
+      } catch {
+        window.ipcRenderer.reportMediaError()
+      }
+    })
+    window.ipcRenderer.ready()
+    return stop
+  }, [])
+  useEffect(() => {
+    if (state.version) window.ipcRenderer.acknowledge(state.version)
+  }, [state])
+  return (
+    <div className="h-screen w-screen bg-black" data-screen="main">
+      <CompositeFrame state={state} />
+    </div>
+  )
+}

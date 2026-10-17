@@ -1,78 +1,125 @@
+import { useState } from 'react'
+import { useModalGuard } from '../hooks/useModalGuard'
+import { useShallow } from 'zustand/react/shallow'
+import { Monitor } from 'lucide-react'
 import { usePresentationStore } from '../store'
-import ScaledSlide from './ScaledSlide'
-
-const PreviewPanel: React.FC = () => {
-    const { activeSlideId, slides, globalSlideStyle, activeBackground } = usePresentationStore()
-
-    const activeSlide = slides.find((s) => s.id === activeSlideId)
-
-    return (
-        <div className="flex-none flex flex-col bg-gray-900 border-l border-gray-800">
-            <div className="p-3 bg-gray-900 border-b border-gray-800 flex items-center justify-between">
-                <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-                    미리보기 (OUTPUT)
-                </h2>
-                {activeSlide ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-green-500/10 text-green-400 border border-green-500/20">
-                        Active
-                    </span>
-                ) : (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded text-gray-500">
-                        Inactive
-                    </span>
-                )}
-            </div>
-
-            <div className="flex-1 p-4 flex items-center justify-center bg-gray-900 overflow-hidden">
-                <div className="aspect-video w-full bg-black rounded-lg overflow-hidden shadow-2xl relative border border-gray-800">
-                    {/* Background Layer */}
-                    <div className="absolute inset-0 z-0">
-                        {activeBackground.type === 'image' && activeBackground.url && (
-                            <img src={activeBackground.url} className="w-full h-full object-cover" alt="Background" />
-                        )}
-                        {activeBackground.type === 'video' && activeBackground.url && (
-                            <video src={activeBackground.url} className="w-full h-full object-cover" autoPlay loop muted />
-                        )}
-
-                        {/* Full-screen Background Dimmer Layer for Preview */}
-                        {(() => {
-                            if (!activeSlide) return null;
-                            const useCustomStyle = activeSlide.styles?.useCustomStyle === true;
-                            const dimValue = (useCustomStyle && activeSlide.styles?.backgroundDim !== undefined)
-                                ? activeSlide.styles.backgroundDim
-                                : globalSlideStyle?.backgroundDim || 0;
-
-                            if (dimValue > 0) {
-                                return (
-                                    <div
-                                        className="absolute inset-0 w-full h-full pointer-events-none"
-                                        style={{ backgroundColor: `rgba(0, 0, 0, ${dimValue})`, zIndex: 1 }}
-                                    />
-                                );
-                            }
-                            return null;
-                        })()}
-                    </div>
-
-                    {/* Slide Content Layer */}
-                    <div className="absolute inset-0 z-10">
-                        {activeSlide ? (
-                            <ScaledSlide
-                                slide={activeSlide}
-                                overrideStyle={{ backgroundColor: 'transparent', backgroundImage: 'none' }}
-                                globalStyleOverride={globalSlideStyle}
-                                disableDimOverlay={true}
-                            />
-                        ) : (
-                            <div className="w-full h-full flex items-center justify-center text-gray-400 font-medium">
-                                <span className={activeBackground.url ? "opacity-0" : ""}>송출 대기 중</span>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
+import { outputSnapshot } from '../store/helpers'
+import CompositeFrame from './CompositeFrame'
+import { OutputClearActions } from './ToolbarActions'
+export default function PreviewPanel({ compact = false }: { compact?: boolean }) {
+  const [expanded, setExpanded] = useState(false)
+  useModalGuard(expanded, () => setExpanded(false))
+  const state = usePresentationStore(
+    useShallow((s) => ({
+      activeSlideId: s.activeSlideId,
+      slides: s.slides,
+      globalSlideStyle: s.globalSlideStyle,
+      activeBackground: s.activeBackground,
+      activeAudio: s.activeAudio,
+      activeProps: s.activeProps,
+      activeMessage: s.activeMessage,
+      activeAnnouncement: s.activeAnnouncement,
+      screenLooks: s.screenLooks,
+      isGreenScreen: s.isGreenScreen,
+    })),
+  )
+  const external = usePresentationStore((s) => s.externalOutput)
+  const browserFrame = usePresentationStore((s) => s.browserFrame)
+  const health = usePresentationStore((s) => s.screenHealth.find((h) => h.screen === 'main'))
+  const enabled = usePresentationStore((s) => s.isOutputEnabled)
+  const label = !enabled
+    ? '송출 창 닫힘'
+    : health?.status === 'applied'
+      ? '화면 적용됨'
+      : health?.status === 'error'
+        ? '화면 오류'
+        : '화면 연결 중'
+  const statusColor = !enabled
+    ? 'text-gray-500'
+    : health?.status === 'error'
+      ? 'text-red-300'
+      : health?.status === 'applied'
+        ? 'text-emerald-400'
+        : 'text-amber-300'
+  const activeIndex = state.slides.findIndex((slide) => slide.id === state.activeSlideId)
+  return (
+    <section
+      aria-label="메인 송출 미리보기"
+      data-preview-expanded={expanded}
+      data-modal={expanded ? 'true' : undefined}
+      role={expanded ? 'dialog' : undefined}
+      aria-modal={expanded || undefined}
+      className={
+        expanded
+          ? 'output-preview-expanded'
+          : compact
+            ? 'output-preview-compact'
+            : 'shrink-0 border-b border-white/5 p-4'
+      }
+    >
+      <div className="preview-heading mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="workbench-heading flex items-center gap-2">
+          <Monitor size={15} className="text-gray-500" />
+          현재 송출
+        </h2>
+        <span
+          className={`inline-flex items-center gap-1.5 text-[10px] ${statusColor}`}
+          title={health?.error}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          {label}
+        </span>
+      </div>
+      <button
+        type="button"
+        className="workbench-button preview-expand-button"
+        aria-label={expanded ? '송출 미리보기 닫기' : '송출 미리보기 확대'}
+        onClick={() => setExpanded(!expanded)}
+      >
+        {expanded ? '닫기' : '확대'}
+      </button>
+      <div
+        data-output-surface="true"
+        className="relative aspect-video w-full overflow-hidden rounded-lg border border-white/10 bg-black shadow-lg"
+      >
+        {external.source.kind === 'web' ? (
+          browserFrame?.resourceId === external.source.resourceId ? (
+            <img
+              className="h-full w-full object-contain"
+              src={browserFrame.image}
+              alt="웹 송출 미리보기 (지연 가능)"
+            />
+          ) : (
+            <div className="p-4 text-gray-400">웹 미리보기 준비 중</div>
+          )
+        ) : (
+          <CompositeFrame
+            state={{
+              ...outputSnapshot(state as Parameters<typeof outputSnapshot>[0]),
+              source: external.source,
+            }}
+          />
+        )}
+      </div>
+      <div className="preview-caption mb-3 mt-2 flex items-center justify-between text-[10px] text-gray-500">
+        <span>
+          {external.source.kind === 'slides'
+            ? activeIndex < 0
+              ? '대기 화면'
+              : '현재 슬라이드'
+            : external.source.name}
+        </span>
+        <span className="tabular-nums">
+          {external.source.kind === 'pdf'
+            ? `${external.source.page} / ${external.source.pageCount}`
+            : external.source.kind === 'web'
+              ? '웹 · 미리보기 지연 가능'
+              : activeIndex < 0
+                ? '—'
+                : `${activeIndex + 1} / ${state.slides.length}`}
+        </span>
+      </div>
+      <OutputClearActions />
+    </section>
+  )
 }
-
-export default PreviewPanel

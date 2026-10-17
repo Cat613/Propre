@@ -5,3 +5,9 @@ release
 .DS_Store
 .env
 *.log
+*.tsbuildinfo
+
+coverage/
+test-results/
+playwright-report/
+release-evidence/

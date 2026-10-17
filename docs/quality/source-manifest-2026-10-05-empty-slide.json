@@ -1,0 +1,19 @@
+{
+  "date": "2026-10-05",
+  "productVersion": "0.1.0",
+  "reason": "Create empty slides without instruction text",
+  "files": [
+    {
+      "file": "src/components/ToolbarActions.tsx",
+      "sha256": "347bc9fbc078e23b36fa6bddad386500278daa6756443f46df1434ad47963b32"
+    },
+    {
+      "file": "tests/electron/operations.spec.ts",
+      "sha256": "bb5168652480365841b2e6364ff6a12060a4e08d0a0610fbbd7a693582e5f9a5"
+    }
+  ],
+  "packagedArtifacts": {
+    "app.asar": "657b76e6f2c5906127178218c565518244ea6b64803166aaaf981be59463d86b",
+    "ProPre": "ca7e3290800255f5018160cff99cf6ecc58eae299c66148de1374a70e2715c83"
+  }
+}

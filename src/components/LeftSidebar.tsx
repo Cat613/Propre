@@ -1,51 +1,67 @@
 import { useState } from 'react'
+import { BookOpen, Music2 } from 'lucide-react'
 import BiblePanel from './BiblePanel'
 import PlaylistPanel from './PlaylistPanel'
 import LibraryPanel from './LibraryPanel'
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels'
 
 const LeftSidebar: React.FC = () => {
-    const [activeTab, setActiveTab] = useState<'songs' | 'bible'>('songs')
-
-    return (
-        <div className="flex flex-col h-full">
-            {/* Top Half: Playlist */}
-            <PlaylistPanel />
-
-            {/* Bottom Half: Tabs + Content */}
-            <div className="flex-1 flex flex-col min-h-0 bg-gray-800/30 border-t border-gray-800">
-                {/* Tabs */}
-                <div className="flex border-b border-gray-800">
-                    <button
-                        onClick={() => setActiveTab('songs')}
-                        className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'songs'
-                            ? 'bg-gray-800 text-blue-400 border-b-2 border-blue-500'
-                            : 'bg-gray-900 text-gray-500 hover:text-gray-300'
-                            }`}
-                    >
-                        Songs
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('bible')}
-                        className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'bible'
-                            ? 'bg-gray-800 text-blue-400 border-b-2 border-blue-500'
-                            : 'bg-gray-900 text-gray-500 hover:text-gray-300'
-                            }`}
-                    >
-                        Bible
-                    </button>
-                </div>
-
-                {/* Content Area */}
-                <div className="flex-1 overflow-hidden flex flex-col">
-                    {activeTab === 'songs' ? (
-                        <LibraryPanel />
-                    ) : (
-                        <BiblePanel />
-                    )}
-                </div>
+  const [activeTab, setActiveTab] = useState<'songs' | 'bible'>('songs')
+  return (
+    <PanelGroup
+      direction="vertical"
+      autoSaveId="propre-left-sidebar-panels"
+      className="h-full min-h-0 flex flex-col"
+    >
+      <Panel
+        id="left-playlist-panel"
+        defaultSize={55}
+        minSize={25}
+        maxSize={80}
+        className="min-h-0 flex flex-col"
+      >
+        <PlaylistPanel />
+      </Panel>
+      <PanelResizeHandle
+        aria-label="플레이리스트와 Songs·Bible 영역 높이 조절"
+        title="끌어서 플레이리스트와 Songs·Bible 영역 높이 조절"
+        className="workbench-resize workbench-resize-vertical"
+      />
+      <Panel
+        id="left-library-panel"
+        defaultSize={45}
+        minSize={20}
+        className="min-h-0 flex flex-col"
+      >
+        <div className="flex h-full min-h-0 flex-col border-t border-white/5">
+          <nav aria-label="자료 종류" className="shrink-0 px-3 pt-3">
+            <div className="workbench-tabs">
+              <button
+                type="button"
+                aria-pressed={activeTab === 'songs'}
+                onClick={() => setActiveTab('songs')}
+                className="workbench-tab"
+              >
+                <Music2 size={14} />
+                Songs
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeTab === 'bible'}
+                onClick={() => setActiveTab('bible')}
+                className="workbench-tab"
+              >
+                <BookOpen size={14} />
+                Bible
+              </button>
             </div>
+          </nav>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            {activeTab === 'songs' ? <LibraryPanel /> : <BiblePanel />}
+          </div>
         </div>
-    )
+      </Panel>
+    </PanelGroup>
+  )
 }
-
 export default LeftSidebar

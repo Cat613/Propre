@@ -1,42 +1,40 @@
-import React, { useState } from 'react'
+import React, { lazy, Suspense, useState } from 'react'
 import BulkEditModal from './BulkEditModal'
 import ToolbarActions from './ToolbarActions'
+const BibleInsertModal = lazy(() => import('./BibleInsertModal'))
 
 const ControlToolbar: React.FC = () => {
-    const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
-    const [initialBulkText, setInitialBulkText] = useState<string | undefined>(undefined)
+  const [isBulkEditOpen, setIsBulkEditOpen] = useState(false)
+  const [isBibleInsertOpen, setIsBibleInsertOpen] = useState(false)
 
-    const handleOpenBulkEdit = (initialText?: string) => {
-        if (initialText) setInitialBulkText(initialText)
-        setIsBulkEditOpen(true)
-    }
+  const handleOpenBulkEdit = () => setIsBulkEditOpen(true)
 
-    return (
-        <div className="bg-gray-800 border-b border-gray-700 p-2 flex flex-wrap items-center justify-between gap-y-3 gap-x-2 shadow-sm">
-            {/* Left: Toolbar Actions (Clear, Add, AI) */}
-            <ToolbarActions
-                onOpenSettings={() => { }} // Disabled as settings moved
-                onOpenBulkEdit={handleOpenBulkEdit}
-            />
+  return (
+    <div className="shrink-0 px-4 pt-1 pb-2">
+      <ToolbarActions
+        onOpenBulkEdit={handleOpenBulkEdit}
+        onOpenBibleInsert={() => setIsBibleInsertOpen(true)}
+      />
 
-            {/* Right: Audio Player, Stage Toggle, Screen Select, Settings */}
-            <div className="flex flex-wrap items-center gap-3">
-                {/* Simplified Toolbar can hold quick actions here if needed */}
-                <div className="text-[10px] text-gray-500 flex items-center pr-2">
-                    오디오 및 디스플레이 설정은 '설정' 탭을 이용하세요.
-                </div>
-            </div>
-
-            <BulkEditModal
-                isOpen={isBulkEditOpen}
-                onClose={() => {
-                    setIsBulkEditOpen(false)
-                    setInitialBulkText(undefined)
-                }}
-                initialTextOverride={initialBulkText}
-            />
-        </div>
-    )
+      <BulkEditModal
+        isOpen={isBulkEditOpen}
+        onClose={() => {
+          setIsBulkEditOpen(false)
+        }}
+      />
+      {isBibleInsertOpen && (
+        <Suspense
+          fallback={
+            <p role="status" className="text-xs">
+              성경 도구 불러오는 중…
+            </p>
+          }
+        >
+          <BibleInsertModal onClose={() => setIsBibleInsertOpen(false)} />
+        </Suspense>
+      )}
+    </div>
+  )
 }
 
 export default ControlToolbar

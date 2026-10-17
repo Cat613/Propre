@@ -1,24 +1,20 @@
 import { StoreSlice, StageSlice } from '../types'
-
-export const createStageSlice: StoreSlice<StageSlice> = (set) => ({
-    isStageEnabled: false,
-    isOutputEnabled: true,
-
-    toggleStage: async () => {
-        try {
-            const result = await window.ipcRenderer.toggleStage()
-            set({ isStageEnabled: result })
-        } catch (error) {
-            console.error("Failed to toggle stage:", error)
-        }
-    },
-
-    toggleOutput: async () => {
-        try {
-            const result = await window.ipcRenderer.toggleOutput()
-            set({ isOutputEnabled: result })
-        } catch (error) {
-            console.error("Failed to toggle output:", error)
-        }
+export const createStageSlice: StoreSlice<StageSlice> = (set, get) => ({
+  isStageEnabled: false,
+  isOutputEnabled: false,
+  screenHealth: [],
+  toggleStage: async () => {
+    try {
+      set({ isStageEnabled: await window.ipcRenderer.toggleStage() })
+    } catch {
+      get().addToast('모니터 창을 변경하지 못했습니다.', 'error')
     }
+  },
+  toggleOutput: async () => {
+    try {
+      set({ isOutputEnabled: await window.ipcRenderer.toggleOutput() })
+    } catch {
+      get().addToast('송출 창을 변경하지 못했습니다.', 'error')
+    }
+  },
 })

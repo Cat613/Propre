@@ -1,0 +1,16 @@
+# 배포 권리와 외부 자료
+
+이 파일은 권리 확인 상태를 기록하며 새로운 사용 허가를 부여하지 않습니다.
+
+- 코드: 기존 README에는 MIT 표기가 있지만 최초 저작권자와 라이선스 원문을 확인할 증거가 저장소에 없습니다. 소유자의 원문과 권리 확인을 `release-evidence/code-license.json`에 기록한 뒤 공개 배포합니다.
+- 성경: `src/assets/bible/개역개정.json`은 출처·이용 허락 증거가 없는 기존 자료입니다. 번역 저작권과 배포 허용 범위를 확인해 `release-evidence/bible-license.json`에 기록합니다. 개발 작업에서 기존 자료는 보존하며 외부에 게시하지 않습니다.
+- npm 의존성: 잠금 파일의 패키지 버전과 각 패키지의 LICENSE를 확인합니다. 설치용 앱에는 번들에 사용된 패키지의 라이선스 원문도 포함합니다. `electron-builder`의 앱 빌드는 Electron의 LICENSE·Chromium 고지 파일을 함께 만듭니다.
+- Google Gemini: 이미지 분석 버튼을 누른 경우 선택한 이미지와 분석 요청을 Google API로 전송합니다. 모델은 설정에서 선택하며 키·요금·서비스 이용 권한은 사용자 계정의 조건을 따릅니다. 일반 송출에는 네트워크 연결이 필요하지 않습니다.
+
+배포 증거 JSON은 `approved: true`, `approvedBy`, `source`, `reviewedAt`를 포함합니다. 라이선스 파일에는 사용 허락의 범위와 원문/문서 위치를 추가합니다. 권리 근거와 실제 장비 승인 없이 `npm run release`는 실행되지 않습니다. 로컬 검증용 `npm run package:check`는 서명·외부 배포를 수행하지 않습니다.
+
+## AI 찬양 준비의 추가 의존성과 전송
+
+PDF 검증에는 pdf-lib 1.17.1(MIT), 원문 페이지 표시에는 PDF.js/pdfjs-dist 5.4.624(Apache-2.0)를 사용합니다. pdf-lib과 PDF.js 및 pdf-lib의 글꼴·UPNG·pako 라이선스 원문을 `third-party-licenses/`에 보관하고 앱 패키지에도 포함합니다. PDF 파서와 워커는 준비 원본을 표시할 때만 불러오며 일반 송출은 기존 렌더링 경로를 사용합니다.
+
+파일 분석은 작업에서 선택한 Gemini·OpenAI·Claude API 연결을 사용합니다. 파일과 지시는 그 제공자에 전송됩니다. API 키는 운영체제 보호 저장소로 암호화하며 제공자별 계정의 접근 권한·요금·이용 조건을 따릅니다. 원문 PDF와 이미지는 송출 미디어나 발표 내보내기에 자동 포함하지 않습니다.

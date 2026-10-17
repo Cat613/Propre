@@ -1,0 +1,119 @@
+{
+  "recordedAt": "2026-10-06T15:16:55.601897+00:00",
+  "feature": "REQ-037/TASK-032",
+  "actualApiEvaluation": "not_run",
+  "files": {
+    "shared/song-preparation.ts": {
+      "sha256": "eca2590979fc517dc334dee7f110297a726c336c9b3133383d540b040ee04adc",
+      "bytes": 6995
+    },
+    "shared/schema.ts": {
+      "sha256": "3a6b50bce03086dc7218d136bc71f82f5e63412db701bd5a3349798decb6ae77",
+      "bytes": 12087
+    },
+    "shared/contracts.ts": {
+      "sha256": "a90704f5686a1be6d75ce6599fca294ec34390a71315f8d2e4d2319c95ce16c0",
+      "bytes": 5819
+    },
+    "src/types.ts": {
+      "sha256": "e9a59757469538c4c8c8ae441b32f6e11d6174f038d88733e7b91fc45fff17da",
+      "bytes": 8004
+    },
+    "electron/services/repository.ts": {
+      "sha256": "f042173ad4a25973a7c5836132cee72a6869df3a6808a5099ab1fbca8f7f939b",
+      "bytes": 37403
+    },
+    "electron/services/ai-profiles.ts": {
+      "sha256": "c6560c719b08db4408365d7eac34c7c3cf6e608fff30d86fec80a266fe260f2b",
+      "bytes": 4431
+    },
+    "electron/services/song-jobs.ts": {
+      "sha256": "5c99e14807d7995f32a8a76f3b00ecb4111cc64a75df20de7974578e74081386",
+      "bytes": 27820
+    },
+    "electron/services/song-providers.ts": {
+      "sha256": "ea3d35cd3630c130d3ce0c5d60763573b43dda1be97cc2ab54fa7c8e393e8437",
+      "bytes": 7701
+    },
+    "electron/services/song-apply.ts": {
+      "sha256": "9af129a3d15433490c57fcbbd4183e81406ba2354bc407bad3bcbc7d1d038080",
+      "bytes": 5390
+    },
+    "electron/main.ts": {
+      "sha256": "04a49c72d21e345363a14a1836baaeb6d5caee943e9e5d45bd33b40576b9f11f",
+      "bytes": 29516
+    },
+    "electron/preload.ts": {
+      "sha256": "e62f4a3733c43298a57a4f3911d06a2f13df216fbf12b39bdc64ebcc1d3af0a1",
+      "bytes": 4297
+    },
+    "src/components/AIProfilesPanel.tsx": {
+      "sha256": "9b44d59c2185cf5d1ad321283b6baf14fdf286d8a14c4f94ce35d62191be6a56",
+      "bytes": 5420
+    },
+    "src/components/SongPreparationPanel.tsx": {
+      "sha256": "3c13787b436dc3041e90eb74a7c94cda0c3f88360c9b47d278eba2869c71d150",
+      "bytes": 37012
+    },
+    "src/components/SongSourcePreview.tsx": {
+      "sha256": "c2999f21035750de7c14847577890095b76da2bcf92b32fd0f6b8c45021f60fe",
+      "bytes": 2574
+    },
+    "src/components/PlaylistPanel.tsx": {
+      "sha256": "85cd50c513be04550d25825d34d5c66dfdf7ffa349bf98eb433025426c4f5d31",
+      "bytes": 9293
+    },
+    "src/components/SettingsModal.tsx": {
+      "sha256": "ece5e9957d206edef533842ec658ac1431e109a91f3b6da89601c16613d095d3",
+      "bytes": 12343
+    },
+    "src/store/preparation.ts": {
+      "sha256": "c7228b4af0a2431e77dba79b6fbbd8a66cb0d980186e1a4474c3027697fed5e2",
+      "bytes": 15192
+    },
+    "src/store/song-automation.ts": {
+      "sha256": "ae54cd958bc0cd9c3f9e2e7dfc30614140c5195c08a21ba8343154506767078a",
+      "bytes": 958
+    },
+    "src/store/runtime.ts": {
+      "sha256": "2b858ae33dff9c80db2193ab2eaa7c19e2a12b60c6426521e0115da6bf9b7ba2",
+      "bytes": 15517
+    },
+    "src/store/types.ts": {
+      "sha256": "2edafa91ce7a2d0cf54a6b340a820915e1de965c483bd5644edb4f5ff34c7fe8",
+      "bytes": 6014
+    },
+    "src/store/slices/librarySlice.ts": {
+      "sha256": "904d30774e3558a6a48d7bebed2df3636d2a123242cd67a4189c1814d33277e1",
+      "bytes": 9104
+    },
+    "scripts/check-bundle.mjs": {
+      "sha256": "9f9203a3390025c91faa364fcab27a4f9516898793b5c81b801d340b7bdbd50b",
+      "bytes": 1037
+    },
+    "package.json": {
+      "sha256": "d4f7866c91ce29ad9b041e8c167033023f04f584bb75fc40a44391ef40d7aba1",
+      "bytes": 2690
+    },
+    "package-lock.json": {
+      "sha256": "0eb04f7392419d8a38df199d7352a2006e176192d33604621db57ad2caadb603",
+      "bytes": 525251
+    },
+    "tests/song-preparation.test.ts": {
+      "sha256": "681f25620ada34fd5758a6f4fa7f2e65f417128be354ee28c435f2396520407f",
+      "bytes": 9510
+    },
+    "tests/song-jobs.test.ts": {
+      "sha256": "6afb475cc7b0a17ad295da1522d00d96abd6b5b0f4738d08132267fd049ee00e",
+      "bytes": 12587
+    },
+    "tests/song-providers.test.ts": {
+      "sha256": "2447afbe2c0d420c8b0b0d3b20b244ef0fc05644ce929c632af73c322e3fa979",
+      "bytes": 4484
+    },
+    "tests/electron/song-preparation.spec.ts": {
+      "sha256": "b7403911ac057fd52f89252f667d03de1eb19beb680bb3303d5a4bf1b5dc3fa1",
+      "bytes": 14730
+    }
+  }
+}

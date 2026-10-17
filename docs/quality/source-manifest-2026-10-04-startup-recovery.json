@@ -1,0 +1,40 @@
+{
+  "baseCommit": "3f625e3a6c5a78733b35a7cbbc61393e4faddac9",
+  "productVersion": "0.1.0",
+  "date": "2026-10-04",
+  "reason": "Development CSP startup and close recovery",
+  "files": [
+    {
+      "file": "electron/main.ts",
+      "sha256": "4fbfbe9d64ec6ee2168c68cc8e9e87c95d2916a7dcd291835dfb964f8900f2aa"
+    },
+    {
+      "file": "electron/services/windows.ts",
+      "sha256": "060cefc66a5c92889343eca1ee0c6b30822464f30d34a9ea5efe4a867de12128"
+    },
+    {
+      "file": "shared/content-security-policy.ts",
+      "sha256": "5f06e1de897326a4eb48caddd154b5da77494a0fd30beae3ac7af1f83e8d0979"
+    },
+    {
+      "file": "vite.config.ts",
+      "sha256": "ab7cd7da5b2aab2811c2fb33f54cdabc3554575d8bcd37e5d5dec9de6d3ac1ed"
+    },
+    {
+      "file": "tests/windows.test.ts",
+      "sha256": "95bbb40be243526fda598cc872aa8db4c59cc4c74f705cb41313ed71b85e7ddb"
+    },
+    {
+      "file": "tests/content-security-policy.test.ts",
+      "sha256": "dbe56068f7b8245ab79a0b9e7c7b07aee69031b061b037d19a5cecc94a293767"
+    },
+    {
+      "file": "tests/electron/development.spec.ts",
+      "sha256": "a806a1450fb75cd4c8d2eba70e70f18d54384725ac0f224323244ff59fea95e7"
+    }
+  ],
+  "packagedArtifacts": {
+    "app.asar": "13db45797e6e47eb166ba6cc558e61f1bfb953b8e93a3d261b51d20c1bbbb71f",
+    "ProPre": "ca7e3290800255f5018160cff99cf6ecc58eae299c66148de1374a70e2715c83"
+  }
+}
