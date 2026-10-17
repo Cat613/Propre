@@ -743,3 +743,31 @@ test('URL and PDF deletion can be undone by the control button and scoped keyboa
   await page.getByRole('button', { name: '화면 준비', exact: true }).click()
   await expect(page.getByRole('button', { name: '준비 화면 송출', exact: true })).toBeEnabled()
 })
+
+test('transient compositor capture failures recover before web preparation is confirmed', async () => {
+  await app.evaluate(({ app }) => {
+    app.once('web-contents-created', (_event, contents) => {
+      const original = contents.capturePage.bind(contents)
+      let failures = 2
+      contents.capturePage = async (...args) => {
+        if (failures-- > 0) throw new Error('UnknownVizError')
+        return original(...args)
+      }
+    })
+  })
+  const resource = (
+    await page.evaluate(
+      (url) =>
+        window.ipcRenderer.manageOutputResource({ action: 'create-web', name: 'retry', url }),
+      url,
+    )
+  )[0]
+  const prepared = await page.evaluate(
+    (r) => window.ipcRenderer.prepareOutputResource({ resourceId: r.id, revision: r.revision }),
+    resource,
+  )
+  expect(prepared.token).toBeTruthy()
+  expect((await page.evaluate(() => window.ipcRenderer.getExternalOutput())).source.kind).toBe(
+    'slides',
+  )
+})

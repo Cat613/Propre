@@ -68,6 +68,11 @@ test.afterEach(async () => {
 })
 
 test('adds selected verses inside a song, keeps live output, supports undo/redo and persists across restart', async () => {
+  await app.evaluate(({ BrowserWindow }) => {
+    BrowserWindow.getAllWindows()
+      .find((win) => win.webContents.getURL().includes('control-panel'))!
+      .setSize(1024, 768)
+  })
   const original = await draft()
   await page.getByTestId('slide-card').first().click()
   await page.evaluate(async () => {
