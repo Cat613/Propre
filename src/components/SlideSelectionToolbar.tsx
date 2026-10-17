@@ -73,7 +73,7 @@ const SlideSelectionToolbar: React.FC = () => {
   }
 
   return (
-    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-40 bg-gray-900/95 backdrop-blur-md border border-gray-700/80 shadow-2xl rounded-2xl p-2.5 px-5 flex flex-wrap items-center gap-4 text-white transition-all duration-300 max-w-[95%] overflow-x-auto border-t border-t-gray-600/50">
+    <div className="relative shrink-0 max-h-[40%] mx-4 mb-2 z-40 bg-gray-900/95 backdrop-blur-md border border-gray-700/80 shadow-2xl rounded-2xl p-2.5 px-5 flex flex-wrap items-center gap-4 text-white transition-all duration-300 overflow-y-auto border-t border-t-gray-600/50">
       {/* 1. Selection Count & Clear Selection */}
       <div className="flex items-center gap-2 pr-3 border-r border-gray-700/80 flex-shrink-0">
         <span className="flex items-center justify-center bg-blue-600 font-bold text-xs px-2.5 py-1 rounded-full shadow-inner text-white">

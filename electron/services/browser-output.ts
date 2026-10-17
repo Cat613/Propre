@@ -1,4 +1,11 @@
-import { BrowserWindow, WebContentsView, session, screen, type Rectangle } from 'electron'
+import {
+  BrowserWindow,
+  WebContentsView,
+  session,
+  screen,
+  type Rectangle,
+  type WebContents,
+} from 'electron'
 import { randomUUID } from 'node:crypto'
 import { normalizeWebURL, type ExternalOutputStatus } from '../../shared/output-resources'
 export class BrowserOutput {
@@ -157,7 +164,7 @@ export class BrowserOutput {
         throw new Error('웹 준비가 취소되었습니다.')
       // Intercept native upload pickers; the source browser never receives a local file grant.
 
-      const image = await contents.capturePage(undefined, { stayHidden: true, stayAwake: true })
+      const image = await this.captureReadyFrame(contents)
       if (image.isEmpty()) throw new Error('웹페이지 화면을 준비하지 못했습니다.')
       this.ready = true
       this.timer = setInterval(() => void this.capture(), 200)
@@ -167,6 +174,30 @@ export class BrowserOutput {
       throw error
     } finally {
       clearTimeout(timeout)
+    }
+  }
+  private async captureReadyFrame(contents: WebContents) {
+    const load = this.loadGeneration
+    for (let attempt = 0; ; attempt++) {
+      if (
+        contents.isDestroyed() ||
+        contents !== this.view?.webContents ||
+        load !== this.loadGeneration
+      )
+        throw new Error('웹 준비가 취소되었습니다.')
+      try {
+        return await contents.capturePage(undefined, { stayHidden: true, stayAwake: true })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : ''
+        if (
+          attempt >= 7 ||
+          !['UnknownVizError', 'Current display surface not available for capture'].includes(
+            message,
+          )
+        )
+          throw error
+        await new Promise<void>((resolve) => setTimeout(resolve, 100))
+      }
     }
   }
   private notifyStatus() {
@@ -223,10 +254,7 @@ export class BrowserOutput {
     try {
       this.attach(win)
       this.preparation?.hide()
-      const frame = await this.view!.webContents.capturePage(undefined, {
-        stayHidden: true,
-        stayAwake: true,
-      })
+      const frame = await this.captureReadyFrame(this.view!.webContents)
       if (view !== this.view || generation !== this.loadGeneration || this.crashed)
         throw new Error('웹 송출이 취소되었습니다.')
       if (frame.isEmpty()) throw new Error('웹 송출 화면을 확인하지 못했습니다.')

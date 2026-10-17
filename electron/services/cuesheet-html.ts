@@ -34,10 +34,15 @@ export async function paginateCuesheet() {
   const source = document.getElementById('source')!,
     prototype = document.querySelector<HTMLElement>('#prototype .page')!,
     groups = [...source.querySelectorAll<HTMLTableSectionElement>('[data-cue]')]
+  let overflow = false
   let page!: HTMLElement
   let body!: HTMLTableSectionElement
   const pages: HTMLElement[] = []
   const nextPage = () => {
+    if (page) {
+      overflow ||= !fits()
+      page.remove()
+    }
     page = prototype.cloneNode(true) as HTMLElement
     document.body.append(page)
     pages.push(page)
@@ -113,17 +118,15 @@ export async function paginateCuesheet() {
     if (groupIndex % 20 === 0) await new Promise<void>((resolve) => setTimeout(resolve, 0))
     if (pages.length > 4000) throw new Error('page limit')
   }
+  overflow ||= !fits()
   source.remove()
   document.getElementById('prototype')!.remove()
   for (const [index, sheet] of pages.entries())
     sheet.querySelector('[data-page-number]')!.textContent = `${index + 1} / ${pages.length}`
+  document.body.replaceChildren(...pages)
   return {
     pages: pages.length,
-    overflow: pages.some(
-      (sheet) =>
-        sheet.querySelector('table')!.getBoundingClientRect().bottom >
-        sheet.querySelector('.content')!.getBoundingClientRect().bottom,
-    ),
+    overflow,
     font: getComputedStyle(document.body).fontFamily,
   }
 }

@@ -18968,42 +18968,42 @@ function bx(e, t) {
 }
 async function xx() {
 	if (await document.fonts.ready, document.fonts.status !== "loaded" || !document.fonts.check("11pt sans-serif", "예배 큐시트")) throw Error("font unavailable");
-	let e = document.getElementById("source"), t = document.querySelector("#prototype .page"), n = [...e.querySelectorAll("[data-cue]")], r, i, a = [], o = () => {
-		r = t.cloneNode(!0), document.body.append(r), a.push(r), i = r.querySelector("tbody");
-	}, s = () => r.querySelector("table").getBoundingClientRect().bottom <= r.querySelector(".content").getBoundingClientRect().bottom - 1, c = (e) => {
+	let e = document.getElementById("source"), t = document.querySelector("#prototype .page"), n = [...e.querySelectorAll("[data-cue]")], r = !1, i, a, o = [], s = () => {
+		i && (r ||= !c(), i.remove()), i = t.cloneNode(!0), document.body.append(i), o.push(i), a = i.querySelector("tbody");
+	}, c = () => i.querySelector("table").getBoundingClientRect().bottom <= i.querySelector(".content").getBoundingClientRect().bottom - 1, l = (e) => {
 		let t = e.cloneNode(!0);
 		return t.querySelector(".title").textContent += " (계속)", t;
 	};
-	o();
+	s();
 	for (let e = 0; e < n.length; e++) {
-		let t = n[e], r = t.querySelector("[data-primary]"), l = r.cloneNode(!0), u = i.children.length > 0;
-		if (i.append(l), !s() && u && (l.remove(), o(), i.append(l)), !s()) throw Error("primary overflow");
+		let t = n[e], r = t.querySelector("[data-primary]"), i = r.cloneNode(!0), u = a.children.length > 0;
+		if (a.append(i), !c() && u && (i.remove(), s(), a.append(i)), !c()) throw Error("primary overflow");
 		let d = !1;
 		for (let e of t.querySelectorAll("[data-detail]")) {
 			let t = e.querySelector("[data-text]").textContent || "";
 			do {
-				let n = e.cloneNode(!0), a = n.querySelector("[data-text]");
-				if (a.textContent = t, i.append(n), s()) {
+				let n = e.cloneNode(!0), o = n.querySelector("[data-text]");
+				if (o.textContent = t, a.append(n), c()) {
 					d = !0;
 					break;
 				}
 				let u = Array.from(t), f = 0, p = u.length, m = 0;
 				for (; f <= p;) {
 					let e = Math.floor((f + p) / 2);
-					a.textContent = u.slice(0, e).join(""), s() ? (m = e, f = e + 1) : p = e - 1;
+					o.textContent = u.slice(0, e).join(""), c() ? (m = e, f = e + 1) : p = e - 1;
 				}
 				if (m === 0) {
-					if (n.remove(), !d && l.parentElement === i && i.children.length > 1 ? (l.remove(), o(), i.append(l)) : (o(), i.append(c(r))), !s()) throw Error("detail overflow");
-				} else a.textContent = u.slice(0, m).join(""), t = u.slice(m).join(""), d = !0, t && (o(), i.append(c(r)));
+					if (n.remove(), !d && i.parentElement === a && a.children.length > 1 ? (i.remove(), s(), a.append(i)) : (s(), a.append(l(r))), !c()) throw Error("detail overflow");
+				} else o.textContent = u.slice(0, m).join(""), t = u.slice(m).join(""), d = !0, t && (s(), a.append(l(r)));
 			} while (t);
 		}
-		if (e % 20 == 0 && await new Promise((e) => setTimeout(e, 0)), a.length > 4e3) throw Error("page limit");
+		if (e % 20 == 0 && await new Promise((e) => setTimeout(e, 0)), o.length > 4e3) throw Error("page limit");
 	}
-	e.remove(), document.getElementById("prototype").remove();
-	for (let [e, t] of a.entries()) t.querySelector("[data-page-number]").textContent = `${e + 1} / ${a.length}`;
-	return {
-		pages: a.length,
-		overflow: a.some((e) => e.querySelector("table").getBoundingClientRect().bottom > e.querySelector(".content").getBoundingClientRect().bottom),
+	r ||= !c(), e.remove(), document.getElementById("prototype").remove();
+	for (let [e, t] of o.entries()) t.querySelector("[data-page-number]").textContent = `${e + 1} / ${o.length}`;
+	return document.body.replaceChildren(...o), {
+		pages: o.length,
+		overflow: r,
 		font: getComputedStyle(document.body).fontFamily
 	};
 }
@@ -19709,15 +19709,28 @@ var kx = class {
 				enabled: !0,
 				cancel: !0
 			}), r !== this.loadGeneration || a.isDestroyed()) throw Error("웹 준비가 취소되었습니다.");
-			if ((await a.capturePage(void 0, {
-				stayHidden: !0,
-				stayAwake: !0
-			})).isEmpty()) throw Error("웹페이지 화면을 준비하지 못했습니다.");
+			if ((await this.captureReadyFrame(a)).isEmpty()) throw Error("웹페이지 화면을 준비하지 못했습니다.");
 			this.ready = !0, this.timer = setInterval(() => void this.capture(), 200), this.notifyStatus();
 		} catch (e) {
 			throw r === this.loadGeneration && this.reset(), e;
 		} finally {
 			clearTimeout(s);
+		}
+	}
+	async captureReadyFrame(e) {
+		let t = this.loadGeneration;
+		for (let n = 0;; n++) {
+			if (e.isDestroyed() || e !== this.view?.webContents || t !== this.loadGeneration) throw Error("웹 준비가 취소되었습니다.");
+			try {
+				return await e.capturePage(void 0, {
+					stayHidden: !0,
+					stayAwake: !0
+				});
+			} catch (e) {
+				let t = e instanceof Error ? e.message : "";
+				if (n >= 7 || !["UnknownVizError", "Current display surface not available for capture"].includes(t)) throw e;
+				await new Promise((e) => setTimeout(e, 100));
+			}
 		}
 	}
 	notifyStatus() {
@@ -19772,10 +19785,7 @@ var kx = class {
 		this.live = !0;
 		try {
 			this.attach(e), this.preparation?.hide();
-			let r = await this.view.webContents.capturePage(void 0, {
-				stayHidden: !0,
-				stayAwake: !0
-			});
+			let r = await this.captureReadyFrame(this.view.webContents);
 			if (t !== this.view || n !== this.loadGeneration || this.crashed) throw Error("웹 송출이 취소되었습니다.");
 			if (r.isEmpty()) throw Error("웹 송출 화면을 확인하지 못했습니다.");
 		} catch (e) {
