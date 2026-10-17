@@ -80,5 +80,21 @@ export type MusicBridgeState = {
   videoId: string
   listId: string
   bindingId: string
+  pageVideoId?: string
+  pageListId?: string
+  canStart?: boolean
   error?: string
+}
+
+/** Loaded playback and an explicitly startable playlist page are separate observations. */
+export function musicTargetMatches(url: string, state: MusicBridgeState, allowStart = true) {
+  const target = new URL(musicURL(url))
+  if (target.pathname === '/playlist') {
+    const list = target.searchParams.get('list')
+    return (
+      (!!state.videoId && list === state.listId) ||
+      (allowStart && state.canStart === true && list === state.pageListId)
+    )
+  }
+  return !!state.videoId && target.searchParams.get('v') === state.videoId
 }

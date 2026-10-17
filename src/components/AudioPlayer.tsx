@@ -229,7 +229,8 @@ export function AudioStatus({ onOpen }: { onOpen: () => void }) {
     show = usePresentationStore((s) => s.showAudioPlayer)
   const external = useMusicState((s) => s.activeExternal),
     bridge = useMusicState((s) => s.bridge),
-    phase = useMusicState((s) => s.phase)
+    phase = useMusicState((s) => s.phase),
+    busy = useMusicState((s) => s.busy)
   if (!audio && !external && !bridge.stale && !bridge.playing && !show) return null
   return (
     <div className="music-status" aria-label="음악 상태">
@@ -238,7 +239,7 @@ export function AudioStatus({ onOpen }: { onOpen: () => void }) {
       </button>
       <span className="min-w-0 truncate">
         {external
-          ? `${external.title} · ${bridge.stale ? '외부 상태 미확인' : bridge.playing ? '재생 중' : '일시정지'}`
+          ? `${external.title} · ${bridge.stale ? '외부 상태 미확인' : bridge.playing ? '재생 중' : phase === 'starting' ? '재생 확인 중' : phase === 'error' ? '재생 오류' : '일시정지'}`
           : audio
             ? `${audio.name} · ${phase === 'playing' ? '재생 중' : phase === 'error' ? '재생 오류' : '일시정지'}`
             : bridge.playing
@@ -250,7 +251,7 @@ export function AudioStatus({ onOpen }: { onOpen: () => void }) {
           <button
             className="workbench-button"
             onClick={() => void toggleMusic()}
-            disabled={bridge.stale || (!audio && !external && bridge.playing !== true)}
+            disabled={busy || bridge.stale || (!audio && !external && bridge.playing !== true)}
           >
             {audio?.playing || bridge.playing ? '일시정지' : '이어 재생'}
           </button>

@@ -166,12 +166,15 @@ describe('native music bridge', () => {
     const config = JSON.parse(await fs.readFile(path.join(dir, 'music-host.json'), 'utf8'))
     const socket = net.createConnection(config.socket)
     let pending = ''
+    const commands: any[] = []
     const observation = {
       bindingId: 'binding-a',
       title: '합성 곡',
       videoId: 'abc',
       listId: 'PLabc',
       playing: false,
+      pageListId: 'PLabc',
+      canStart: true,
     }
     socket.on('data', (data) => {
       pending += data.toString()
@@ -182,7 +185,12 @@ describe('native music bridge', () => {
         if (msg.type === 'ready')
           socket.write(JSON.stringify({ type: 'state', state: observation }) + '\n')
         else {
+          commands.push(msg)
           observation.playing = msg.action === 'play'
+          if (msg.action === 'play' && new URL(msg.url).pathname === '/playlist') {
+            observation.videoId = 'abc'
+            observation.listId = 'PLabc'
+          }
           socket.write(
             JSON.stringify({ type: 'state', requestId: msg.requestId, state: observation }) + '\n',
           )
@@ -204,6 +212,17 @@ describe('native music bridge', () => {
       expect((await bridge.command('play', 'https://music.youtube.com/watch?v=abc')).playing).toBe(
         true,
       )
+      await bridge.command('pause')
+      observation.videoId = ''
+      observation.listId = ''
+      await bridge.command('status')
+      expect(
+        await bridge.command('play', 'https://music.youtube.com/playlist?list=PLabc'),
+      ).toMatchObject({ playing: true, videoId: 'abc', listId: 'PLabc' })
+      expect(commands.filter((x) => x.action === 'play').at(-1)).toMatchObject({
+        url: 'https://music.youtube.com/playlist?list=PLabc',
+        bindingId: 'binding-a',
+      })
       socket.destroy()
       await new Promise((r) => setTimeout(r, 10))
       expect(bridge.snapshot()).toMatchObject({ connected: false, stale: true, playing: null })
@@ -214,5 +233,106 @@ describe('native music bridge', () => {
       socket.destroy()
       bridge.close()
     }
+  })
+})
+
+describe('automatic Chrome preparation', () => {
+  it('accepts only the current one-time request and target, then waits for the actual bound state', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'pb-auto-'))
+    dirs.push(dir)
+    const bridge = new MusicBridge(dir, () => {})
+    await bridge.start()
+    const config = JSON.parse(await fs.readFile(path.join(dir, 'music-host.json'), 'utf8'))
+    let socket: net.Socket | undefined
+    const approvals: boolean[] = []
+    const commands: string[] = []
+    let requestId = ''
+    const candidate = {
+      bindingId: 'new-document',
+      title: '',
+      videoId: '',
+      listId: '',
+      pageListId: 'PLnew',
+      playing: false,
+    }
+    const send = (value: unknown) => socket!.write(JSON.stringify(value) + '\n')
+    try {
+      const state = await bridge.prepareChrome(
+        'https://music.youtube.com/playlist?list=PLnew',
+        async (url) => {
+          requestId = new URL(url).hash.slice('#propre-connect='.length)
+          expect(requestId).toMatch(/^[a-f0-9]{64}$/)
+          socket = net.createConnection(config.socket)
+          let buffer = ''
+          socket.on('connect', () => send({ token: config.token }))
+          socket.on('data', (data) => {
+            buffer += data.toString()
+            let n: number
+            while ((n = buffer.indexOf('\n')) >= 0) {
+              const msg = JSON.parse(buffer.slice(0, n))
+              buffer = buffer.slice(n + 1)
+              if (msg.type === 'ready')
+                send({ type: 'prepare-tab', requestId: 'wrong', state: candidate })
+              else if (msg.type === 'prepare-approved') {
+                approvals.push(msg.approved)
+                if (approvals.length === 1)
+                  send({
+                    type: 'prepare-tab',
+                    requestId,
+                    state: { ...candidate, pageListId: 'other' },
+                  })
+                else if (approvals.length === 2)
+                  send({ type: 'prepare-tab', requestId, state: candidate })
+                else if (msg.approved) {
+                  send({ type: 'state', state: { ...candidate, canStart: false } })
+                  setTimeout(
+                    () => send({ type: 'state', state: { ...candidate, canStart: true } }),
+                    20,
+                  )
+                }
+              } else commands.push(msg.action)
+            }
+          })
+        },
+      )
+      expect(approvals).toEqual([false, false, true])
+      expect(state).toMatchObject({
+        connected: true,
+        bindingId: 'new-document',
+        playing: false,
+        canStart: true,
+      })
+      expect(commands).not.toContain('play')
+      send({ type: 'prepare-tab', requestId, state: candidate })
+      for (let i = 0; i < 20 && approvals.length < 4; i++)
+        await new Promise((r) => setTimeout(r, 5))
+      expect(approvals[3]).toBe(false)
+    } finally {
+      socket?.destroy()
+      bridge.close()
+    }
+  })
+  it('reports browser launch errors and cancels pending handoffs on explicit stop', async () => {
+    const bridge = new MusicBridge('/unused', () => {})
+    await expect(
+      bridge.prepareChrome('https://music.youtube.com/playlist?list=PLnew', async () => {
+        throw Error('Chrome launch failed')
+      }),
+    ).rejects.toThrow('Chrome launch failed')
+    let opened!: () => void
+    const opening = new Promise<void>((resolve) => {
+      opened = resolve
+    })
+    const preparing = bridge.prepareChrome(
+      'https://music.youtube.com/playlist?list=PLnew',
+      async () => {
+        opened()
+      },
+    )
+    const failed = expect(preparing).rejects.toThrow('취소')
+    await opening
+    await bridge.command('pause')
+    await failed
+    bridge.close()
   })
 })

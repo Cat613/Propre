@@ -5,7 +5,7 @@ import { LocalMusicSchema } from '../../shared/music'
 import { useEffect, useState } from 'react'
 import DeletedMaterialsDialog from './DeletedMaterialsDialog'
 import OutputResourcesPanel from './OutputResourcesPanel'
-import { Image, Plus } from 'lucide-react'
+import { Image, Plus, Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { usePresentationStore } from '../store'
@@ -87,23 +87,30 @@ const MediaBin: React.FC<{ musicOpenRequest?: number }> = ({ musicOpenRequest = 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {showTrash && <DeletedMaterialsDialog kind="media" onClose={() => setShowTrash(false)} />}
-      <div className="flex shrink-0 items-center justify-between gap-2 px-4 pt-4 pb-3">
+      <div className="media-library-header">
         <div>
           <h2 className="workbench-heading">송출 자료</h2>
           <p className="mt-1 text-[10px] text-gray-500">이미지·영상·오디오 {mediaBin.length}개</p>
         </div>
-        <button className="workbench-button" onClick={() => setShowTrash(true)}>
-          미디어 휴지통
-        </button>
-        <button
-          type="button"
-          onClick={() => void handleImport()}
-          className="workbench-button"
-          aria-label="미디어 가져오기"
-        >
-          <Plus size={13} />
-          가져오기
-        </button>
+        <div className="media-library-actions">
+          <button
+            className="workbench-button"
+            aria-label="미디어 휴지통"
+            title="미디어 휴지통"
+            onClick={() => setShowTrash(true)}
+          >
+            <Trash2 size={13} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleImport()}
+            className="workbench-button"
+            aria-label="미디어 가져오기"
+          >
+            <Plus size={13} />
+            가져오기
+          </button>
+        </div>
       </div>
       <div className="media-filters" aria-label="미디어 종류">
         {[
@@ -131,7 +138,10 @@ const MediaBin: React.FC<{ musicOpenRequest?: number }> = ({ musicOpenRequest = 
         </div>
       )}
       {musicOpened && (
-        <div hidden={filter !== 'music'}>
+        <div
+          className="min-h-0 flex-1 overflow-y-auto workbench-scroll"
+          hidden={filter !== 'music'}
+        >
           <Suspense fallback={<p className="p-3 text-xs">음악 도구 불러오는 중…</p>}>
             <MusicPanel />
           </Suspense>

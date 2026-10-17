@@ -1,4 +1,4 @@
-import type { MusicItem } from '../../shared/music'
+import { musicTargetMatches, type MusicItem } from '../../shared/music'
 import { usePresentationStore } from '../store'
 import { useMusicState, setMusicBridge } from './state'
 export function stopMusic() {
@@ -58,16 +58,17 @@ export async function playPrepared(fallback = false, manuallyStopped = false) {
         throw new Error('기존 소리 중단을 확인하지 못했습니다. 브라우저에서 음악을 멈춰주세요.')
       useMusicState.setState({ activeExternal: null, phase: 'starting' })
     } else {
-      const bridge = await window.ipcRenderer.musicBridge('status')
-      if (!bridge.connected || bridge.stale)
-        throw new Error('유튜브 뮤직 탭을 연결하고 대상을 확인해주세요.')
-      const url = new URL(item.source.url)
-      if (
-        url.pathname === '/playlist'
-          ? url.searchParams.get('list') !== bridge.listId
-          : url.searchParams.get('v') !== bridge.videoId
-      )
-        throw new Error('브라우저에서 재생할 곡·목록을 먼저 준비해주세요.')
+      let bridge = await window.ipcRenderer.musicBridge('status')
+      if (token !== useMusicState.getState().request) return
+      if (!bridge.connected || bridge.stale || !musicTargetMatches(item.source.url, bridge)) {
+        useMusicState.setState({ message: 'Chrome에서 음악을 연결하는 중입니다…' })
+        bridge = await window.ipcRenderer.prepareMusicURL(item.source.url)
+        if (token !== useMusicState.getState().request) return
+        setMusicBridge(bridge)
+      }
+      if (!bridge.connected || bridge.stale || !musicTargetMatches(item.source.url, bridge))
+        throw new Error('음악을 연결하지 못했습니다. 다시 재생하거나 연결 도움말을 확인해주세요.')
+      useMusicState.setState({ message: '음악을 불러오는 중입니다…' })
       await window.ipcRenderer.musicBridge('pause')
       if (token !== useMusicState.getState().request) return
       const external = await window.ipcRenderer.getExternalOutput()
@@ -89,17 +90,24 @@ export async function playPrepared(fallback = false, manuallyStopped = false) {
         return
       }
       setMusicBridge(result, 'playing')
+      useMusicState.setState({ message: '' })
     }
   } catch (e) {
+    if (token !== useMusicState.getState().request) return
     useMusicState.setState({
-      message: e instanceof Error ? e.message : '음악을 재생하지 못했습니다.',
+      phase: 'error',
+      message:
+        e instanceof Error
+          ? e.message.replace(/^Error invoking remote method '[^']+': (?:Error: )?/, '')
+          : '음악을 재생하지 못했습니다.',
     })
   } finally {
     if (token === useMusicState.getState().request) useMusicState.setState({ busy: false })
   }
 }
 export async function toggleMusic() {
-  useMusicState.setState((s) => ({ request: s.request + 1, busy: false }))
+  if (useMusicState.getState().busy) return
+  useMusicState.setState((s) => ({ request: s.request + 1, busy: false, message: '' }))
   const music = useMusicState.getState()
   if (
     music.activeExternal ||
@@ -118,6 +126,7 @@ export async function toggleMusic() {
       }
     } catch (e) {
       useMusicState.setState({
+        phase: 'error',
         message: e instanceof Error ? e.message : '브라우저 연결을 확인해주세요.',
       })
     }
@@ -182,12 +191,27 @@ export async function prepareMusic(item: MusicItem, setlistId: string) {
       message:
         item.source.kind === 'local'
           ? '파일 확인됨 · 아직 재생하지 않음'
-          : '링크 준비됨 · 브라우저에서 재생 대상을 확인해주세요.',
+          : '음악 선택됨 · 재생을 누르면 시작합니다.',
     })
+    return true
   } catch (e) {
     if (token === useMusicState.getState().preparationRequest)
       useMusicState.setState({
         message: e instanceof Error ? e.message : '음악 준비에 실패했습니다.',
       })
+  }
+}
+
+/** Explicit card play combines silent validation, target connection and playback. */
+export async function playMusic(item: MusicItem, setlistId: string) {
+  if (useMusicState.getState().busy) return
+  const token = useMusicState.getState().request + 1
+  useMusicState.setState({ request: token, busy: true, message: '' })
+  try {
+    const ready = await prepareMusic(item, setlistId)
+    if (!ready || token !== useMusicState.getState().request) return
+    await playPrepared()
+  } finally {
+    if (token === useMusicState.getState().request) useMusicState.setState({ busy: false })
   }
 }

@@ -115,9 +115,7 @@ test('preparation is silent, changing tabs preserves one engine, and F2 works in
   await start()
   const source = await page.locator('[data-music-engine]').getAttribute('src')
   await page.getByRole('button', { name: '헌금 반주 음악 준비', exact: true }).click()
-  await expect(
-    page.getByText('다음 준비: 헌금 반주 · 아직 재생하지 않음', { exact: true }),
-  ).toBeVisible()
+  await expect(page.getByText('다음 준비: 헌금 반주', { exact: true })).toBeVisible()
   expect(await page.locator('[data-music-engine]').getAttribute('src')).toBe(source)
   await page.getByRole('button', { name: '스타일', exact: true }).click()
   await expect
@@ -132,6 +130,7 @@ test('preparation is silent, changing tabs preserves one engine, and F2 works in
 })
 test('fades pause at current position and restart restores the configured segment', async () => {
   await start()
+  await page.getByText('재생 설정', { exact: true }).click()
   await page.getByRole('button', { name: '0.5초간 줄여 멈춤', exact: true }).click()
   await expect
     .poll(() => page.locator('[data-music-engine]').evaluate((el: HTMLAudioElement) => el.paused))
@@ -149,18 +148,18 @@ test('fades pause at current position and restart restores the configured segmen
     .poll(() => page.locator('[data-music-engine]').evaluate((el: HTMLAudioElement) => el.volume))
     .toBe(0.5)
 })
-test('unconnected YouTube cannot start, prepared selection survives inspector tabs, settings persist without autoplay', async () => {
+test('unconnected YouTube offers automatic playback, prepared selection survives inspector tabs, and reload stays silent', async () => {
   await page.getByRole('button', { name: '예배 후 재생목록 음악 준비', exact: true }).click()
-  await expect(page.getByRole('button', { name: '준비한 음악 재생', exact: true })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '준비한 음악 재생', exact: true })).toBeEnabled()
   await expect(
-    page.getByText('유튜브 뮤직 탭을 연결하고 재생 대상을 확인해주세요.', { exact: true }),
+    page.getByText('재생을 누르면 Chrome 연결과 곡 준비를 자동으로 처리합니다.', {
+      exact: true,
+    }),
   ).toBeVisible()
   await expect(page.locator('[data-music-engine]')).toHaveCount(0)
   await page.getByRole('button', { name: '스타일', exact: true }).click()
   await page.getByRole('button', { name: '미디어', exact: true }).click()
-  await expect(
-    page.getByText('다음 준비: 예배 후 재생목록 · 아직 재생하지 않음', { exact: true }),
-  ).toBeVisible()
+  await expect(page.getByText('다음 준비: 예배 후 재생목록', { exact: true })).toBeVisible()
   await app.close()
   await launch()
   await expect(page.locator('[data-music-engine]')).toHaveCount(0)
@@ -213,6 +212,7 @@ test('preview belongs to central command area and media has the right column at 
 
 test('deleting active music preserves playback and undo restores only that item after other edits', async () => {
   await start()
+  await page.getByLabel('기도 반주 더 보기', { exact: true }).click()
   await page.getByRole('button', { name: '기도 반주 음악 삭제', exact: true }).click()
   await expect(page.getByRole('button', { name: '기도 반주 음악 준비', exact: true })).toHaveCount(
     0,
@@ -220,6 +220,7 @@ test('deleting active music preserves playback and undo restores only that item 
   await expect
     .poll(() => page.locator('[data-music-engine]').evaluate((el: HTMLAudioElement) => el.paused))
     .toBe(false)
+  await page.getByLabel('헌금 반주 더 보기', { exact: true }).click()
   await page.getByRole('button', { name: '헌금 반주 음악 설정', exact: true }).click()
   await page.getByRole('textbox', { name: '음악 이름', exact: true }).fill('수정한 헌금 반주')
   await page.getByRole('button', { name: '음악 저장', exact: true }).click()
@@ -228,10 +229,113 @@ test('deleting active music preserves playback and undo restores only that item 
   await expect(
     page.getByRole('button', { name: '수정한 헌금 반주 음악 준비', exact: true }),
   ).toBeVisible()
+  await page.getByLabel('수정한 헌금 반주 더 보기', { exact: true }).click()
   await page.getByRole('button', { name: '수정한 헌금 반주 음악 설정', exact: true }).click()
   const input = page.getByRole('textbox', { name: '음악 이름', exact: true })
   await input.fill('입력 중인 음악 이름')
   await input.press('F2')
   await expect(page.locator('[data-music-engine]')).toHaveCount(0)
   await expect(input).toHaveValue('입력 중인 음악 이름')
+})
+
+test('a music card plays in one click and puts secondary actions behind more', async () => {
+  await expect(page.locator('[data-music-engine]')).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '기도 반주 음악 설정', exact: true })).toBeHidden()
+  await page.getByRole('button', { name: '기도 반주 재생', exact: true }).click()
+  await expect
+    .poll(() =>
+      page
+        .locator('[data-music-engine]')
+        .evaluate((el: HTMLAudioElement) => !el.paused && el.currentTime >= 1),
+    )
+    .toBe(true)
+  await expect(page.getByRole('button', { name: '준비한 음악 재생', exact: true })).toHaveCount(0)
+  await page.getByLabel('기도 반주 더 보기', { exact: true }).click()
+  await expect(page.getByRole('button', { name: '기도 반주 음악 설정', exact: true })).toBeVisible()
+})
+
+test('player and library separate current playback from a silent next selection', async () => {
+  await page.getByRole('button', { name: '기도 반주 재생', exact: true }).click()
+  const player = page.getByRole('region', { name: '현재 음악', exact: true })
+  await expect(player.getByRole('heading', { name: '기도 반주', exact: true })).toBeVisible()
+  await expect(player.getByRole('button', { name: '일시정지', exact: true })).toBeVisible()
+  await player.getByRole('button', { name: '일시정지', exact: true }).click()
+  await expect(player.getByRole('status')).toHaveText('일시정지')
+  await page
+    .locator('[data-music-engine]')
+    .evaluate((el) => el.setAttribute('data-retained', 'yes'))
+  await page.getByRole('button', { name: '기도 반주 재생', exact: true }).click()
+  await expect(page.locator('[data-music-engine]')).toHaveAttribute('data-retained', 'yes')
+  await expect(player.getByRole('button', { name: '일시정지', exact: true })).toBeVisible()
+  await player.getByRole('button', { name: '일시정지', exact: true }).click()
+  await page.getByRole('button', { name: '헌금 반주 음악 준비', exact: true }).click()
+  await expect(player.getByRole('heading', { name: '기도 반주', exact: true })).toBeVisible()
+  const next = page
+    .locator('.music-list-item')
+    .filter({ has: page.getByRole('button', { name: '헌금 반주 음악 준비', exact: true }) })
+  await expect(next.locator('.music-item-state')).toHaveCount(0)
+  await page.getByLabel('음악 추가', { exact: true }).click()
+  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '유튜브 뮤직 링크', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('button', { name: '오디오 선택', exact: true })).toBeHidden()
+  await expect(page.getByLabel('음악 추가', { exact: true })).toBeFocused()
+})
+test('long Korean titles remain compact in both themes and narrow side panels', async () => {
+  await page.evaluate(async () => {
+    const state = await window.ipcRenderer.bootstrap()
+    const list = state.setlists.find((x) => x.id === state.activeSetlistId)!
+    await window.ipcRenderer.saveMusic({
+      setlistId: list.id,
+      expectedRevision: list.revision,
+      items: list.music!.map((item, index) =>
+        index === 0
+          ? {
+              ...item,
+              revision: item.revision + 1,
+              title:
+                '길고 긴 예배 찬양 제목과 함께하는 기도 반주 모음집 그리고 다음 예배를 위한 음악',
+            }
+          : item,
+      ),
+    })
+  })
+  await page.reload()
+  await page.locator('.media-filters').getByRole('button', { name: '음악', exact: true }).click()
+  await page.locator('.music-item-play').first().click()
+  await expect(
+    page
+      .getByRole('region', { name: '현재 음악', exact: true })
+      .getByRole('button', { name: '일시정지', exact: true }),
+  ).toBeVisible()
+  for (const width of [1280, 1920]) {
+    await app.evaluate(
+      ({ BrowserWindow }, width) =>
+        BrowserWindow.getAllWindows()
+          .find((w) => w.webContents.getURL().includes('control-panel'))!
+          .setSize(width, 900),
+      width,
+    )
+    for (const theme of ['light', 'dark']) {
+      await page.locator('[data-control-root]').evaluate((el, theme) => {
+        ;(el as HTMLElement).dataset.theme = theme
+      }, theme)
+      const layout = await page.locator('.music-panel').evaluate((el) => ({
+        fits: el.scrollWidth <= el.clientWidth,
+        rows: Array.from(el.querySelectorAll('.music-list-item')).map(
+          (row) => row.getBoundingClientRect().height,
+        ),
+      }))
+      expect(layout.fits).toBe(true)
+      expect(layout.rows.every((height) => height <= 84)).toBe(true)
+      await page.screenshot({
+        path: test.info().outputPath(`music-redesign-${theme}-${width}.png`),
+        animations: 'disabled',
+      })
+      await page.locator('.music-panel').screenshot({
+        path: test.info().outputPath(`music-panel-${theme}-${width}.png`),
+        animations: 'disabled',
+      })
+    }
+  }
 })
