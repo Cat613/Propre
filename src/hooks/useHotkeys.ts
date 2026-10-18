@@ -54,11 +54,16 @@ export const useHotkeys = () => {
         return
       }
 
+      const interactive = (e.target as HTMLElement)?.closest(
+        'button, summary, a[href], [role="button"], [role="menuitem"], [role="tab"], [role="slider"]',
+      )
+      const arrow = ['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key)
+      // Sortable slide cards have role="button", but their arrows navigate slides.
+      // The nearest control still owns its keys (including buttons inside a card).
       if (
-        [' ', 'ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(e.key) &&
-        (e.target as HTMLElement)?.closest(
-          'button, summary, a[href], [role="button"], [role="menuitem"], [role="tab"], [role="slider"]',
-        )
+        (e.key === ' ' || arrow) &&
+        interactive &&
+        !(arrow && interactive.hasAttribute('data-slide-id'))
       )
         return
 
