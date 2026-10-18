@@ -112,6 +112,36 @@ test('button Space stays local; keyboard song selection and reordering preserve 
   await expect(page.getByTestId('slide-card').first()).not.toHaveAttribute('data-live', 'true')
 })
 
+test('arrow keys navigate a clicked slide card while nested controls and editors keep their keys', async () => {
+  await page.getByTestId('playlist-item').first().click()
+  const cards = page.getByTestId('slide-card')
+  await cards.first().click()
+  await expect(cards.first()).toBeFocused()
+  await expect(cards.first()).toHaveAttribute('data-live', 'true')
+  for (const [key, index] of [
+    ['ArrowRight', 1],
+    ['ArrowDown', 2],
+    ['ArrowLeft', 1],
+    ['ArrowUp', 0],
+  ] as const) {
+    await page.keyboard.press(key)
+    await expect(cards.nth(index)).toHaveAttribute('data-live', 'true')
+  }
+  await page.keyboard.press('ArrowLeft')
+  await expect(cards.first()).toHaveAttribute('data-live', 'true')
+  const button = cards.first().getByRole('button').first()
+  await button.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(cards.first()).toHaveAttribute('data-live', 'true')
+  await cards.first().focus()
+  await page.keyboard.press('Enter')
+  const editor = cards.first().getByRole('textbox')
+  await expect(editor).toBeFocused()
+  await editor.press('ArrowRight')
+  await expect(cards.first()).toHaveAttribute('data-live', 'true')
+  await editor.press('Escape')
+})
+
 test('late PDF preparation cannot send a page that differs from the current input', async () => {
   const r = await addPDF()
   await page.reload()
