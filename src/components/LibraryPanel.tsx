@@ -155,7 +155,7 @@ const LibraryPanel: React.FC = () => {
               </button>
 
               {fileMenuOpen && (
-                <div className="absolute right-0 mt-1 w-48 bg-[#172131] border border-white/10 rounded-xl shadow-2xl z-50 p-1">
+                <div className="absolute right-0 mt-1 w-48 bg-[var(--wb-raised)] border border-[var(--wb-line)] rounded-xl shadow-2xl z-50 p-1">
                   <button
                     onClick={() => {
                       setFileMenuOpen(false)
